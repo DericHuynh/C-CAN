@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+build/
+dist/
+
+# Local app data (user-created projects + app database — never commit)
+data/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# DevLens local config
+.devlens/
+
+# Logs & OS cruft
+*.log
+.DS_Store
+
+.generated/
