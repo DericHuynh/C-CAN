@@ -69,7 +69,11 @@ and every operation is an action shared by chat, UI, HTTP, MCP, A2A, and CLI.
   `orRequireds`, old width shapes, multiply/divide arrays, `sfxId` split, color
   objects → hex, old border-radius ×10, …). Keep the format forward-compatible
   (extra keys are preserved). Verify changes against the 17 MB example with
-  `pnpm script roundtrip-check` and `pnpm script e2e-import-check`.
+  `pnpm script roundtrip-check` and `pnpm script e2e-import-check`. The example's
+  aggregate shape is pinned by `shared/cyoa-example.spec.ts` (generated — run
+  `pnpm script generate-example-tests` after changing `examples/project.json`);
+  `pnpm script aggregate-json-stats` prints a context-safe summary that skips
+  embedded image payloads.
 
 ## Actions
 

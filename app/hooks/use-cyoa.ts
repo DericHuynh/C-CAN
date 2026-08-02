@@ -342,24 +342,27 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
 
   const toggleChoice = useCallback(
     (choice: Choice, row: Row) => {
-      const entry = state.activated.get(choice.id);
-      const isActive = entry !== undefined && entry.multiple !== 0;
-      if (isActive) {
-        withSelectionDelay(choice, false, () => {
-          playSfx(choice, false);
-          setState((prev) => deselectProcess(prev, choice, row, "single"));
-        });
-        return;
-      }
       if (choice.isSelectableMultiple) {
         if (!choice.allowSelectByClick) {
           // Counter-only choices ignore plain card clicks.
           return;
         }
-        // Card click increments the counter once (allowSelectByClick).
+        // Card click increments the counter once (the original viewer's
+        // `activateObject` always runs `selectedOneMore` for multi-select
+        // choices; use the − control to deselect).
         withSelectionDelay(choice, true, () => {
           playSfx(choice, true);
           setState((prev) => selectProcess(prev, choice, row, "more"));
+        });
+        return;
+      }
+      // Single-select choices are stored as `{ multiple: 0 }`, so presence in
+      // the activated map (not the count) is what makes them active.
+      const isActive = state.activated.has(choice.id);
+      if (isActive) {
+        withSelectionDelay(choice, false, () => {
+          playSfx(choice, false);
+          setState((prev) => deselectProcess(prev, choice, row, "single"));
         });
         return;
       }

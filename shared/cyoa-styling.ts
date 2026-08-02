@@ -63,8 +63,14 @@ function groupDesignGroupStyling(
 }
 
 /**
- * Resolve a styling key for a row/choice with the full cascade:
- * private styling -> object design groups -> groups' design groups -> app defaults.
+ * Resolve the styling object for a row/choice with the full cascade:
+ * private styling -> object/row design groups -> groups' design groups -> app
+ * defaults.
+ *
+ * `prop` is the private-styling flag that gates each section (e.g.
+ * `privateObjectIsOn`, `privateFilterIsOn`, `privateTextIsOn`, …) — the same
+ * contract as the original ICCPlus `getStyling`, so design-group styling is
+ * only consulted when that design group actually opts into the section.
  */
 export function getStyling(
   prop: string,

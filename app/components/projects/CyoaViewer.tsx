@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   IconBackpack,
   IconCircleCheck,
@@ -39,7 +39,6 @@ import {
   checkActivated,
   checkPointEnable,
   computeScoreNet,
-  effectiveTemplate,
   effectiveWidth,
   encodeBuildCode,
   getSearchables,
@@ -62,15 +61,22 @@ import type {
   Row,
   SelectableAddon,
 } from "@shared/types";
+import { getStyling } from "@shared/cyoa-styling";
 
 import {
   choiceSurfaceStyle,
   choiceWidthClass,
   formatPointValue,
+  imageStyle,
   isChoiceShown,
+  renderHtml,
+  rowButtonStyle,
+  rowSurfaceStyle,
   rowWidthClass,
+  sanitizeHtml,
   templateClasses,
   textStyle,
+  viewerTemplate,
 } from "./cyoa-styles";
 import { sortedChoices } from "./project-utils";
 
@@ -631,7 +637,7 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
 
   return (
     <div
-      className={cn("space-y-8", className)}
+      className={cn("cyoa-viewer space-y-8", className)}
       style={{
         ...(app.useVW ? { fontSize: "0.835vw" } : undefined),
         backgroundColor: viewerBackgroundColor,
@@ -1043,64 +1049,160 @@ function RowView({
   const textStyleObj = textStyle("rowText", cyoa.idx, cyoa.state, row);
   const hidden = hiddenContentsFor(row, cyoa.idx, cyoa.state);
   const rowTextRemoved = hidden.size > 0;
+  const tpl = viewerTemplate(row, true, cyoa.app, viewport, cyoa.idx, cyoa.state);
+  const rowImageStyle = imageStyle("rowImage", cyoa.idx, cyoa.state, row);
+  const rowSurface = rowSurfaceStyle(row, cyoa.idx, cyoa.state);
+
+  // Row card surface (original `AppRow.rowBackground`): the header box that
+  // wraps the image/button, title and text carries the row's background,
+  // border, radius and shadow; the outer section holds the body margins.
+  const headerStyle = {
+    backgroundColor: rowSurface.backgroundColor || undefined,
+    backgroundImage: rowSurface.gradient
+      ? rowSurface.gradient
+      : rowSurface.backgroundImage
+        ? `url(${rowSurface.backgroundImage})`
+        : undefined,
+    backgroundRepeat: rowSurface.backgroundRepeat || undefined,
+    backgroundSize: rowSurface.backgroundSize || undefined,
+    border: rowSurface.borderColor
+      ? `${rowSurface.borderWidth} ${rowSurface.borderStyle} ${rowSurface.borderColor}`
+      : undefined,
+    borderRadius: rowSurface.borderRadius || undefined,
+    overflow: rowSurface.overflow || undefined,
+    boxShadow: rowSurface.boxShadow || undefined,
+    filter: rowSurface.filter || undefined,
+    marginBottom: rowSurface.marginBottom || undefined,
+    ...(rowSurface.borderImage
+      ? {
+          borderImage: `url('${rowSurface.borderImage}') 0 0 0 0 / ${rowSurface.borderWidth} stretch`,
+        }
+      : {}),
+  } as React.CSSProperties;
+
+  const titleEl = row.title ? (
+    <h2
+      className="text-lg font-semibold tracking-tight"
+      style={titleStyle}
+      dangerouslySetInnerHTML={renderHtml(row.title, cyoa.idx, cyoa.state)}
+    />
+  ) : null;
+  const textEl = row.titleText && !rowTextRemoved ? (
+    <p
+      className="text-sm leading-6 text-muted-foreground"
+      style={textStyleObj}
+      dangerouslySetInnerHTML={renderHtml(row.titleText, cyoa.idx, cyoa.state)}
+    />
+  ) : null;
+  // Row buttons render in the image slot (original `isButtonRow` replaces the
+  // row image); otherwise the row image spans the full width at its natural
+  // height, only constrained when the document opts into a fixed object-fit.
+  const imageEl = row.isButtonRow ? (
+    <RowButton cyoa={cyoa} row={row} />
+  ) : row.image ? (
+    <img
+      src={row.image}
+      alt=""
+      className="w-full"
+      style={rowImageStyle}
+    />
+  ) : null;
+
+  if (imageEl || titleEl || textEl) {
+    if (tpl === 2 || tpl === 3) {
+      // Side-by-side row templates: 2 = image right, 3 = image left.
+      const styling = getStyling("privateRowImageIsOn", cyoa.idx, cyoa.state, row) as Record<
+        string,
+        unknown
+      >;
+      const imageBox =
+        typeof styling.rowImageBoxWidth === "number" ? styling.rowImageBoxWidth : 50;
+      const textBox = 100 - imageBox;
+      const imageCol = (
+        <div className="min-w-0" style={{ width: `${imageBox}%` }}>
+          {imageEl}
+        </div>
+      );
+      const textCol = (
+        <div className="min-w-0 space-y-1" style={{ width: `${textBox}%` }}>
+          {titleEl}
+          {textEl}
+        </div>
+      );
+      return (
+        <section className="space-y-3" style={{ margin: rowSurface.margin, marginLeft: rowSurface.marginLeft, marginRight: rowSurface.marginRight }}>
+          <header className="flex items-start gap-3" style={headerStyle}>
+            {tpl === 2 ? (
+              <>
+                {textCol}
+                {imageCol}
+              </>
+            ) : (
+              <>
+                {imageCol}
+                {textCol}
+              </>
+            )}
+          </header>
+          {rowContent(cyoa, row, viewport)}
+        </section>
+      );
+    }
+    // Stacked templates: 1 = image top, 4 = image bottom, 5 = image below title.
+    const ordered =
+      tpl === 4
+        ? [titleEl, textEl, imageEl]
+        : tpl === 5
+          ? [titleEl, imageEl, textEl]
+          : [imageEl, titleEl, textEl];
+    const orderedWithKeys = ordered
+      .filter((el) => el !== null)
+      .map((el, i) => <Fragment key={i}>{el}</Fragment>);
+    return (
+      <section className="space-y-3" style={{ margin: rowSurface.margin, marginLeft: rowSurface.marginLeft, marginRight: rowSurface.marginRight }}>
+        <header className="space-y-1" style={headerStyle}>
+          {orderedWithKeys}
+        </header>
+        {rowContent(cyoa, row, viewport)}
+      </section>
+    );
+  }
 
   return (
-    <section className="space-y-3">
-        {(row.title || (row.titleText && !rowTextRemoved) || row.image) ? (
-          <header className="space-y-1">
-          {row.title ? (
-            <h2
-              className="text-lg font-semibold tracking-tight"
-              style={titleStyle}
-            >
-              {replaceText(row.title, cyoa.idx, cyoa.state)}
-            </h2>
-          ) : null}
-          {row.titleText && !rowTextRemoved ? (
-            <p
-              className="text-sm leading-6 text-muted-foreground"
-              style={textStyleObj}
-            >
-              {replaceText(row.titleText, cyoa.idx, cyoa.state)}
-            </p>
-          ) : null}
-          {row.image ? (
-            <img
-              src={row.image}
-              alt=""
-              className="mt-1 max-h-44 w-full rounded-lg border border-border object-cover"
-            />
-          ) : null}
-        </header>
-      ) : null}
-
-      {row.isButtonRow ? (
-        <RowButton cyoa={cyoa} row={row} />
-      ) : null}
-
-      {row.isResultRow ? (
-        <ResultRowContent cyoa={cyoa} row={row} />
-      ) : row.isGroupRow ? (
-        <GroupRowContent cyoa={cyoa} row={row} />
-      ) : (
-        <div className="flex flex-wrap gap-3">
-          {sortedChoices(row).map((choice) => (
-            <div
-              key={choice.id}
-              className={cn("min-w-0", effectiveChoiceWidth(row, choice, cyoa, viewport))}
-            >
-              <ChoiceView cyoa={cyoa} choice={choice} row={row} />
-            </div>
-          ))}
-        </div>
-      )}
+    <section className="space-y-3" style={{ margin: rowSurface.margin }}>
+      {rowContent(cyoa, row, viewport)}
     </section>
+  );
+}
+
+/** Row body: button row, result/group rows, or the choice grid. */
+function rowContent(cyoa: UseCyoaResult, row: Row, viewport: number) {
+  if (row.isResultRow) {
+    return <ResultRowContent cyoa={cyoa} row={row} viewport={viewport} />;
+  }
+  if (row.isGroupRow) {
+    return <GroupRowContent cyoa={cyoa} row={row} viewport={viewport} />;
+  }
+  return (
+    <div className="flex flex-wrap gap-3">
+      {sortedChoices(row).map((choice) => (
+        <div
+          key={choice.id}
+          className={cn("min-w-0", effectiveChoiceWidth(row, choice, cyoa, viewport))}
+        >
+          <ChoiceView cyoa={cyoa} choice={choice} row={row} viewport={viewport} />
+        </div>
+      ))}
+    </div>
   );
 }
 
 function RowButton({ cyoa, row }: { cyoa: UseCyoaResult; row: Row }) {
   const disabled = isRowButtonDisabled(row, cyoa.state);
-  const buttonStyle = cyoa.idx.app.styling as Record<string, unknown>;
+  // The row button carries only the row's button padding (original
+  // `AppRow.rowButton`); the row header it sits in provides the background,
+  // border and shadow via `rowSurfaceStyle`.
+  const buttonStyle = rowButtonStyle(row, cyoa.idx, cyoa.state);
   const label =
     row.buttonText ||
     (row.btnPointAddon
@@ -1114,26 +1216,23 @@ function RowButton({ cyoa, row }: { cyoa: UseCyoaResult; row: Row }) {
       disabled={disabled}
       onClick={() => cyoa.rowButton(row)}
       className={cn(
-        "rounded-md border border-border bg-card px-4 py-1.5 text-sm font-medium transition-colors hover:bg-accent",
+        "rounded-md px-4 py-1.5 text-sm font-medium transition-colors hover:bg-accent",
         disabled && "cursor-not-allowed opacity-50",
       )}
-      style={{
-        padding: buttonStyle.rowButtonXPadding
-          ? `${buttonStyle.rowButtonYPadding ?? 0}px ${buttonStyle.rowButtonXPadding}px`
-          : undefined,
-      }}
-    >
-      {replaceText(label, cyoa.idx, cyoa.state)}
-    </button>
+      style={buttonStyle}
+      dangerouslySetInnerHTML={renderHtml(label, cyoa.idx, cyoa.state)}
+    />
   );
 }
 
 function ResultRowContent({
   cyoa,
   row,
+  viewport,
 }: {
   cyoa: UseCyoaResult;
   row: Row;
+  viewport: number;
 }) {
   const entries = resultRowChoices(row, cyoa.idx, cyoa.state);
   const allowDeselect = cyoa.app.viewerSettings?.allowDeselect === true;
@@ -1146,6 +1245,7 @@ function ResultRowContent({
             cyoa={cyoa}
             choice={choice}
             row={origin}
+            viewport={viewport}
             info={!allowDeselect}
           />
         </div>
@@ -1157,9 +1257,11 @@ function ResultRowContent({
 function GroupRowContent({
   cyoa,
   row,
+  viewport,
 }: {
   cyoa: UseCyoaResult;
   row: Row;
+  viewport: number;
 }) {
   const entries = groupRowChoices(row, cyoa.idx);
   if (entries.length === 0) return null;
@@ -1167,7 +1269,7 @@ function GroupRowContent({
     <div className="flex flex-wrap gap-3">
       {entries.map(({ choice, row: origin }) => (
         <div key={choice.id} className="min-w-0 flex-1 basis-64">
-          <ChoiceView cyoa={cyoa} choice={choice} row={origin} info />
+          <ChoiceView cyoa={cyoa} choice={choice} row={origin} viewport={viewport} info />
         </div>
       ))}
     </div>
@@ -1184,18 +1286,23 @@ interface ChoiceViewProps {
   row: Row;
   /** Info rows ignore clicks (result/group/backpack rows). */
   info?: boolean;
+  viewport?: number;
 }
 
-function ChoiceView({ cyoa, choice, row, info = false }: ChoiceViewProps) {
+function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceViewProps) {
   const enabled = isEnabled(choice.requireds, cyoa.idx, cyoa.state);
   const entry = cyoa.state.activated.get(choice.id);
-  const isSelected = entry !== undefined && entry.multiple !== 0;
+  // A single-select choice is stored as `{ multiple: 0 }` — presence in the
+  // activated map (not the count) means it is selected (matches the original
+  // viewer's `isActive` flag semantics).
+  const isSelected = cyoa.state.activated.has(choice.id);
   const isMulti = choice.isSelectableMultiple === true;
   const surface = choiceSurfaceStyle(choice, row, cyoa.idx, cyoa.state);
   const shown = isChoiceShown(choice, row, cyoa.idx, cyoa.state);
   const text = (choice as Choice & { title?: string; text?: string });
   const titleStyle = textStyle("objectTitle", cyoa.idx, cyoa.state, row, choice);
   const textStyleObj = textStyle("objectText", cyoa.idx, cyoa.state, row, choice);
+  const objectImageStyle = imageStyle("objectImage", cyoa.idx, cyoa.state, row, choice);
   const isCounterOnlyMulti = isMulti && !choice.allowSelectByClick;
   const isClickable = !info && !isCounterOnlyMulti && !choice.isNotSelectable;
 
@@ -1260,16 +1367,24 @@ function ChoiceView({ cyoa, choice, row, info = false }: ChoiceViewProps) {
   const body = (
     <>
       {text.title && !hidden.has("1") ? (
-        <h3 className="font-medium" style={titleStyle}>
-          {replaceText(text.title, cyoa.idx, cyoa.state)}
-          {isMulti && entry ? <span className="ml-1 text-xs">(x{entry.multiple})</span> : null}
-        </h3>
+        <>
+          <h3
+            className="font-medium"
+            style={titleStyle}
+            dangerouslySetInnerHTML={renderHtml(text.title, cyoa.idx, cyoa.state)}
+          />
+          {isMulti && entry ? (
+            <span className="text-xs">(x{entry.multiple})</span>
+          ) : null}
+        </>
       ) : null}
       {counter}
       {text.text && !hidden.has("3") ? (
-        <p className="text-sm leading-5 text-muted-foreground" style={textStyleObj}>
-          {replaceText(text.text, cyoa.idx, cyoa.state)}
-        </p>
+        <p
+          className="text-sm leading-5 text-muted-foreground"
+          style={textStyleObj}
+          dangerouslySetInnerHTML={renderHtml(text.text, cyoa.idx, cyoa.state)}
+        />
       ) : null}
       {showScores ? (
         <Scores
@@ -1291,7 +1406,23 @@ function ChoiceView({ cyoa, choice, row, info = false }: ChoiceViewProps) {
     </>
   );
 
-  const tpl = templateClasses(effectiveTemplate(choice, false, cyoa.idx, cyoa.state));
+  const effTpl = viewerTemplate(choice, false, cyoa.app, viewport, cyoa.idx, cyoa.state);
+  const tpl = templateClasses(effTpl);
+  // Stacked templates (1/4) size the image from the styling cascade; the
+  // side/background templates let their flex/absolute box handle sizing.
+  const imgStyle =
+    effTpl === 1 || effTpl === 4
+      ? { ...objectImageStyle, borderColor: surface.imageBorderColor || undefined }
+      : { borderColor: surface.imageBorderColor || undefined };
+
+  // The document's `objectBgColor` (or the state filter color) wins here.
+  // We intentionally do NOT use the `bg-card` utility: the agent-native shell
+  // forces `.bg-card` to the theme card surface with `!important` in dark
+  // mode, which would silently override the CYOA's background color. The theme
+  // card surface is still applied inline as the fallback when the document
+  // doesn't specify a background.
+  const docBackground =
+    surface.backgroundColor || "var(--agent-native-card-surface)";
 
   return (
     <div
@@ -1300,14 +1431,32 @@ function ChoiceView({ cyoa, choice, row, info = false }: ChoiceViewProps) {
         "relative flex h-full flex-col gap-2 rounded-lg border p-4 text-start transition-colors",
         isSelected
           ? "border-primary bg-primary/5 ring-1 ring-primary"
-          : "border-border bg-card",
+          : "border-border",
         !enabled && "cursor-not-allowed",
         cyoa.app.isPointerCursor && isClickable && "cursor-pointer",
       )}
       style={{
         filter: surface.filter || undefined,
-        background: surface.gradient || surface.backgroundColor || undefined,
+        backgroundColor: docBackground,
+        backgroundImage: surface.gradient
+          ? surface.gradient
+          : surface.backgroundImage
+            ? `url(${surface.backgroundImage})`
+            : undefined,
+        backgroundRepeat: surface.backgroundRepeat || undefined,
+        backgroundSize: surface.backgroundSize || undefined,
         borderColor: surface.borderColor || undefined,
+        borderStyle: surface.borderStyle || undefined,
+        borderWidth: surface.borderWidth || undefined,
+        borderRadius: surface.borderRadius || undefined,
+        boxShadow: surface.boxShadow || undefined,
+        margin: surface.margin || undefined,
+        overflow: surface.overflow || undefined,
+        ...(surface.borderImage
+          ? {
+              borderImage: `url('${surface.borderImage}') 0 0 0 0 / ${surface.borderWidth} stretch`,
+            }
+          : {}),
       }}
       onClick={() => {
         if (info || isCounterOnlyMulti) return;
@@ -1320,10 +1469,14 @@ function ChoiceView({ cyoa, choice, row, info = false }: ChoiceViewProps) {
             src={choice.image}
             alt=""
             className={cn(
-              "rounded-md border border-border object-cover",
-              tpl.image ? "h-full w-full" : "h-24 w-full",
+              "rounded-md border border-border",
+              effTpl === 5
+                ? "h-full w-full object-cover"
+                : effTpl === 2 || effTpl === 3
+                  ? "h-full w-full object-contain"
+                  : "w-full",
             )}
-            style={{ borderColor: surface.imageBorderColor || undefined }}
+            style={imgStyle}
           />
         </div>
       ) : null}
@@ -1509,9 +1662,19 @@ function Scores({
             variant="secondary"
             style={{ ...scoreStyle, color: scoreColor || color }}
           >
-            {before ? `${before} ` : ""}
-            {hideValue ? "" : `${value > 0 ? "+" : ""}${formatPointValue(point ?? ({} as PointType), value)}`}
-            {after ? ` ${after}` : ""}
+            {before ? (
+              <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(before) }} />
+            ) : null}
+            {hideValue ? null : (
+              <span dangerouslySetInnerHTML={{
+                __html: sanitizeHtml(
+                  `${value > 0 ? "+" : ""}${formatPointValue(point ?? ({} as PointType), value)}`,
+                ),
+              }} />
+            )}
+            {after ? (
+              <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(after) }} />
+            ) : null}
           </Badge>
         );
       })}
@@ -1534,7 +1697,7 @@ function Requirements({
   if (reqs.length === 0) return null;
   const labels = reqs
     .filter((r) => isEnabled([r], cyoa.idx, cyoa.state) || !r.hideRequired)
-    .map((r) => requirementLabel(r, cyoa))
+    .map((r) => sanitizeHtml(requirementLabel(r, cyoa)))
     .filter(Boolean);
   if (labels.length === 0) return null;
   const style = textStyle("scoreText", cyoa.idx, cyoa.state, row, choice);
@@ -1542,7 +1705,7 @@ function Requirements({
     <div className="flex flex-wrap gap-1.5 pt-1 text-xs text-muted-foreground">
       {labels.map((label, i) => (
         <Badge key={i} variant="outline" style={{ ...style, color: textColor || undefined }}>
-          {label}
+          <span dangerouslySetInnerHTML={{ __html: label }} />
         </Badge>
       ))}
     </div>
@@ -1639,18 +1802,23 @@ function AddonView({
         <img
           src={addon.image}
           alt=""
-          className="h-16 w-full rounded-md border border-border object-cover"
+          className="w-full"
+          style={imageStyle("addonImage", cyoa.idx, cyoa.state, row, choice)}
         />
       ) : null}
       {addon.title && !hidden?.has("6") ? (
-        <p className="text-sm font-medium" style={titleStyle}>
-          {replaceText(addon.title, cyoa.idx, cyoa.state)}
-        </p>
+        <p
+          className="text-sm font-medium"
+          style={titleStyle}
+          dangerouslySetInnerHTML={renderHtml(addon.title, cyoa.idx, cyoa.state)}
+        />
       ) : null}
       {addon.text && !hidden?.has("8") ? (
-        <p className="text-xs leading-4 text-muted-foreground" style={textStyleObj}>
-          {replaceText(addon.text, cyoa.idx, cyoa.state)}
-        </p>
+        <p
+          className="text-xs leading-4 text-muted-foreground"
+          style={textStyleObj}
+          dangerouslySetInnerHTML={renderHtml(addon.text, cyoa.idx, cyoa.state)}
+        />
       ) : null}
       {!hidden?.has("4") && (showParentScores || addonScores.length > 0) ? (
         <Scores
@@ -1783,7 +1951,7 @@ function BackpackDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-h-[90vh] overflow-y-auto"
+        className="cyoa-viewer max-h-[90vh] overflow-y-auto"
         style={{
           width: (styling.backPackWidth as number) || undefined,
           backgroundColor: bgColor || undefined,
@@ -2173,7 +2341,7 @@ function SearchDialog({
                 className="min-w-0 flex-1 basis-64"
                 onClick={() => cyoa.toggleChoice(entry.choice, entry.row)}
               >
-                <ChoiceView cyoa={cyoa} choice={entry.choice} row={entry.row} />
+                <ChoiceView cyoa={cyoa} choice={entry.choice} row={entry.row} viewport={viewport} />
               </div>
             ))}
           </div>
