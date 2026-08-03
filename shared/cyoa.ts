@@ -11,6 +11,7 @@ import type {
   Choice,
   GlobalRequirement,
   Group,
+  ImageResource,
   ObjectDesignGroup,
   PointType,
   Requireds,
@@ -40,7 +41,12 @@ export function cloneDeep<T>(value: T): T {
  * guard (a retry that just re-rolls the same charset is good enough for
  * authoring ids) and returns the generated id directly.
  */
-export function generateId(repeated: number, strLength: number, type: string, addPrefix: boolean): string {
+export function generateId(
+  repeated: number,
+  strLength: number,
+  type: string,
+  addPrefix: boolean,
+): string {
   const str = "abcdefghijklmnopqrstuvwxyz0123456789";
   let id = addPrefix ? `${type}-` : "";
   for (let o = 0; o < strLength; o++) {
@@ -490,7 +496,18 @@ export function createDefaultScore(typeId: string, value = 1): Score {
   };
 }
 
-export function createDefaultAddon(app: Pick<App, "defaultAddonTitle" | "defaultAddonText" | "defaultAddonJustify" | "defaultAddonTemplate" | "defaultAddonWidth" | "objectIdLength" | "addPrefix">): Addon {
+export function createDefaultAddon(
+  app: Pick<
+    App,
+    | "defaultAddonTitle"
+    | "defaultAddonText"
+    | "defaultAddonJustify"
+    | "defaultAddonTemplate"
+    | "defaultAddonWidth"
+    | "objectIdLength"
+    | "addPrefix"
+  >,
+): Addon {
   return {
     id: newAddonId(app),
     title: app.defaultAddonTitle ?? "Addon",
@@ -598,6 +615,15 @@ export function createDefaultWord(): Word {
   };
 }
 
+export function createDefaultImageResource(name = ""): ImageResource {
+  return {
+    id: newGenericId("image"),
+    name,
+    image: "",
+    imageIsURL: true,
+  };
+}
+
 export function createDefaultCategory(name = "Category"): Category {
   return {
     idx: 0,
@@ -692,6 +718,7 @@ export function createDefaultApp(): App {
     variables: [],
     mdObjects: [],
     categories: [],
+    images: [],
     printThis: false,
     autoSaveIsOn: false,
     autoSaveInterval: 10,
@@ -710,10 +737,9 @@ export function createDefaultApp(): App {
     defaultBeforePoint: "Cost:",
     defaultAfterPoint: "points",
     defaultBeforeReq: "Required:",
-    defaultAfterReq: "choice",
+    defaultAfterReq: "",
     defaultAddonTitle: "Addon",
-    defaultAddonText:
-      "Lorem Ipsum is simply dummy text of the printing and typesetting industry.",
+    defaultAddonText: "Lorem Ipsum is simply dummy text of the printing and typesetting industry.",
     enableShortcut: true,
     orderOrReqText: "0",
     defaultOrReq: "of",
@@ -798,7 +824,10 @@ export function normalizeApp(raw: unknown): App {
     merged.styling = { ...defaults.styling, ...(source.styling as Record<string, unknown>) };
   }
   if (isPlainObject(source.viewerConfig)) {
-    merged.viewerConfig = { ...defaults.viewerConfig, ...(source.viewerConfig as Record<string, unknown>) };
+    merged.viewerConfig = {
+      ...defaults.viewerConfig,
+      ...(source.viewerConfig as Record<string, unknown>),
+    };
   }
   if (Array.isArray(source.backpack)) {
     merged.backpack = source.backpack.map((row, i) => ({
@@ -817,6 +846,7 @@ export function normalizeApp(raw: unknown): App {
   if (!Array.isArray(merged.soundEffects)) merged.soundEffects = [];
   if (!Array.isArray(merged.rowDesignGroups)) merged.rowDesignGroups = [];
   if (!Array.isArray(merged.objectDesignGroups)) merged.objectDesignGroups = [];
+  if (!Array.isArray(merged.images)) merged.images = [];
 
   // Apply the same legacy-document migrations the original ICCPlus editor
   // runs in `initializeApp()`, so imported documents behave identically.
@@ -927,9 +957,11 @@ function initStylingMigration(styling: Styling, oldVersion: boolean, isMain = fa
   }
   if (isMain) {
     if (typeof record.customMultiTextFont === "undefined") record.customMultiTextFont = false;
-    if (typeof record.multiChoiceCounterPosition === "undefined") record.multiChoiceCounterPosition = 0;
+    if (typeof record.multiChoiceCounterPosition === "undefined")
+      record.multiChoiceCounterPosition = 0;
     if (typeof record.multiChoiceCounterSize === "undefined") record.multiChoiceCounterSize = 170;
-    if (typeof record.multiChoiceTextFont === "undefined") record.multiChoiceTextFont = "Times New Roman";
+    if (typeof record.multiChoiceTextFont === "undefined")
+      record.multiChoiceTextFont = "Times New Roman";
     if (typeof record.multiChoiceTextSize === "undefined") record.multiChoiceTextSize = 100;
   }
 }
@@ -988,8 +1020,10 @@ function migrateAddon(addon: Addon, parentId: string): void {
   record.parentId = parentId;
   const sfxId = record.sfxId as string | undefined;
   if (typeof sfxId !== "undefined") {
-    if (record.sfxOnSelect && typeof record.sfxIdOnSelect === "undefined") record.sfxIdOnSelect = sfxId;
-    if (record.sfxOnDeselect && typeof record.sfxIdOnDeselect === "undefined") record.sfxIdOnDeselect = sfxId;
+    if (record.sfxOnSelect && typeof record.sfxIdOnSelect === "undefined")
+      record.sfxIdOnSelect = sfxId;
+    if (record.sfxOnDeselect && typeof record.sfxIdOnDeselect === "undefined")
+      record.sfxIdOnDeselect = sfxId;
     delete record.sfxId;
   }
   migrateRequireds(addon.requireds);
@@ -1001,7 +1035,8 @@ function migrateChoice(choice: Choice, oldVersion: boolean, defaultAddonJustify:
 
   if (choice.styling) initStylingMigration(choice.styling, oldVersion);
   if (choice.multiplyPointtypeIsOn) {
-    if (typeof choice.pointTypeToMultiply === "string") choice.pointTypeToMultiply = [choice.pointTypeToMultiply];
+    if (typeof choice.pointTypeToMultiply === "string")
+      choice.pointTypeToMultiply = [choice.pointTypeToMultiply];
     if (typeof choice.startingSumAtMultiply === "number") {
       choice.startingSumAtMultiply = [
         { value: choice.startingSumAtMultiply, calcVal: choice.startingSumAtMultiply },
@@ -1009,7 +1044,8 @@ function migrateChoice(choice: Choice, oldVersion: boolean, defaultAddonJustify:
     }
   }
   if (choice.dividePointtypeIsOn) {
-    if (typeof choice.pointTypeToDivide === "string") choice.pointTypeToDivide = [choice.pointTypeToDivide];
+    if (typeof choice.pointTypeToDivide === "string")
+      choice.pointTypeToDivide = [choice.pointTypeToDivide];
     if (typeof choice.startingSumAtDivide === "number") {
       choice.startingSumAtDivide = [
         { value: choice.startingSumAtDivide, calcVal: choice.startingSumAtDivide },
@@ -1053,8 +1089,10 @@ function migrateChoice(choice: Choice, oldVersion: boolean, defaultAddonJustify:
 
   const sfxId = record.sfxId as string | undefined;
   if (typeof sfxId !== "undefined") {
-    if (choice.sfxOnSelect && typeof choice.sfxIdOnSelect === "undefined") choice.sfxIdOnSelect = sfxId;
-    if (choice.sfxOnDeselect && typeof choice.sfxIdOnDeselect === "undefined") choice.sfxIdOnDeselect = sfxId;
+    if (choice.sfxOnSelect && typeof choice.sfxIdOnSelect === "undefined")
+      choice.sfxIdOnSelect = sfxId;
+    if (choice.sfxOnDeselect && typeof choice.sfxIdOnDeselect === "undefined")
+      choice.sfxIdOnDeselect = sfxId;
     delete record.sfxId;
   }
 
@@ -1155,6 +1193,117 @@ export function migrateApp(app: App): App {
 }
 
 /* ------------------------------------------------------------------ */
+/* Image resources & ACL import translation                            */
+/* ------------------------------------------------------------------ */
+
+/** True when a string is a legacy inline image payload (data URL or URL). */
+export function isInlineImageValue(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value !== "" &&
+    !value.startsWith("image-") &&
+    !value.startsWith("addon-") &&
+    !value.startsWith("point-")
+  );
+}
+
+/**
+ * Resolve an image reference (an image resource id) against the document's
+ * image resources. Legacy inline values pass through unchanged, so documents
+ * written before the image-resource system keep rendering.
+ */
+export function resolveImageRef(app: App, ref: string | undefined): string | undefined {
+  if (!ref) return undefined;
+  const resource = (app.images ?? []).find((img) => img.id === ref);
+  return resource?.image ? resource.image : ref;
+}
+
+/**
+ * ACL import translation for the image-resource system.
+ *
+ * Old ICCPlus documents store entity images as inline strings (base64 data
+ * URLs or remote URLs). The new system stores images as `app.images`
+ * resources and entities reference them by id (like choices/rows reference
+ * each other). This layer rewrites legacy inline values into resources on
+ * import, deduplicating by payload so identical images share one resource.
+ *
+ * It is idempotent: values that are already image-resource ids are left
+ * alone, so re-importing a translated document is a no-op. Re-export uses the
+ * new format (the original ICCPlus editor is NOT re-import-compatible with
+ * id references — only import of legacy files is supported).
+ */
+export function aclImportImages(app: App): App {
+  const images: ImageResource[] = Array.isArray(app.images) ? [...app.images] : [];
+  const existingIds = new Set(images.map((img) => img.id));
+  const byPayload = new Map<string, string>();
+  for (const img of images) {
+    if (img.image) byPayload.set(img.image, img.id);
+  }
+
+  const newResourceId = (): string => {
+    let id = newGenericId("image");
+    while (existingIds.has(id)) id = newGenericId("image");
+    existingIds.add(id);
+    return id;
+  };
+
+  const ensure = (ref: unknown, tooltip?: unknown): unknown => {
+    if (typeof ref !== "string" || ref === "") return ref;
+    if (existingIds.has(ref)) return ref; // already a resource id
+    if (!isInlineImageValue(ref)) return ref; // not a payload we own
+    const existing = byPayload.get(ref);
+    if (existing) return existing;
+    const id = newResourceId();
+    images.push({
+      id,
+      name: "",
+      image: ref,
+      imageIsURL: !ref.startsWith("data:"),
+      sourceTooltip: typeof tooltip === "string" && tooltip ? tooltip : undefined,
+    });
+    byPayload.set(ref, id);
+    return id;
+  };
+
+  const rows = [...(app.rows ?? []), ...(app.backpack ?? [])];
+  for (const row of rows) {
+    row.image = ensure(row.image) as string;
+    for (const choice of row.objects ?? []) {
+      choice.image = ensure(choice.image, choice.imageSourceTooltip) as string;
+      for (const addon of choice.addons ?? []) {
+        addon.image = ensure(addon.image) as string;
+      }
+      for (const variant of choice.imageVariants ?? []) {
+        variant.image = ensure(variant.image) as string;
+      }
+    }
+  }
+  for (const point of app.pointTypes ?? []) {
+    const record = point as unknown as Record<string, unknown>;
+    record.image = ensure(record.image) as string;
+    record.negativeImage = ensure(record.negativeImage) as string;
+  }
+
+  // Styling background images (app / row / choice / addon / backpack) are
+  // images too — rewrite them to resource ids so the design tab can reference
+  // them like every other image. Idempotent: already-translated values pass
+  // through `ensure` untouched.
+  const styling = (app.styling ?? {}) as Record<string, unknown>;
+  for (const key of [
+    "backgroundImage",
+    "rowBackgroundImage",
+    "objectBackgroundImage",
+    "addonBackgroundImage",
+    "backpackBgImage",
+  ]) {
+    styling[key] = ensure(styling[key]);
+  }
+
+  app.images = images;
+  return app;
+}
+
+/* ------------------------------------------------------------------ */
 /* Summary helpers used by the UI and the agent                        */
 /* ------------------------------------------------------------------ */
 
@@ -1168,6 +1317,7 @@ export interface AppSummary {
   globalRequirementCount: number;
   variableCount: number;
   wordCount: number;
+  imageCount: number;
   title: string;
 }
 
@@ -1190,6 +1340,7 @@ export function summarizeApp(app: App): AppSummary {
     globalRequirementCount: app.globalRequirements?.length ?? 0,
     variableCount: app.variables?.length ?? 0,
     wordCount: app.words?.length ?? 0,
+    imageCount: app.images?.length ?? 0,
     title: app.viewerConfig?.title ?? "Untitled CYOA",
   };
 }

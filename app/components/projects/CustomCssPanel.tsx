@@ -2,31 +2,16 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  useUpdateProjectSettings,
-  type ProjectDetail,
-} from "@/hooks/use-projects";
+import { useUpdateProjectSettings, type ProjectDetail } from "@/hooks/use-projects";
 
 interface CustomCssPanelProps {
   project: ProjectDetail;
 }
 
 /** CSS hooks the viewer exposes for custom styling. */
-const CSS_HOOKS = [
-  ".row-{id}",
-  ".choice-{id}",
-  ".choice-enabled",
-  ".choice-selected",
-  ".addon",
-];
+const CSS_HOOKS = [".row-{id}", ".choice-{id}", ".choice-enabled", ".choice-selected", ".addon"];
 
 /**
  * Author custom CSS for the viewer. The applied value is injected into
@@ -59,9 +44,7 @@ export function CustomCssPanel({ project }: CustomCssPanelProps) {
       {
         onSuccess: () => toast.success("Custom CSS applied"),
         onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to apply custom CSS",
-          ),
+          toast.error(err instanceof Error ? err.message : "Failed to apply custom CSS"),
       },
     );
   }
@@ -73,9 +56,7 @@ export function CustomCssPanel({ project }: CustomCssPanelProps) {
       {
         onSuccess: () => toast.success("Custom CSS cleared"),
         onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to clear custom CSS",
-          ),
+          toast.error(err instanceof Error ? err.message : "Failed to clear custom CSS"),
       },
     );
   }
@@ -85,8 +66,7 @@ export function CustomCssPanel({ project }: CustomCssPanelProps) {
       <CardHeader>
         <CardTitle className="text-base">Custom CSS</CardTitle>
         <CardDescription>
-          Raw CSS injected into the viewer. Applied styles preview live in the
-          play page.
+          Raw CSS injected into the viewer. Applied styles preview live in the play page.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -117,12 +97,7 @@ export function CustomCssPanel({ project }: CustomCssPanelProps) {
           >
             Clear
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={updateSettings.isPending}
-            onClick={handleApply}
-          >
+          <Button type="button" size="sm" disabled={updateSettings.isPending} onClick={handleApply}>
             {updateSettings.isPending ? "Applying…" : "Apply CSS"}
           </Button>
         </div>

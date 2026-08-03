@@ -18,103 +18,111 @@
   width: 100%;
 }
 .cyoa-viewer .col-11 {
-  width: calc(91.666667% - 12px);
+  width: 91.666667%;
 }
 .cyoa-viewer .col-10 {
-  width: calc(83.333333% - 12px);
+  width: 83.333333%;
 }
 .cyoa-viewer .col-9 {
-  width: calc(75% - 12px);
+  width: 75%;
 }
 .cyoa-viewer .col-8 {
-  width: calc(66.666667% - 12px);
+  width: 66.666667%;
 }
 .cyoa-viewer .col-7 {
-  width: calc(58.333333% - 12px);
+  width: 58.333333%;
 }
 .cyoa-viewer .col-6 {
-  width: calc(50% - 6px);
+  width: 50%;
 }
 .cyoa-viewer .col-5 {
-  width: calc(41.666667% - 6px);
+  width: 41.666667%;
 }
 .cyoa-viewer .col-4 {
-  width: calc(33.333333% - 8px);
+  width: 33.333333%;
 }
 .cyoa-viewer .col-3 {
-  width: calc(25% - 9px);
+  width: 25%;
 }
 .cyoa-viewer .col-2 {
-  width: calc(16.666667% - 10px);
+  width: 16.666667%;
 }
 .cyoa-viewer .col-1 {
-  width: calc(8.333333% - 11px);
+  width: 8.333333%;
 }
 .cyoa-viewer .col-sm-11 {
-  width: calc(91.666667% - 12px);
+  width: 91.666667%;
 }
 .cyoa-viewer .col-sm-10 {
-  width: calc(83.333333% - 12px);
+  width: 83.333333%;
 }
 .cyoa-viewer .col-sm-9 {
-  width: calc(75% - 12px);
+  width: 75%;
 }
 .cyoa-viewer .col-sm-8 {
-  width: calc(66.666667% - 12px);
+  width: 66.666667%;
 }
 .cyoa-viewer .col-sm-7 {
-  width: calc(58.333333% - 12px);
+  width: 58.333333%;
 }
 .cyoa-viewer .col-sm-6 {
-  width: calc(50% - 6px);
+  width: 50%;
 }
 .cyoa-viewer .col-sm-5 {
-  width: calc(41.666667% - 12px);
+  width: 41.666667%;
 }
 .cyoa-viewer .col-sm-4 {
-  width: calc(33.333333% - 8px);
+  width: 33.333333%;
 }
 .cyoa-viewer .col-sm-3 {
-  width: calc(25% - 12px);
+  width: 25%;
 }
 .cyoa-viewer .col-md-4 {
-  width: calc(33.333333% - 8px);
+  width: 33.333333%;
 }
 .cyoa-viewer .col-md-3 {
-  width: calc(25% - 9px);
+  width: 25%;
 }
 .cyoa-viewer .col-lg-2 {
-  width: calc(16.666667% - 10px);
+  width: 16.666667%;
 }
 .cyoa-viewer .col-lg-3 {
-  width: calc(25% - 9px);
+  width: 25%;
 }
 .cyoa-viewer .col-xl-1 {
-  width: calc(8.333333% - 11px);
+  width: 8.333333%;
 }
 .cyoa-viewer .col-xl-2 {
-  width: calc(16.666667% - 10px);
+  width: 16.666667%;
 }
 .cyoa-viewer .col-xl-3 {
-  width: calc(25% - 9px);
+  width: 25%;
 }
 .cyoa-viewer .w-20 {
-  width: calc(20% - 9.6px);
+  width: 20%;
 }
 .cyoa-viewer .w-14 {
-  width: calc(14.285714% - 10.285714px);
+  width: 14.285714%;
 }
 .cyoa-viewer .w-12 {
-  width: calc(12.5% - 10.5px);
+  width: 12.5%;
 }
 .cyoa-viewer .w-11 {
-  width: calc(11.111111% - 10.666667px);
+  width: 11.111111%;
 }
 .cyoa-viewer .w-10 {
-  width: calc(10% - 10.8px);
+  width: 10%;
 }
 .cyoa-viewer .w-9 {
-  width: calc(9.090909% - 10.909091px);
+  width: 9.090909%;
+}
+
+.cyoa-viewer {
+  /* Choice/row cards can carry `overflow: hidden` from the document styling
+     (objectOverflowIsOn). Long unbroken strings would otherwise be clipped —
+     force soft wrapping so text is never cut off. */
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .cyoa-viewer p {

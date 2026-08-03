@@ -1,52 +1,33 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  IconChevronDown,
-  IconChevronUp,
-  IconPencil,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
+import { IconPlus, IconSearch, IconArrowUpRight } from "@tabler/icons-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   useAddChoice,
   useAddRow,
-  useAddScore,
+  useDeleteAddon,
   useDeleteChoice,
   useDeleteRow,
+  useMoveAddon,
   useMoveChoice,
   useMoveRow,
   useUpdateChoice,
   useUpdateRow,
   type ProjectDetail,
 } from "@/hooks/use-projects";
+import { createDefaultAddon } from "@shared/cyoa";
 import type { Choice, Row } from "@shared/types";
 
-import { ChoiceEditorDialog } from "./ChoiceEditorDialog";
+import { ChoiceEditor } from "./ChoiceEditor";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
-import {
-  formatScoreChip,
-  pointTypeName,
-  sortedChoices,
-  sortedRows,
-} from "./project-utils";
-import { RowEditorDialog } from "./RowEditorDialog";
+import { EditorPane } from "./EditorPane";
+import { MasterDetail } from "./MasterDetail";
+import { RowEditor } from "./RowEditor";
+import { RowTree } from "./RowTree";
+import { sortedRows } from "./project-utils";
 
 interface RowsPanelProps {
   project: ProjectDetail;
@@ -57,198 +38,453 @@ interface ChoiceTarget {
   choice: Choice;
 }
 
+type Selection =
+  | { kind: "row"; row: Row }
+  | { kind: "choice"; choice: Choice; row: Row }
+  | { kind: "addon"; choice: Choice; row: Row };
+
+/** Stable node key used by the tree to highlight the selection. */
+function selectionKey(selection: Selection): string {
+  if (selection.kind === "row") return `row:${selection.row.id}`;
+  if (selection.kind === "choice") return `choice:${selection.choice.id}`;
+  return `addon:${selection.choice.id}`;
+}
+
 export function RowsPanel({ project }: RowsPanelProps) {
   const { app } = project;
   const projectId = project.id;
-  const rows = sortedRows(app);
-  const pointTypes = app.pointTypes ?? [];
-  const groups = app.groups ?? [];
+  // Stable identities so the memoized tree doesn't re-render on every
+  // selection change (sortedRows copies; app/pointTypes/groups are stable
+  // until the project refetches).
+  const rows = useMemo(() => sortedRows(app), [app]);
+  const pointTypes = useMemo(() => app.pointTypes ?? [], [app]);
+  const groups = useMemo(() => app.groups ?? [], [app]);
 
-  const addRow = useAddRow();
-  const moveRow = useMoveRow();
-  const deleteRow = useDeleteRow();
-  const updateRow = useUpdateRow();
-  const addChoice = useAddChoice();
-  const moveChoice = useMoveChoice();
-  const deleteChoice = useDeleteChoice();
-  const updateChoice = useUpdateChoice();
-  const addScore = useAddScore();
+  // The React Query mutation RESULT object is recreated every render, so the
+  // stable `mutate`/`isPending` fields are the ones safe to close over in
+  // useCallbacks (keeping the memoized tree/editors from re-rendering).
+  const { mutate: addRowMutate, isPending: addRowPending } = useAddRow();
+  const { mutate: moveRowMutate } = useMoveRow();
+  const { mutate: deleteRowMutate, isPending: deleteRowPending } = useDeleteRow();
+  const { mutate: updateRowMutate, isPending: updateRowPending } = useUpdateRow();
+  const { mutate: addChoiceMutate, isPending: addChoicePending } = useAddChoice();
+  const { mutate: moveChoiceMutate } = useMoveChoice();
+  const { mutate: deleteChoiceMutate, isPending: deleteChoicePending } = useDeleteChoice();
+  const { mutate: updateChoiceMutate, isPending: updateChoicePending } = useUpdateChoice();
+  const { mutate: moveAddonMutate } = useMoveAddon();
+  const { mutate: deleteAddonMutate, isPending: deleteAddonPending } = useDeleteAddon();
 
-  const [editingRow, setEditingRow] = useState<Row | null>(null);
-  const [editingChoice, setEditingChoice] = useState<ChoiceTarget | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
+  // Latest selection for the stable save callbacks (the editors are memoized
+  // and must not re-render when RowsPanel re-renders with a new selection
+  // object for the same item).
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
   const [deleteRowTarget, setDeleteRowTarget] = useState<Row | null>(null);
-  const [deleteChoiceTarget, setDeleteChoiceTarget] =
-    useState<ChoiceTarget | null>(null);
+  const [deleteChoiceTarget, setDeleteChoiceTarget] = useState<ChoiceTarget | null>(null);
+  const [deleteAddonTarget, setDeleteAddonTarget] = useState<{
+    choiceId: string;
+    addonIndex: number;
+    title: string;
+  } | null>(null);
+  const [query, setQuery] = useState("");
+
+  // Filter rows by title/text or by any contained choice's title/text/id so
+  // a long project doesn't require scrolling every row to find one.
+  const filteredRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row) => {
+      if ((row.title ?? "").toLowerCase().includes(q)) return true;
+      if ((row.titleText ?? "").toLowerCase().includes(q)) return true;
+      return (row.objects ?? []).some(
+        (choice) =>
+          (choice.title ?? "").toLowerCase().includes(q) ||
+          (choice.text ?? "").toLowerCase().includes(q) ||
+          choice.id.toLowerCase().includes(q),
+      );
+    });
+  }, [rows, query]);
+
+  // Pagination: the tree shows one page of rows at a time (fully rendered —
+  // no windowing), so even a 180-row / 1,200-choice project stays snappy.
+  const ROW_PAGE_SIZE = 20;
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / ROW_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageRows = useMemo(
+    () => filteredRows.slice(safePage * ROW_PAGE_SIZE, (safePage + 1) * ROW_PAGE_SIZE),
+    [filteredRows, safePage],
+  );
+  const pageStart = safePage * ROW_PAGE_SIZE;
+  const pageEnd = Math.min(pageStart + ROW_PAGE_SIZE, filteredRows.length);
+
+  // Filtering changes the result set -> back to the first page. Edits that
+  // refetch the project keep the current page (the clamp below bounds it).
+  useEffect(() => {
+    setPage(0);
+  }, [query]);
+
+  // While filtering, force-expand the matching rows so the result is visible.
+  const autoExpandIds = useMemo(
+    () => (query.trim() ? new Set(filteredRows.map((row) => row.id)) : undefined),
+    [filteredRows, query],
+  );
 
   function handleAddRow() {
-    addRow.mutate(
+    addRowMutate(
       { projectId },
       {
         onSuccess: () => toast.success("Row added"),
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : "Failed to add row"),
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to add row"),
       },
     );
   }
 
-  function handleMoveRow(row: Row, direction: -1 | 1) {
-    moveRow.mutate(
-      { projectId, rowId: row.id, index: (row.index ?? 0) + direction },
-      {
-        onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to move row",
-          ),
-      },
-    );
-  }
+  const handleMoveRow = useCallback(
+    (rowId: string, index: number) => {
+      moveRowMutate(
+        { projectId, rowId, index },
+        {
+          onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to move row"),
+        },
+      );
+    },
+    [moveRowMutate, projectId],
+  );
 
   function handleDeleteRow() {
     if (!deleteRowTarget) return;
     const target = deleteRowTarget;
-    deleteRow.mutate(
+    deleteRowMutate(
       { projectId, rowId: target.id },
       {
         onSuccess: () => {
           toast.success("Row deleted");
           setDeleteRowTarget(null);
+          if (selection?.kind === "row" && selection.row.id === target.id) setSelection(null);
         },
         onError: (err) => {
-          toast.error(
-            err instanceof Error ? err.message : "Failed to delete row",
-          );
+          toast.error(err instanceof Error ? err.message : "Failed to delete row");
           setDeleteRowTarget(null);
         },
       },
     );
   }
 
-  function handleSaveRow(patch: Record<string, unknown>) {
-    if (!editingRow) return;
-    const rowId = editingRow.id;
-    updateRow.mutate(
-      { projectId, rowId, patch },
-      {
-        onSuccess: () => {
-          toast.success("Row updated");
-          setEditingRow(null);
+  const handleSaveRow = useCallback(
+    (patch: Record<string, unknown>) => {
+      const current = selectionRef.current;
+      if (!current || current.kind !== "row") return;
+      updateRowMutate(
+        { projectId, rowId: current.row.id, patch },
+        {
+          onSuccess: () => toast.success("Row updated"),
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to update row"),
         },
-        onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to update row",
-          ),
-      },
-    );
-  }
+      );
+    },
+    [updateRowMutate, projectId],
+  );
 
-  function handleAddChoice(row: Row) {
-    addChoice.mutate(
-      { projectId, rowId: row.id },
-      {
-        onSuccess: () => toast.success("Choice added"),
-        onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to add choice",
-          ),
-      },
-    );
-  }
+  const handleAddChoice = useCallback(
+    (row: Row) => {
+      addChoiceMutate(
+        { projectId, rowId: row.id },
+        {
+          onSuccess: () => toast.success("Choice added"),
+          onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to add choice"),
+        },
+      );
+    },
+    [addChoiceMutate, projectId],
+  );
 
-  function handleMoveChoice(choice: Choice, direction: -1 | 1) {
-    const row = rows.find((r) =>
-      (r.objects ?? []).some((c) => c.id === choice.id),
-    );
-    if (!row) return;
-    moveChoice.mutate(
-      {
-        projectId,
-        rowId: row.id,
-        choiceId: choice.id,
-        index: (choice.index ?? 0) + direction,
-      },
-      {
-        onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to move choice",
-          ),
-      },
-    );
-  }
+  const handleMoveChoice = useCallback(
+    (targetRowId: string, choiceId: string, index: number) => {
+      moveChoiceMutate(
+        { projectId, rowId: targetRowId, choiceId, index },
+        {
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to move choice"),
+        },
+      );
+    },
+    [moveChoiceMutate, projectId],
+  );
 
   function handleDeleteChoice() {
     if (!deleteChoiceTarget) return;
     const { row, choice } = deleteChoiceTarget;
-    deleteChoice.mutate(
+    deleteChoiceMutate(
       { projectId, rowId: row.id, choiceId: choice.id },
       {
         onSuccess: () => {
           toast.success("Choice deleted");
           setDeleteChoiceTarget(null);
+          if (
+            selection?.kind === "choice" &&
+            selection.choice.id === choice.id
+          ) {
+            setSelection(null);
+          }
         },
         onError: (err) => {
-          toast.error(
-            err instanceof Error ? err.message : "Failed to delete choice",
-          );
+          toast.error(err instanceof Error ? err.message : "Failed to delete choice");
           setDeleteChoiceTarget(null);
         },
       },
     );
   }
 
-  function handleSaveChoice(patch: Record<string, unknown>) {
-    if (!editingChoice) return;
-    const { row, choice } = editingChoice;
-    updateChoice.mutate(
-      { projectId, rowId: row.id, choiceId: choice.id, patch },
+  const handleSaveChoice = useCallback(
+    (patch: Record<string, unknown>) => {
+      const current = selectionRef.current;
+      if (!current || current.kind === "row") return;
+      updateChoiceMutate(
+        { projectId, rowId: current.row.id, choiceId: current.choice.id, patch },
+        {
+          onSuccess: () => toast.success("Choice updated"),
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to update choice"),
+        },
+      );
+    },
+    [updateChoiceMutate, projectId],
+  );
+
+  const handleMoveAddon = useCallback(
+    (sourceChoiceId: string, addonIndex: number, targetChoiceId: string, targetIndex: number) => {
+      moveAddonMutate(
+        { projectId, sourceChoiceId, addonIndex, targetChoiceId, targetIndex },
+        {
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to move addon"),
+        },
+      );
+    },
+    [moveAddonMutate, projectId],
+  );
+
+  // Right-click context-menu inserts (rows tree). Indexes refer to positions
+  // in the sorted document, matching what the tree displays.
+  const handleAddRowAt = useCallback(
+    (rowId: string, position: "above" | "below") => {
+      const sorted = sortedRows(app);
+      const idx = sorted.findIndex((row) => row.id === rowId);
+      if (idx === -1) return;
+      const insertAt = position === "above" ? idx : idx + 1;
+      addRowMutate(
+        { projectId, index: insertAt },
+        {
+          onSuccess: (data) => {
+            if (data?.row) setSelection({ kind: "row", row: data.row });
+            // Reveal the page that now contains the new row.
+            setPage(Math.floor(insertAt / ROW_PAGE_SIZE));
+          },
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to add row"),
+        },
+      );
+    },
+    [app, addRowMutate, projectId],
+  );
+
+  const handleAddChoiceAt = useCallback(
+    (rowId: string, choiceId: string, position: "above" | "below") => {
+      const row = app.rows?.find((r) => r.id === rowId);
+      if (!row) return;
+      const idx = (row.objects ?? []).findIndex((c) => c.id === choiceId);
+      if (idx === -1) return;
+      const insertAt = position === "above" ? idx : idx + 1;
+      addChoiceMutate(
+        { projectId, rowId, index: insertAt },
+        {
+          onSuccess: (data) => {
+            if (data?.choice) setSelection({ kind: "choice", choice: data.choice, row });
+          },
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to add choice"),
+        },
+      );
+    },
+    [app, addChoiceMutate, projectId],
+  );
+
+  const handleAddAddonAt = useCallback(
+    (choiceId: string, addonIndex: number, position: "above" | "below") => {
+      const row = app.rows?.find((r) => (r.objects ?? []).some((c) => c.id === choiceId));
+      const choice = row?.objects?.find((c) => c.id === choiceId);
+      if (!row || !choice) return;
+      const insertAt = position === "above" ? addonIndex : addonIndex + 1;
+      const addons = choice.addons ?? [];
+      const next = [
+        ...addons.slice(0, insertAt),
+        createDefaultAddon(app),
+        ...addons.slice(insertAt),
+      ];
+      updateChoiceMutate(
+        { projectId, rowId: row.id, choiceId, patch: { addons: next } },
+        {
+          onSuccess: (data) => {
+            if (data?.choice) setSelection({ kind: "addon", choice: data.choice, row });
+          },
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to add addon"),
+        },
+      );
+    },
+    [app, updateChoiceMutate, projectId],
+  );
+
+  function handleDeleteAddon() {
+    if (!deleteAddonTarget) return;
+    const { choiceId, addonIndex } = deleteAddonTarget;
+    deleteAddonMutate(
+      { projectId, choiceId, addonIndex },
       {
         onSuccess: () => {
-          toast.success("Choice updated");
-          setEditingChoice(null);
+          toast.success("Addon deleted");
+          setDeleteAddonTarget(null);
         },
-        onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to update choice",
-          ),
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : "Failed to delete addon");
+          setDeleteAddonTarget(null);
+        },
       },
     );
   }
 
-  function handleAddScore(row: Row, choice: Choice, pointTypeId: string) {
-    addScore.mutate(
-      { projectId, rowId: row.id, choiceId: choice.id, pointTypeId },
-      {
-        onSuccess: () =>
-          toast.success(
-            `Added ${pointTypeName(pointTypes, pointTypeId)} score`,
-          ),
-        onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to add score",
-          ),
-      },
-    );
-  }
+  const busy = updateRowPending || updateChoicePending || addRowPending || addChoicePending;
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {rows.length} row{rows.length === 1 ? "" : "s"} ·{" "}
-          {rows.reduce((sum, row) => sum + (row.objects?.length ?? 0), 0)}{" "}
-          choices
-        </p>
-        <Button type="button" size="sm" onClick={handleAddRow}>
-          <IconPlus className="mr-1.5 size-4" />
-          Add row
-        </Button>
+  // Stable callbacks so the memoized tree only re-renders when its data or the
+  // selection changes — not on every detail-pane change.
+  const handleSelectRow = useCallback((row: Row) => setSelection({ kind: "row", row }), []);
+  const handleSelectChoice = useCallback(
+    (choice: Choice, row: Row) => setSelection({ kind: "choice", choice, row }),
+    [],
+  );
+  const handleSelectAddon = useCallback(
+    (choice: Choice, row: Row) => setSelection({ kind: "addon", choice, row }),
+    [],
+  );
+  const handleCancelSelection = useCallback(() => setSelection(null), []);
+  const requestDeleteRow = useCallback((row: Row) => setDeleteRowTarget(row), []);
+  const requestDeleteChoice = useCallback(
+    (choice: Choice, row: Row) => setDeleteChoiceTarget({ choice, row }),
+    [],
+  );
+  const requestDeleteAddon = useCallback(
+    (choiceId: string, addonIndex: number) =>
+      setDeleteAddonTarget({ choiceId, addonIndex, title: "addon" }),
+    [],
+  );
+
+  const detail =
+    selection?.kind === "row" ? (
+      <RowEditor
+        key={`row:${selection.row.id}`}
+        row={selection.row}
+        app={app}
+        busy={busy}
+        onCancel={handleCancelSelection}
+        onSave={handleSaveRow}
+      />
+    ) : selection?.kind === "choice" ? (
+      <ChoiceEditor
+        key={`choice:${selection.choice.id}`}
+        choice={selection.choice}
+        app={app}
+        pointTypes={pointTypes}
+        groups={groups}
+        busy={busy}
+        onCancel={handleCancelSelection}
+        onSave={handleSaveChoice}
+      />
+    ) : selection?.kind === "addon" ? (
+      <ChoiceEditor
+        key={`addon:${selection.choice.id}`}
+        choice={selection.choice}
+        app={app}
+        pointTypes={pointTypes}
+        groups={groups}
+        busy={busy}
+        initialSection="addons"
+        onCancel={handleCancelSelection}
+        onSave={handleSaveChoice}
+      />
+    ) : (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
+          <IconArrowUpRight className="size-6 text-muted-foreground/50" />
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Select a row, choice, or addon from the tree to edit it here — no more dialogs. Drag
+            branches to reorder or move them between parents.
+          </p>
+        </CardContent>
+      </Card>
+    );
+
+  const master = (
+    <div className="space-y-3">
+      <div className="sticky top-0 z-10 -mx-1 space-y-2 bg-background/95 px-1 py-2 backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            {rows.length} row{rows.length === 1 ? "" : "s"} ·{" "}
+            {rows.reduce((sum, row) => sum + (row.objects?.length ?? 0), 0)} choices
+            {query.trim() && filteredRows.length !== rows.length
+              ? ` · ${filteredRows.length} matching`
+              : ""}
+          </p>
+          <Button type="button" size="sm" onClick={handleAddRow}>
+            <IconPlus className="mr-1.5 size-4" />
+            Add row
+          </Button>
+        </div>
+        <div className="relative">
+          <IconSearch className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter rows or choices…"
+            aria-label="Filter rows or choices"
+            className="h-8 w-full pl-8"
+          />
+        </div>
+        {filteredRows.length > ROW_PAGE_SIZE ? (
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={safePage === 0}
+              onClick={() => setPage(safePage - 1)}
+            >
+              Prev
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Rows {pageStart + 1}–{pageEnd} of {filteredRows.length}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={safePage >= totalPages - 1}
+              onClick={() => setPage(safePage + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {rows.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <p className="text-sm text-muted-foreground">
-              No rows yet. Rows hold the choices readers pick from — add your
-              first row to get started.
+              No rows yet. Rows hold the choices readers pick from — add your first row to get
+              started.
             </p>
             <Button type="button" onClick={handleAddRow}>
               <IconPlus className="mr-1.5 size-4" />
@@ -256,56 +492,42 @@ export function RowsPanel({ project }: RowsPanelProps) {
             </Button>
           </CardContent>
         </Card>
+      ) : filteredRows.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center">
+            <p className="text-sm text-muted-foreground">No rows match “{query.trim()}”.</p>
+          </CardContent>
+        </Card>
       ) : (
-        rows.map((row, rowPosition) => (
-          <RowCard
-            key={row.id}
-            row={row}
-            rowPosition={rowPosition}
-            totalRows={rows.length}
-            pointTypes={pointTypes}
-            groups={groups}
-            onMoveUp={() => handleMoveRow(row, -1)}
-            onMoveDown={() => handleMoveRow(row, 1)}
-            onEdit={() => setEditingRow(row)}
-            onAddChoice={() => handleAddChoice(row)}
-            onDelete={() => setDeleteRowTarget(row)}
-            onEditChoice={(choice) => setEditingChoice({ row, choice })}
-            onMoveChoice={(choice, direction) =>
-              handleMoveChoice(choice, direction)
-            }
-            onDeleteChoice={(choice) => setDeleteChoiceTarget({ row, choice })}
-            onAddScore={(choice, pointTypeId) =>
-              handleAddScore(row, choice, pointTypeId)
-            }
-          />
-        ))
+        <RowTree
+          rows={pageRows}
+          rowOffset={pageStart}
+          app={app}
+          pointTypes={pointTypes}
+          groups={groups}
+          autoExpandIds={autoExpandIds}
+          selectedKey={selection ? selectionKey(selection) : null}
+          onEditRow={handleSelectRow}
+          onAddChoice={handleAddChoice}
+          onDeleteRow={requestDeleteRow}
+          onMoveRow={handleMoveRow}
+          onEditChoice={handleSelectChoice}
+          onDeleteChoice={requestDeleteChoice}
+          onMoveChoice={handleMoveChoice}
+          onEditAddon={handleSelectAddon}
+          onDeleteAddon={requestDeleteAddon}
+          onMoveAddon={handleMoveAddon}
+          onAddRowAt={handleAddRowAt}
+          onAddChoiceAt={handleAddChoiceAt}
+          onAddAddonAt={handleAddAddonAt}
+        />
       )}
+    </div>
+  );
 
-      <RowEditorDialog
-        key={editingRow?.id ?? "row-editor"}
-        open={Boolean(editingRow)}
-        onOpenChange={(open) => {
-          if (!open) setEditingRow(null);
-        }}
-        row={editingRow}
-        busy={updateRow.isPending}
-        onSave={handleSaveRow}
-      />
-
-      <ChoiceEditorDialog
-        key={editingChoice?.choice.id ?? "choice-editor"}
-        open={Boolean(editingChoice)}
-        onOpenChange={(open) => {
-          if (!open) setEditingChoice(null);
-        }}
-        choice={editingChoice?.choice ?? null}
-        pointTypes={pointTypes}
-        groups={groups}
-        busy={updateChoice.isPending}
-        onSave={handleSaveChoice}
-      />
-
+  return (
+    <>
+      <MasterDetail master={master} detail={detail} />
       <ConfirmDeleteDialog
         open={Boolean(deleteRowTarget)}
         onOpenChange={(open) => {
@@ -313,7 +535,7 @@ export function RowsPanel({ project }: RowsPanelProps) {
         }}
         title={`Delete row "${deleteRowTarget?.title || "Untitled row"}"?`}
         description="This deletes the row and all of its choices."
-        busy={deleteRow.isPending}
+        busy={deleteRowPending}
         onConfirm={handleDeleteRow}
       />
 
@@ -324,332 +546,20 @@ export function RowsPanel({ project }: RowsPanelProps) {
         }}
         title={`Delete choice "${deleteChoiceTarget?.choice.title || "Untitled choice"}"?`}
         description="This deletes the choice and its scores."
-        busy={deleteChoice.isPending}
+        busy={deleteChoicePending}
         onConfirm={handleDeleteChoice}
       />
-    </div>
-  );
-}
 
-/* ------------------------------------------------------------------ */
-
-interface RowCardProps {
-  row: Row;
-  rowPosition: number;
-  totalRows: number;
-  pointTypes: ProjectDetail["app"]["pointTypes"];
-  groups: ProjectDetail["app"]["groups"];
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onEdit: () => void;
-  onAddChoice: () => void;
-  onDelete: () => void;
-  onEditChoice: (choice: Choice) => void;
-  onMoveChoice: (choice: Choice, direction: -1 | 1) => void;
-  onDeleteChoice: (choice: Choice) => void;
-  onAddScore: (choice: Choice, pointTypeId: string) => void;
-}
-
-function RowCard({
-  row,
-  rowPosition,
-  totalRows,
-  pointTypes,
-  groups,
-  onMoveUp,
-  onMoveDown,
-  onEdit,
-  onAddChoice,
-  onDelete,
-  onEditChoice,
-  onMoveChoice,
-  onDeleteChoice,
-  onAddScore,
-}: RowCardProps) {
-  const choices = sortedChoices(row);
-
-  return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="shrink-0">
-                Row {rowPosition + 1}
-              </Badge>
-              <CardTitle className="text-base">
-                {row.title || "Untitled row"}
-              </CardTitle>
-            </div>
-            {row.titleText ? (
-              <CardDescription className="mt-1">
-                {row.titleText}
-              </CardDescription>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 items-center gap-0.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground"
-              onClick={onMoveUp}
-              disabled={rowPosition === 0}
-              aria-label="Move row up"
-            >
-              <IconChevronUp className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground"
-              onClick={onMoveDown}
-              disabled={rowPosition === totalRows - 1}
-              aria-label="Move row down"
-            >
-              <IconChevronDown className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground"
-              onClick={onAddChoice}
-              aria-label="Add choice"
-              title="Add choice"
-            >
-              <IconPlus className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground"
-              onClick={onEdit}
-              aria-label="Edit row"
-              title="Edit row"
-            >
-              <IconPencil className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 text-muted-foreground hover:text-destructive"
-              onClick={onDelete}
-              aria-label="Delete row"
-              title="Delete row"
-            >
-              <IconTrash className="size-4" />
-            </Button>
-          </div>
-        </div>
-
-        {row.image ? (
-          <img
-            src={row.image}
-            alt=""
-            className="mt-3 h-20 w-full max-w-xs rounded-md border border-border object-cover"
-          />
-        ) : null}
-
-        {(row.allowedChoices ?? 0) > 0 || row.objectWidth ? (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {(row.allowedChoices ?? 0) > 0 ? (
-              <Badge variant="secondary">
-                Max {row.allowedChoices} selection
-                {row.allowedChoices === 1 ? "" : "s"}
-              </Badge>
-            ) : null}
-            {row.objectWidth ? (
-              <Badge variant="secondary">{row.objectWidth}</Badge>
-            ) : null}
-          </div>
-        ) : null}
-      </CardHeader>
-
-      <CardContent className="space-y-2">
-        {choices.length === 0 ? (
-          <p className="py-1 text-sm text-muted-foreground">
-            No choices in this row yet.
-          </p>
-        ) : (
-          choices.map((choice, choicePosition) => (
-            <ChoiceCard
-              key={choice.id}
-              choice={choice}
-              choicePosition={choicePosition}
-              totalChoices={choices.length}
-              pointTypes={pointTypes}
-              groups={groups}
-              onEdit={() => onEditChoice(choice)}
-              onMoveUp={() => onMoveChoice(choice, -1)}
-              onMoveDown={() => onMoveChoice(choice, 1)}
-              onDelete={() => onDeleteChoice(choice)}
-              onAddScore={(pointTypeId) => onAddScore(choice, pointTypeId)}
-            />
-          ))
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-interface ChoiceCardProps {
-  choice: Choice;
-  choicePosition: number;
-  totalChoices: number;
-  pointTypes: ProjectDetail["app"]["pointTypes"];
-  groups: ProjectDetail["app"]["groups"];
-  onEdit: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onDelete: () => void;
-  onAddScore: (pointTypeId: string) => void;
-}
-
-function ChoiceCard({
-  choice,
-  choicePosition,
-  totalChoices,
-  pointTypes,
-  groups,
-  onEdit,
-  onMoveUp,
-  onMoveDown,
-  onDelete,
-  onAddScore,
-}: ChoiceCardProps) {
-  const scoredPointTypeIds = new Set(
-    (choice.scores ?? [])
-      .map((score) => score.id ?? score.type)
-      .filter(Boolean),
-  );
-  const availablePointTypes = pointTypes.filter(
-    (pt) => !scoredPointTypeIds.has(pt.id),
-  );
-  const groupName = (groupId: string) =>
-    groups.find((group) => group.id === groupId)?.name ?? groupId;
-
-  return (
-    <div className="rounded-md border border-border bg-muted/30 p-3 transition-colors hover:border-muted-foreground/30">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h4 className="text-sm font-medium">
-            {choice.title || "Untitled choice"}
-          </h4>
-          {choice.text ? (
-            <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
-              {choice.text}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-7 text-muted-foreground"
-            onClick={onMoveUp}
-            disabled={choicePosition === 0}
-            aria-label="Move choice up"
-          >
-            <IconChevronUp className="size-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-7 text-muted-foreground"
-            onClick={onMoveDown}
-            disabled={choicePosition === totalChoices - 1}
-            aria-label="Move choice down"
-          >
-            <IconChevronDown className="size-3.5" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground"
-                aria-label="Add score"
-                title="Add score"
-              >
-                <IconPlus className="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Add score</DropdownMenuLabel>
-              {availablePointTypes.length === 0 ? (
-                <DropdownMenuItem disabled>
-                  All point types are scored
-                </DropdownMenuItem>
-              ) : (
-                availablePointTypes.map((pt) => (
-                  <DropdownMenuItem
-                    key={pt.id}
-                    onSelect={() => onAddScore(pt.id)}
-                  >
-                    {pt.name}
-                  </DropdownMenuItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-7 text-muted-foreground"
-            onClick={onEdit}
-            aria-label="Edit choice"
-            title="Edit choice"
-          >
-            <IconPencil className="size-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-7 text-muted-foreground hover:text-destructive"
-            onClick={onDelete}
-            aria-label="Delete choice"
-            title="Delete choice"
-          >
-            <IconTrash className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      {choice.image ? (
-        <img
-          src={choice.image}
-          alt=""
-          className="mt-2 h-14 w-24 rounded-md border border-border object-cover"
-        />
-      ) : null}
-
-      {(choice.scores?.length ?? 0) > 0 ||
-      (choice.groups?.length ?? 0) > 0 ? (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {(choice.scores ?? []).map((score, index) => (
-            <Badge
-              key={`${score.id ?? score.type}-${index}`}
-              variant="secondary"
-            >
-              {formatScoreChip(score, pointTypes)}
-            </Badge>
-          ))}
-          {(choice.groups ?? []).map((groupId) => (
-            <Badge key={groupId} variant="outline">
-              {groupName(groupId)}
-            </Badge>
-          ))}
-        </div>
-      ) : null}
-    </div>
+      <ConfirmDeleteDialog
+        open={Boolean(deleteAddonTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteAddonTarget(null);
+        }}
+        title={`Delete addon "${deleteAddonTarget?.title || "Untitled addon"}"?`}
+        description="This removes the addon from its choice."
+        busy={deleteAddonPending}
+        onConfirm={handleDeleteAddon}
+      />
+    </>
   );
 }

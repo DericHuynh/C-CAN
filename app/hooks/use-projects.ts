@@ -150,7 +150,7 @@ export function useAddChoice() {
 
 export function useUpdateChoice() {
   return useActionMutation<
-    ProjectRefResult,
+    { choice?: Choice } & ProjectRefResult,
     {
       projectId: string;
       rowId: string;
@@ -172,6 +172,26 @@ export function useMoveChoice() {
     ProjectRefResult,
     { projectId: string; rowId: string; choiceId: string; index: number }
   >("move-choice");
+}
+
+export function useMoveAddon() {
+  return useActionMutation<
+    ProjectRefResult,
+    {
+      projectId: string;
+      sourceChoiceId: string;
+      addonIndex: number;
+      targetChoiceId: string;
+      targetIndex: number;
+    }
+  >("move-addon");
+}
+
+export function useDeleteAddon() {
+  return useActionMutation<
+    ProjectRefResult,
+    { projectId: string; choiceId: string; addonIndex: number }
+  >("delete-addon");
 }
 
 export function useAddScore() {
@@ -248,6 +268,31 @@ export function useDeleteGroup() {
     ProjectRefResult,
     { projectId: string; groupId: string }
   >("delete-group");
+}
+
+/* ------------------------------------------------------------------ */
+/* Image resource mutations                                           */
+/* ------------------------------------------------------------------ */
+
+export function useAddImage() {
+  return useActionMutation<
+    ProjectRefResult,
+    { projectId: string; name?: string; image: string; sourceTooltip?: string }
+  >("add-image");
+}
+
+export function useUpdateImage() {
+  return useActionMutation<
+    ProjectRefResult,
+    { projectId: string; imageId: string; patch: Record<string, unknown> }
+  >("update-image");
+}
+
+export function useDeleteImage() {
+  return useActionMutation<
+    ProjectRefResult,
+    { projectId: string; imageId: string }
+  >("delete-image");
 }
 
 /* ------------------------------------------------------------------ */

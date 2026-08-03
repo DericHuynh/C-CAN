@@ -1,39 +1,27 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  useUpdateProjectSettings,
-  type ProjectDetail,
-} from "@/hooks/use-projects";
+import { cn } from "@/lib/utils";
+import { useUpdateProjectSettings, type ProjectDetail } from "@/hooks/use-projects";
 import type { Word } from "@shared/types";
 import { createDefaultWord } from "@shared/cyoa";
 
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { CopyId } from "./CopyId";
+import { EditorPane } from "./EditorPane";
+import { MasterDetail } from "./MasterDetail";
+import { PaginatedList } from "./PaginatedList";
 
 interface WordsPanelProps {
   project: ProjectDetail;
 }
 
-interface WordForm {
+interface WordFormValues {
   id: string;
   replaceText: string;
 }
@@ -44,36 +32,29 @@ export function WordsPanel({ project }: WordsPanelProps) {
 
   const updateSettings = useUpdateProjectSettings();
 
-  const [editing, setEditing] = useState<Word | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selected, setSelected] = useState<Word | "new" | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Word | null>(null);
 
-  function handleAdd() {
-    updateSettings.mutate(
-      { projectId, patch: { words: [...words, createDefaultWord()] } },
-      {
-        onSuccess: () => toast.success("Word added"),
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : "Failed to add word"),
-      },
-    );
-  }
-
-  function handleSave(form: WordForm) {
-    if (!editing) return;
-    const next = words.map((word) =>
-      word.id === editing.id ? { ...word, ...form } : word,
-    );
+  function handleSave(form: WordFormValues) {
+    if (selected === null) return;
+    const isNew = selected === "new";
+    const next = isNew
+      ? [...words, { ...createDefaultWord(), ...form }]
+      : words.map((word) => (word.id === selected.id ? { ...word, ...form } : word));
     updateSettings.mutate(
       { projectId, patch: { words: next } },
       {
         onSuccess: () => {
-          toast.success("Word updated");
-          setDialogOpen(false);
+          toast.success(isNew ? "Word added" : "Word updated");
+          setSelected(null);
         },
         onError: (err) =>
           toast.error(
-            err instanceof Error ? err.message : "Failed to update word",
+            err instanceof Error
+              ? err.message
+              : isNew
+                ? "Failed to add word"
+                : "Failed to update word",
           ),
       },
     );
@@ -91,9 +72,7 @@ export function WordsPanel({ project }: WordsPanelProps) {
           setDeleteTarget(null);
         },
         onError: (err) => {
-          toast.error(
-            err instanceof Error ? err.message : "Failed to delete word",
-          );
+          toast.error(err instanceof Error ? err.message : "Failed to delete word");
           setDeleteTarget(null);
         },
       },
@@ -101,89 +80,110 @@ export function WordsPanel({ project }: WordsPanelProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {words.length} word
-          {words.length === 1 ? "" : "s"} — ids replaced in reader text
-        </p>
-        <Button type="button" size="sm" onClick={handleAdd}>
-          <IconPlus className="mr-1.5 size-4" />
-          New word
-        </Button>
-      </div>
+    <>
+      <MasterDetail
+        master={
+          <div className="space-y-3">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-background/95 py-2 backdrop-blur">
+              <p className="text-sm text-muted-foreground">
+                {words.length} word
+                {words.length === 1 ? "" : "s"} — ids replaced in reader text
+              </p>
+              <Button type="button" size="sm" onClick={() => setSelected("new")}>
+                <IconPlus className="mr-1.5 size-4" />
+                New word
+              </Button>
+            </div>
 
-      {words.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <p className="text-sm text-muted-foreground">
-              No words yet. Words swap an id for longer text when the story is
-              rendered (e.g. replace "PC" with the reader's character name).
-            </p>
-            <Button type="button" onClick={handleAdd}>
-              <IconPlus className="mr-1.5 size-4" />
-              New word
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        words.map((word) => (
-          <Card key={word.id}>
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <CardTitle className="font-mono text-base">
-                    {word.id || "Untitled word"}
-                  </CardTitle>
-                  <CardDescription className="mt-1">
-                    {word.replaceText
-                      ? `Replaces with: ${word.replaceText}`
-                      : "No replacement text set yet."}
-                  </CardDescription>
-                </div>
-                <div className="flex shrink-0 items-center gap-0.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground"
-                    onClick={() => {
-                      setEditing(word);
-                      setDialogOpen(true);
-                    }}
-                    aria-label={`Edit ${word.id}`}
-                    title="Edit"
-                  >
-                    <IconPencil className="size-4" />
+            {words.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No words yet. Words swap an id for longer text when the story is rendered (e.g.
+                    replace "PC" with the reader's character name).
+                  </p>
+                  <Button type="button" onClick={() => setSelected("new")}>
+                    <IconPlus className="mr-1.5 size-4" />
+                    New word
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => setDeleteTarget(word)}
-                    aria-label={`Delete ${word.id}`}
-                    title="Delete"
+                </CardContent>
+              </Card>
+            ) : (
+              <PaginatedList
+                items={words}
+                getItemKey={(word) => word.id}
+                pageSize={25}
+                renderItem={(word) => (
+                  <Card
+                    key={word.id}
+                    className={cn(
+                      "cursor-pointer transition-colors",
+                      selected === word && "border-primary bg-primary/5",
+                    )}
+                    onClick={() => setSelected(word)}
                   >
-                    <IconTrash className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
-        ))
-      )}
-
-      <WordDialog
-        key={editing?.id ?? "edit-word"}
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditing(null);
-        }}
-        word={editing}
-        busy={updateSettings.isPending}
-        onSave={handleSave}
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <CopyId id={word.id ?? ""} />
+                          <CardDescription className="mt-1">
+                            {word.replaceText
+                              ? `Replaces with: ${word.replaceText}`
+                              : "No replacement text set yet."}
+                          </CardDescription>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-muted-foreground hover:text-destructive"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setDeleteTarget(word);
+                            }}
+                            aria-label={`Delete ${word.id}`}
+                            title="Delete"
+                          >
+                            <IconTrash className="size-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                )}
+              />
+            )}
+          </div>
+        }
+        detail={
+          selected === "new" ? (
+            <WordForm
+              key="new"
+              word={null}
+              busy={updateSettings.isPending}
+              onCancel={() => setSelected(null)}
+              onSave={handleSave}
+            />
+          ) : selected ? (
+            <WordForm
+              key={selected.id}
+              word={selected}
+              busy={updateSettings.isPending}
+              onCancel={() => setSelected(null)}
+              onSave={handleSave}
+            />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Select a word to edit it here. Words swap an id for longer text when the story is
+                  rendered.
+                </p>
+              </CardContent>
+            </Card>
+          )
+        }
       />
 
       <ConfirmDeleteDialog
@@ -196,81 +196,58 @@ export function WordsPanel({ project }: WordsPanelProps) {
         busy={updateSettings.isPending}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-interface WordDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+interface WordFormProps {
   word: Word | null;
   busy?: boolean;
-  onSave: (form: WordForm) => void;
+  onCancel: () => void;
+  onSave: (form: WordFormValues) => void;
 }
 
-function WordDialog({
-  open,
-  onOpenChange,
-  word,
-  busy = false,
-  onSave,
-}: WordDialogProps) {
+function WordForm({ word, busy = false, onCancel, onSave }: WordFormProps) {
   const [id, setId] = useState(word?.id ?? "");
   const [replaceText, setReplaceText] = useState(word?.replaceText ?? "");
+  const isEdit = Boolean(word);
 
   function handleSave() {
     onSave({ id, replaceText });
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit word</DialogTitle>
-          <DialogDescription>
-            When the reader sees the id in story text, it is replaced with the
-            replacement text.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="word-id">Id</Label>
-            <Input
-              id="word-id"
-              value={id}
-              onChange={(event) => setId(event.target.value)}
-              placeholder="e.g. PC"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="word-replace">Replacement text</Label>
-            <Input
-              id="word-replace"
-              value={replaceText}
-              onChange={(event) => setReplaceText(event.target.value)}
-              placeholder="e.g. Alex"
-            />
-          </div>
+    <EditorPane
+      title={isEdit ? "Edit word" : "Add word"}
+      description="When the reader sees the id in story text, it is replaced with the replacement text."
+      busy={busy}
+      saveLabel={isEdit ? "Save" : "Add"}
+      canSave={id.trim().length > 0}
+      onCancel={onCancel}
+      onSave={handleSave}
+    >
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="word-id">Id</Label>
+          <Input
+            id="word-id"
+            value={id}
+            onChange={(event) => setId(event.target.value)}
+            placeholder="e.g. PC"
+          />
         </div>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={busy || id.trim().length === 0}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="space-y-2">
+          <Label htmlFor="word-replace">Replacement text</Label>
+          <Input
+            id="word-replace"
+            value={replaceText}
+            onChange={(event) => setReplaceText(event.target.value)}
+            placeholder="e.g. Alex"
+          />
+        </div>
+      </div>
+    </EditorPane>
   );
 }

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,8 @@ import {
 } from "@/components/ui/select";
 import { createDefaultRequireds } from "@shared/cyoa";
 import type { Requireds } from "@shared/types";
+
+import { LazySelect } from "./LazySelect";
 
 interface RequirementListEditorProps {
   requireds: Requireds[];
@@ -44,9 +47,7 @@ export function RequirementListEditor({
   globalRequirements,
 }: RequirementListEditorProps) {
   function update(index: number, patch: Partial<Requireds>) {
-    onChange(
-      requireds.map((req, i) => (i === index ? { ...req, ...patch } : req)),
-    );
+    onChange(requireds.map((req, i) => (i === index ? { ...req, ...patch } : req)));
   }
 
   function remove(index: number) {
@@ -57,28 +58,42 @@ export function RequirementListEditor({
     onChange([...requireds, createDefaultRequireds()]);
   }
 
+  // The choice picker holds every choice in the project (1,000+), so it
+  // renders lazily and searchably — mounting thousands of SelectItems per
+  // requirement made opening any editor take seconds.
+  const choiceItems = useMemo(
+    () => choices.map((choice) => ({ value: choice.id, label: choice.label, searchText: choice.label })),
+    [choices],
+  );
+  const pointTypeItems = useMemo(
+    () => pointTypes.map((pointType) => ({ value: pointType.id, label: pointType.name })),
+    [pointTypes],
+  );
+  const globalRequirementItems = useMemo(
+    () =>
+      globalRequirements.map((requirement) => ({
+        value: requirement.id,
+        label: requirement.name,
+      })),
+    [globalRequirements],
+  );
+
   return (
     <div className="space-y-3">
       {requireds.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No requirements yet. Add one below to gate this on another choice, a
-          point threshold, or a global requirement.
+          No requirements yet. Add one below to gate this on another choice, a point threshold, or a
+          global requirement.
         </p>
       ) : (
         requireds.map((req, index) => {
           const key = `${req.id ?? "req"}-${index}`;
           return (
-            <div
-              key={key}
-              className="space-y-3 rounded-md border border-border p-3"
-            >
+            <div key={key} className="space-y-3 rounded-md border border-border p-3">
               <div className="flex items-end gap-2">
                 <div className="min-w-40 flex-1 space-y-1">
                   <Label>Type</Label>
-                  <Select
-                    value={req.type}
-                    onValueChange={(type) => update(index, { type })}
-                  >
+                  <Select value={req.type} onValueChange={(type) => update(index, { type })}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Requirement type" />
                     </SelectTrigger>
@@ -104,21 +119,14 @@ export function RequirementListEditor({
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="min-w-44 flex-1 space-y-1">
                     <Label>Choice</Label>
-                    <Select
-                      value={req.reqId}
+                    <LazySelect
+                      value={req.reqId ?? ""}
                       onValueChange={(reqId) => update(index, { reqId })}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a choice" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {choices.map((choice) => (
-                          <SelectItem key={choice.id} value={choice.id}>
-                            {choice.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      items={choiceItems}
+                      placeholder="Select a choice"
+                      searchable
+                      renderValue={(reqId) => choices.find((choice) => choice.id === reqId)?.label ?? reqId}
+                    />
                   </div>
                   <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm">
                     <Checkbox
@@ -134,21 +142,15 @@ export function RequirementListEditor({
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="min-w-40 flex-1 space-y-1">
                     <Label>Point type</Label>
-                    <Select
-                      value={req.reqId}
+                    <LazySelect
+                      value={req.reqId ?? ""}
                       onValueChange={(reqId) => update(index, { reqId })}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a point type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {pointTypes.map((pointType) => (
-                          <SelectItem key={pointType.id} value={pointType.id}>
-                            {pointType.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      items={pointTypeItems}
+                      placeholder="Select a point type"
+                      renderValue={(reqId) =>
+                        pointTypes.find((pointType) => pointType.id === reqId)?.name ?? reqId
+                      }
+                    />
                   </div>
                   <div className="w-20 space-y-1">
                     <Label>Operator</Label>
@@ -182,21 +184,16 @@ export function RequirementListEditor({
               ) : req.type === "gid" ? (
                 <div className="space-y-1">
                   <Label>Global requirement</Label>
-                  <Select
-                    value={req.reqId}
+                  <LazySelect
+                    value={req.reqId ?? ""}
                     onValueChange={(reqId) => update(index, { reqId })}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a global requirement" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {globalRequirements.map((requirement) => (
-                        <SelectItem key={requirement.id} value={requirement.id}>
-                          {requirement.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    items={globalRequirementItems}
+                    placeholder="Select a global requirement"
+                    renderValue={(reqId) =>
+                      globalRequirements.find((requirement) => requirement.id === reqId)?.name ??
+                      reqId
+                    }
+                  />
                 </div>
               ) : null}
 
@@ -205,9 +202,7 @@ export function RequirementListEditor({
                   <Label>Text before</Label>
                   <Input
                     value={req.beforeText ?? ""}
-                    onChange={(event) =>
-                      update(index, { beforeText: event.target.value })
-                    }
+                    onChange={(event) => update(index, { beforeText: event.target.value })}
                     placeholder="Optional"
                   />
                 </div>
@@ -215,9 +210,7 @@ export function RequirementListEditor({
                   <Label>Text after</Label>
                   <Input
                     value={req.afterText ?? ""}
-                    onChange={(event) =>
-                      update(index, { afterText: event.target.value })
-                    }
+                    onChange={(event) => update(index, { afterText: event.target.value })}
                     placeholder="Optional"
                   />
                 </div>
@@ -226,9 +219,7 @@ export function RequirementListEditor({
               <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <Checkbox
                   checked={req.hideRequired ?? false}
-                  onCheckedChange={(checked) =>
-                    update(index, { hideRequired: checked === true })
-                  }
+                  onCheckedChange={(checked) => update(index, { hideRequired: checked === true })}
                 />
                 Hide when met
               </label>

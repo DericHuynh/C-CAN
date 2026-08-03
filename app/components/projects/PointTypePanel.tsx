@@ -1,27 +1,14 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -35,9 +22,13 @@ import {
   useUpdatePointType,
   type ProjectDetail,
 } from "@/hooks/use-projects";
-import type { PointType } from "@shared/types";
+import type { ImageResource, PointType } from "@shared/types";
 
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { EditorPane } from "./EditorPane";
+import { ImageResourceSelect } from "./ImageResourceSelect";
+import { MasterDetail } from "./MasterDetail";
+import { PaginatedList } from "./PaginatedList";
 
 interface PointTypePanelProps {
   project: ProjectDetail;
@@ -88,23 +79,20 @@ export function PointTypePanel({ project }: PointTypePanelProps) {
   const updatePointType = useUpdatePointType();
   const deletePointType = useDeletePointType();
 
-  const [editing, setEditing] = useState<PointType | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selected, setSelected] = useState<PointType | "new" | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PointType | null>(null);
 
   function handleSave(form: PointTypeForm) {
-    if (editing) {
+    if (selected && selected !== "new") {
       updatePointType.mutate(
-        { projectId, pointTypeId: editing.id, patch: { ...form } },
+        { projectId, pointTypeId: selected.id, patch: { ...form } },
         {
           onSuccess: () => {
             toast.success("Point type updated");
-            setDialogOpen(false);
+            setSelected(null);
           },
           onError: (err) =>
-            toast.error(
-              err instanceof Error ? err.message : "Failed to update point type",
-            ),
+            toast.error(err instanceof Error ? err.message : "Failed to update point type"),
         },
       );
     } else {
@@ -119,12 +107,10 @@ export function PointTypePanel({ project }: PointTypePanelProps) {
         {
           onSuccess: () => {
             toast.success("Point type added");
-            setDialogOpen(false);
+            setSelected(null);
           },
           onError: (err) =>
-            toast.error(
-              err instanceof Error ? err.message : "Failed to add point type",
-            ),
+            toast.error(err instanceof Error ? err.message : "Failed to add point type"),
         },
       );
     }
@@ -138,26 +124,56 @@ export function PointTypePanel({ project }: PointTypePanelProps) {
       {
         onSuccess: () => {
           toast.success("Point type deleted");
+          if (selected !== null && selected !== "new" && selected.id === target.id) {
+            setSelected(null);
+          }
           setDeleteTarget(null);
         },
         onError: (err) => {
-          toast.error(
-            err instanceof Error ? err.message : "Failed to delete point type",
-          );
+          toast.error(err instanceof Error ? err.message : "Failed to delete point type");
           setDeleteTarget(null);
         },
       },
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+  const detail =
+    selected === "new" ? (
+      <PointTypeDialog
+        key="new"
+        item={null}
+        images={project.app.images ?? []}
+        busy={addPointType.isPending || updatePointType.isPending}
+        onCancel={() => setSelected(null)}
+        onSave={handleSave}
+      />
+    ) : selected ? (
+      <PointTypeDialog
+        key={selected.id}
+        item={selected}
+        images={project.app.images ?? []}
+        busy={addPointType.isPending || updatePointType.isPending}
+        onCancel={() => setSelected(null)}
+        onSave={handleSave}
+      />
+    ) : (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Select a point type to edit it here, or add a new one — no more dialogs.
+          </p>
+        </CardContent>
+      </Card>
+    );
+
+  const master = (
+    <div className="space-y-3">
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-background/95 py-2 backdrop-blur">
         <p className="text-sm text-muted-foreground">
           {pointTypes.length} point type
           {pointTypes.length === 1 ? "" : "s"} — scores draw from these
         </p>
-        <Button type="button" size="sm" onClick={() => setDialogOpen(true)}>
+        <Button type="button" size="sm" onClick={() => setSelected("new")}>
           <IconPlus className="mr-1.5 size-4" />
           Add point type
         </Button>
@@ -167,112 +183,99 @@ export function PointTypePanel({ project }: PointTypePanelProps) {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <p className="text-sm text-muted-foreground">
-              No point types yet. Point types back the score chips on choices
-              (costs like gold, HP, sanity…).
+              No point types yet. Point types back the score chips on choices (costs like gold, HP,
+              sanity…).
             </p>
-            <Button type="button" onClick={() => setDialogOpen(true)}>
+            <Button type="button" onClick={() => setSelected("new")}>
               <IconPlus className="mr-1.5 size-4" />
               Add point type
             </Button>
           </CardContent>
         </Card>
       ) : (
-        pointTypes.map((pointType) => {
-          const preview = [
-            pointType.beforeText,
-            String(pointType.startingSum ?? 0),
-            pointType.afterText,
-          ]
-            .map((part) => (part ?? "").trim())
-            .filter(Boolean)
-            .join(" ");
-          return (
-            <Card key={pointType.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle className="text-base">
-                        {pointType.name || "Untitled point type"}
-                      </CardTitle>
-                      {pointType.isNotShownPointBar ? (
-                        <Badge variant="outline">Hidden in bar</Badge>
-                      ) : null}
-                      {pointType.allowFloat ? (
-                        <Badge variant="outline">Float</Badge>
-                      ) : null}
-                      {pointType.iconIsOn ? (
-                        <Badge variant="secondary">Icon</Badge>
-                      ) : null}
-                      {pointType.pointColorsIsOn ? (
-                        <Badge variant="secondary">Colors</Badge>
-                      ) : null}
+        <PaginatedList
+          items={pointTypes}
+          getItemKey={(pointType) => pointType.id}
+          pageSize={25}
+          renderItem={(pointType) => {
+            const preview = [
+              pointType.beforeText,
+              String(pointType.startingSum ?? 0),
+              pointType.afterText,
+            ]
+              .map((part) => (part ?? "").trim())
+              .filter(Boolean)
+              .join(" ");
+            return (
+              <Card
+                key={pointType.id}
+                className={cn(
+                  "cursor-pointer transition-colors",
+                  selected !== null &&
+                    selected !== "new" &&
+                    selected.id === pointType.id &&
+                    "border-primary bg-primary/5",
+                )}
+                onClick={() => setSelected(pointType)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <CardTitle className="text-base">{pointType.name}</CardTitle>
+                        {pointType.isNotShownPointBar ? (
+                          <Badge variant="outline">Hidden in bar</Badge>
+                        ) : null}
+                        {pointType.allowFloat ? <Badge variant="outline">Float</Badge> : null}
+                        {pointType.iconIsOn ? <Badge variant="secondary">Icon</Badge> : null}
+                        {pointType.pointColorsIsOn ? (
+                          <Badge variant="secondary">Colors</Badge>
+                        ) : null}
+                      </div>
+                      <CardDescription className="mt-1 flex flex-wrap gap-1.5">
+                        <span>Starts at {pointType.startingSum ?? 0}</span>
+                        {preview ? <span>· {preview}</span> : null}
+                      </CardDescription>
                     </div>
-                    <CardDescription className="mt-1 flex flex-wrap gap-1.5">
-                      <span>Starts at {pointType.startingSum ?? 0}</span>
-                      {preview ? <span>· {preview}</span> : null}
-                    </CardDescription>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground hover:text-destructive"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setDeleteTarget(pointType);
+                        }}
+                        aria-label={`Delete ${pointType.name}`}
+                        title="Delete"
+                      >
+                        <IconTrash className="size-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-0.5">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-muted-foreground"
-                      onClick={() => {
-                        setEditing(pointType);
-                        setDialogOpen(true);
-                      }}
-                      aria-label={`Edit ${pointType.name}`}
-                      title="Edit"
-                    >
-                      <IconPencil className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => setDeleteTarget(pointType)}
-                      aria-label={`Delete ${pointType.name}`}
-                      title="Delete"
-                    >
-                      <IconTrash className="size-4" />
-                    </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                    <Badge variant="secondary">Base {pointType.startingSum ?? 0}</Badge>
+                    <Badge variant="secondary">Init {pointType.initValue ?? 0}</Badge>
+                    <Badge variant="secondary">
+                      {pointType.beforeText || "—"} … {pointType.afterText || "—"}
+                    </Badge>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
-                  <Badge variant="secondary">
-                    Base {pointType.startingSum ?? 0}
-                  </Badge>
-                  <Badge variant="secondary">
-                    Init {pointType.initValue ?? 0}
-                  </Badge>
-                  <Badge variant="secondary">
-                    {pointType.beforeText || "—"} …{" "}
-                    {pointType.afterText || "—"}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })
+                </CardContent>
+              </Card>
+            );
+          }}
+        />
       )}
 
-      <PointTypeDialog
-        key={editing?.id ?? "new-point-type"}
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditing(null);
-        }}
-        pointType={editing}
-        busy={addPointType.isPending || updatePointType.isPending}
-        onSave={handleSave}
-      />
+    </div>
+  );
 
+  return (
+    <>
+      <MasterDetail master={master} detail={detail} />
       <ConfirmDeleteDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
@@ -283,7 +286,7 @@ export function PointTypePanel({ project }: PointTypePanelProps) {
         busy={deletePointType.isPending}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   );
 }
 
@@ -313,111 +316,93 @@ function placementValue(enabled: boolean | undefined): "before" | "after" {
 }
 
 interface PointTypeDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  pointType: PointType | null;
+  item: PointType | null;
+  images: ImageResource[];
   busy?: boolean;
+  onCancel: () => void;
   onSave: (form: PointTypeForm) => void;
 }
 
 function PointTypeDialog({
-  open,
-  onOpenChange,
-  pointType,
+  item,
+  images,
   busy = false,
+  onCancel,
   onSave,
 }: PointTypeDialogProps) {
-  const isEdit = Boolean(pointType);
-  const [name, setName] = useState(pointType?.name ?? "");
+  const isEdit = Boolean(item);
+  const [name, setName] = useState(item?.name ?? "");
   const [startingSum, setStartingSum] = useState(
-    pointType?.startingSum != null ? String(pointType.startingSum) : "0",
+    item?.startingSum != null ? String(item.startingSum) : "0",
   );
   const [initValue, setInitValue] = useState(
-    pointType?.initValue != null ? String(pointType.initValue) : "0",
+    item?.initValue != null ? String(item.initValue) : "0",
   );
-  const [beforeText, setBeforeText] = useState(pointType?.beforeText ?? "");
-  const [afterText, setAfterText] = useState(pointType?.afterText ?? "");
+  const [beforeText, setBeforeText] = useState(item?.beforeText ?? "");
+  const [afterText, setAfterText] = useState(item?.afterText ?? "");
   const [isNotShownPointBar, setIsNotShownPointBar] = useState(
-    pointType?.isNotShownPointBar ?? false,
+    item?.isNotShownPointBar ?? false,
   );
 
   // Gating & limits
   const [belowZeroNotAllowed, setBelowZeroNotAllowed] = useState(
-    pointType?.belowZeroNotAllowed ?? false,
+    item?.belowZeroNotAllowed ?? false,
   );
-  const [isNotShownObjects, setIsNotShownObjects] = useState(
-    pointType?.isNotShownObjects ?? false,
-  );
-  const [allowFloat, setAllowFloat] = useState(pointType?.allowFloat ?? false);
+  const [isNotShownObjects, setIsNotShownObjects] = useState(item?.isNotShownObjects ?? false);
+  const [allowFloat, setAllowFloat] = useState(item?.allowFloat ?? false);
   const [decimalPlaces, setDecimalPlaces] = useState(
-    pointType?.decimalPlaces != null ? String(pointType.decimalPlaces) : "0",
+    item?.decimalPlaces != null ? String(item.decimalPlaces) : "0",
   );
-  const [plussOrMinusAdded, setPlussOrMinusAdded] = useState(
-    pointType?.plussOrMinusAdded ?? false,
-  );
+  const [plussOrMinusAdded, setPlussOrMinusAdded] = useState(item?.plussOrMinusAdded ?? false);
   const [plussOrMinusInverted, setPlussOrMinusInverted] = useState(
-    pointType?.plussOrMinusInverted ?? false,
+    item?.plussOrMinusInverted ?? false,
   );
-  const [activatedId, setActivatedId] = useState(
-    pointType?.activatedId ?? "",
-  );
+  const [activatedId, setActivatedId] = useState(item?.activatedId ?? "");
 
   // Icons
-  const [iconIsOn, setIconIsOn] = useState(pointType?.iconIsOn ?? false);
-  const [image, setImage] = useState(pointType?.image ?? "");
+  const [iconIsOn, setIconIsOn] = useState(item?.iconIsOn ?? false);
+  const [image, setImage] = useState(item?.image ?? "");
   const [iconWidth, setIconWidth] = useState(
-    pointType?.iconWidth != null ? String(pointType.iconWidth) : "0",
+    item?.iconWidth != null ? String(item.iconWidth) : "0",
   );
   const [iconHeight, setIconHeight] = useState(
-    pointType?.iconHeight != null ? String(pointType.iconHeight) : "0",
+    item?.iconHeight != null ? String(item.iconHeight) : "0",
   );
-  const [imageOnSide, setImageOnSide] = useState(
-    pointType?.imageOnSide ?? false,
-  );
+  const [imageOnSide, setImageOnSide] = useState(item?.imageOnSide ?? false);
   const [imageSidePlacement, setImageSidePlacement] = useState(
-    pointType?.imageSidePlacement ?? false,
+    item?.imageSidePlacement ?? false,
   );
-  const [negativeIconIsOn, setNegativeIconIsOn] = useState(
-    pointType?.negativeIconIsOn ?? false,
-  );
-  const [negativeImage, setNegativeImage] = useState(
-    pointType?.negativeImage ?? "",
-  );
+  const [negativeIconIsOn, setNegativeIconIsOn] = useState(item?.negativeIconIsOn ?? false);
+  const [negativeImage, setNegativeImage] = useState(item?.negativeImage ?? "");
   const [negativeIconWidth, setNegativeIconWidth] = useState(
-    pointType?.negativeIconWidth != null
-      ? String(pointType.negativeIconWidth)
-      : "0",
+    item?.negativeIconWidth != null ? String(item.negativeIconWidth) : "0",
   );
   const [negativeIconHeight, setNegativeIconHeight] = useState(
-    pointType?.negativeIconHeight != null
-      ? String(pointType.negativeIconHeight)
-      : "0",
+    item?.negativeIconHeight != null ? String(item.negativeIconHeight) : "0",
   );
   const [negativeImageOnSide, setNegativeImageOnSide] = useState(
-    pointType?.negativeImageOnSide ?? false,
+    item?.negativeImageOnSide ?? false,
   );
   const [negativeImageSidePlacement, setNegativeImageSidePlacement] = useState(
-    pointType?.negativeImageSidePlacement ?? false,
+    item?.negativeImageSidePlacement ?? false,
   );
 
   // Colors
-  const [pointColorsIsOn, setPointColorsIsOn] = useState(
-    pointType?.pointColorsIsOn ?? false,
-  );
+  const [pointColorsIsOn, setPointColorsIsOn] = useState(item?.pointColorsIsOn ?? false);
   const [positiveColor, setPositiveColor] = useState(
-    normalizeHexColor(pointType?.positiveColor, "#00ff00"),
+    normalizeHexColor(item?.positiveColor, "#00ff00"),
   );
   const [negativeColor, setNegativeColor] = useState(
-    normalizeHexColor(pointType?.negativeColor, "#ff0000"),
+    normalizeHexColor(item?.negativeColor, "#ff0000"),
   );
   const [pointPrivateColorIsOn, setPointPrivateColorIsOn] = useState(
-    pointType?.pointPrivateColorIsOn ?? false,
+    item?.pointPrivateColorIsOn ?? false,
   );
   const [privateColor, setPrivateColor] = useState(
-    normalizeHexColor(pointType?.privateColor, "#0000ff"),
+    normalizeHexColor(item?.privateColor, "#0000ff"),
   );
   const [privateNegativeColor, setPrivateNegativeColor] = useState(
-    normalizeHexColor(pointType?.privateNegativeColor, "#ff0000"),
+    normalizeHexColor(item?.privateNegativeColor, "#ff0000"),
   );
 
   function handleSave() {
@@ -436,13 +421,14 @@ function PointTypeDialog({
       plussOrMinusInverted,
       activatedId,
       iconIsOn,
-      image,
+      // "__custom__" is a UI-only marker for the image selects — never persist it.
+      image: image === "__custom__" ? "" : image,
       iconWidth: Number(iconWidth) || 0,
       iconHeight: Number(iconHeight) || 0,
       imageOnSide,
       imageSidePlacement,
       negativeIconIsOn,
-      negativeImage,
+      negativeImage: negativeImage === "__custom__" ? "" : negativeImage,
       negativeIconWidth: Number(negativeIconWidth) || 0,
       negativeIconHeight: Number(negativeIconHeight) || 0,
       negativeImageOnSide,
@@ -457,18 +443,15 @@ function PointTypeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {isEdit ? "Edit point type" : "Add point type"}
-          </DialogTitle>
-          <DialogDescription>
-            Point types track a number per reader (gold, HP, sanity…). Scores
-            on choices add or subtract from it.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
+    <EditorPane
+      title={isEdit ? "Edit point type" : "Add point type"}
+      description="Point types track a number per reader (gold, HP, sanity…). Scores on choices add or subtract from it."
+      busy={busy}
+      saveLabel={isEdit ? "Save" : "Add"}
+      onCancel={onCancel}
+      onSave={handleSave}
+    >
+      <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="point-type-name">Name</Label>
             <Input
@@ -525,9 +508,7 @@ function PointTypeDialog({
             <Checkbox
               id="point-type-hide-bar"
               checked={isNotShownPointBar}
-              onCheckedChange={(checked) =>
-                setIsNotShownPointBar(checked === true)
-              }
+              onCheckedChange={(checked) => setIsNotShownPointBar(checked === true)}
             />
             Hide from the viewer's point bar
           </label>
@@ -543,9 +524,7 @@ function PointTypeDialog({
                 <Checkbox
                   id="point-type-below-zero"
                   checked={belowZeroNotAllowed}
-                  onCheckedChange={(checked) =>
-                    setBelowZeroNotAllowed(checked === true)
-                  }
+                  onCheckedChange={(checked) => setBelowZeroNotAllowed(checked === true)}
                 />
                 Block going below zero
               </label>
@@ -556,9 +535,7 @@ function PointTypeDialog({
                 <Checkbox
                   id="point-type-hide-objects"
                   checked={isNotShownObjects}
-                  onCheckedChange={(checked) =>
-                    setIsNotShownObjects(checked === true)
-                  }
+                  onCheckedChange={(checked) => setIsNotShownObjects(checked === true)}
                 />
                 Hide on choice objects
               </label>
@@ -569,9 +546,7 @@ function PointTypeDialog({
                 <Checkbox
                   id="point-type-allow-float"
                   checked={allowFloat}
-                  onCheckedChange={(checked) =>
-                    setAllowFloat(checked === true)
-                  }
+                  onCheckedChange={(checked) => setAllowFloat(checked === true)}
                 />
                 Allow decimal values
               </label>
@@ -582,9 +557,7 @@ function PointTypeDialog({
                 <Checkbox
                   id="point-type-plus-minus"
                   checked={plussOrMinusAdded}
-                  onCheckedChange={(checked) =>
-                    setPlussOrMinusAdded(checked === true)
-                  }
+                  onCheckedChange={(checked) => setPlussOrMinusAdded(checked === true)}
                 />
                 Show +/- sign
               </label>
@@ -595,9 +568,7 @@ function PointTypeDialog({
                 <Checkbox
                   id="point-type-plus-minus-inverted"
                   checked={plussOrMinusInverted}
-                  onCheckedChange={(checked) =>
-                    setPlussOrMinusInverted(checked === true)
-                  }
+                  onCheckedChange={(checked) => setPlussOrMinusInverted(checked === true)}
                 />
                 Invert +/- sign
               </label>
@@ -650,12 +621,12 @@ function PointTypeDialog({
             {iconIsOn ? (
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="point-type-image">Image URL</Label>
-                  <Input
+                  <ImageResourceSelect
                     id="point-type-image"
+                    label="Image"
+                    images={images}
                     value={image}
-                    onChange={(event) => setImage(event.target.value)}
-                    placeholder="https://… or data:image/…"
+                    onChange={setImage}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -683,9 +654,7 @@ function PointTypeDialog({
                     <Label htmlFor="point-type-icon-side">Side</Label>
                     <Select
                       value={sideValue(imageOnSide)}
-                      onValueChange={(value) =>
-                        setImageOnSide(value === "right")
-                      }
+                      onValueChange={(value) => setImageOnSide(value === "right")}
                     >
                       <SelectTrigger id="point-type-icon-side" className="w-full">
                         <SelectValue />
@@ -697,19 +666,12 @@ function PointTypeDialog({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="point-type-icon-placement">
-                      Placement
-                    </Label>
+                    <Label htmlFor="point-type-icon-placement">Placement</Label>
                     <Select
                       value={placementValue(imageSidePlacement)}
-                      onValueChange={(value) =>
-                        setImageSidePlacement(value === "after")
-                      }
+                      onValueChange={(value) => setImageSidePlacement(value === "after")}
                     >
-                      <SelectTrigger
-                        id="point-type-icon-placement"
-                        className="w-full"
-                      >
+                      <SelectTrigger id="point-type-icon-placement" className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -729,50 +691,38 @@ function PointTypeDialog({
               <Checkbox
                 id="point-type-negative-icon-on"
                 checked={negativeIconIsOn}
-                onCheckedChange={(checked) =>
-                  setNegativeIconIsOn(checked === true)
-                }
+                onCheckedChange={(checked) => setNegativeIconIsOn(checked === true)}
               />
               Show a separate negative icon
             </label>
             {negativeIconIsOn ? (
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="point-type-negative-image">
-                    Negative image URL
-                  </Label>
-                  <Input
+                  <ImageResourceSelect
                     id="point-type-negative-image"
+                    label="Negative image"
+                    images={images}
                     value={negativeImage}
-                    onChange={(event) => setNegativeImage(event.target.value)}
-                    placeholder="https://… or data:image/…"
+                    onChange={setNegativeImage}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="point-type-neg-icon-width">
-                      Icon width
-                    </Label>
+                    <Label htmlFor="point-type-neg-icon-width">Icon width</Label>
                     <Input
                       id="point-type-neg-icon-width"
                       type="number"
                       value={negativeIconWidth}
-                      onChange={(event) =>
-                        setNegativeIconWidth(event.target.value)
-                      }
+                      onChange={(event) => setNegativeIconWidth(event.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="point-type-neg-icon-height">
-                      Icon height
-                    </Label>
+                    <Label htmlFor="point-type-neg-icon-height">Icon height</Label>
                     <Input
                       id="point-type-neg-icon-height"
                       type="number"
                       value={negativeIconHeight}
-                      onChange={(event) =>
-                        setNegativeIconHeight(event.target.value)
-                      }
+                      onChange={(event) => setNegativeIconHeight(event.target.value)}
                     />
                   </div>
                 </div>
@@ -781,14 +731,9 @@ function PointTypeDialog({
                     <Label htmlFor="point-type-neg-icon-side">Side</Label>
                     <Select
                       value={sideValue(negativeImageOnSide)}
-                      onValueChange={(value) =>
-                        setNegativeImageOnSide(value === "right")
-                      }
+                      onValueChange={(value) => setNegativeImageOnSide(value === "right")}
                     >
-                      <SelectTrigger
-                        id="point-type-neg-icon-side"
-                        className="w-full"
-                      >
+                      <SelectTrigger id="point-type-neg-icon-side" className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -798,19 +743,12 @@ function PointTypeDialog({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="point-type-neg-icon-placement">
-                      Placement
-                    </Label>
+                    <Label htmlFor="point-type-neg-icon-placement">Placement</Label>
                     <Select
                       value={placementValue(negativeImageSidePlacement)}
-                      onValueChange={(value) =>
-                        setNegativeImageSidePlacement(value === "after")
-                      }
+                      onValueChange={(value) => setNegativeImageSidePlacement(value === "after")}
                     >
-                      <SelectTrigger
-                        id="point-type-neg-icon-placement"
-                        className="w-full"
-                      >
+                      <SelectTrigger id="point-type-neg-icon-placement" className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -833,9 +771,7 @@ function PointTypeDialog({
               <Checkbox
                 id="point-type-colors-on"
                 checked={pointColorsIsOn}
-                onCheckedChange={(checked) =>
-                  setPointColorsIsOn(checked === true)
-                }
+                onCheckedChange={(checked) => setPointColorsIsOn(checked === true)}
               />
               Color the point value
             </label>
@@ -849,13 +785,9 @@ function PointTypeDialog({
                       type="color"
                       className="size-10 w-16 shrink-0 cursor-pointer p-1"
                       value={positiveColor}
-                      onChange={(event) =>
-                        setPositiveColor(event.target.value)
-                      }
+                      onChange={(event) => setPositiveColor(event.target.value)}
                     />
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {positiveColor}
-                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">{positiveColor}</span>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -866,13 +798,9 @@ function PointTypeDialog({
                       type="color"
                       className="size-10 w-16 shrink-0 cursor-pointer p-1"
                       value={negativeColor}
-                      onChange={(event) =>
-                        setNegativeColor(event.target.value)
-                      }
+                      onChange={(event) => setNegativeColor(event.target.value)}
                     />
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {negativeColor}
-                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">{negativeColor}</span>
                   </div>
                 </div>
               </div>
@@ -885,18 +813,14 @@ function PointTypeDialog({
               <Checkbox
                 id="point-type-private-colors-on"
                 checked={pointPrivateColorIsOn}
-                onCheckedChange={(checked) =>
-                  setPointPrivateColorIsOn(checked === true)
-                }
+                onCheckedChange={(checked) => setPointPrivateColorIsOn(checked === true)}
               />
               Use separate private colors
             </label>
             {pointPrivateColorIsOn ? (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="point-type-private-color">
-                    Private color
-                  </Label>
+                  <Label htmlFor="point-type-private-color">Private color</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       id="point-type-private-color"
@@ -905,24 +829,18 @@ function PointTypeDialog({
                       value={privateColor}
                       onChange={(event) => setPrivateColor(event.target.value)}
                     />
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {privateColor}
-                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">{privateColor}</span>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="point-type-private-neg-color">
-                    Private negative color
-                  </Label>
+                  <Label htmlFor="point-type-private-neg-color">Private negative color</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       id="point-type-private-neg-color"
                       type="color"
                       className="size-10 w-16 shrink-0 cursor-pointer p-1"
                       value={privateNegativeColor}
-                      onChange={(event) =>
-                        setPrivateNegativeColor(event.target.value)
-                      }
+                      onChange={(event) => setPrivateNegativeColor(event.target.value)}
                     />
                     <span className="font-mono text-xs text-muted-foreground">
                       {privateNegativeColor}
@@ -942,20 +860,7 @@ function PointTypeDialog({
                 .join(" ") || "—"}
             </span>
           </p>
-        </div>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button type="button" onClick={handleSave} disabled={busy}>
-            {isEdit ? "Save" : "Add"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </EditorPane>
   );
 }

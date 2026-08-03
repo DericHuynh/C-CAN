@@ -181,12 +181,14 @@ describe("createDeepSeekEngine", () => {
       .join("");
     expect(thinking).toBe("Let me think carefully");
 
+    // The final turn keeps the stream's order — thinking before text — so the
+    // persisted message matches the live preview instead of jumping the answer
+    // above the "Thought" cell on completion.
     const assistant = events.find((e) => e.type === "assistant-content");
-    expect(assistant?.parts).toContainEqual({
-      type: "thinking",
-      text: "Let me think carefully",
-    });
-    expect(assistant?.parts).toContainEqual({ type: "text", text: "Answer." });
+    expect(assistant?.parts).toEqual([
+      { type: "thinking", text: "Let me think carefully" },
+      { type: "text", text: "Answer." },
+    ]);
   });
 
   it("emits a usage event from the final include_usage chunk", async () => {
@@ -310,6 +312,43 @@ describe("createDeepSeekEngine", () => {
         },
       },
     ]);
+  });
+
+  it("sends content for reasoning-only assistant messages (no 400)", async () => {
+    // A previous turn that streamed chain-of-thought but no text and no tool
+    // call must not round-trip as an empty assistant message — DeepSeek
+    // rejects that with HTTP 400 "content or tool_calls must be set". The
+    // thinking text becomes the content fallback.
+    const { body } = await captureRequest(
+      baseOpts({
+        messages: [
+          { role: "user", content: [{ type: "text", text: "Hi" }] },
+          {
+            role: "assistant",
+            content: [{ type: "thinking", text: "Let me think about this" }],
+          },
+        ],
+      }),
+    );
+    expect(body.messages).toContainEqual({
+      role: "assistant",
+      content: "Let me think about this",
+    });
+  });
+
+  it("drops a fully-empty assistant message instead of sending it", async () => {
+    const { body } = await captureRequest(
+      baseOpts({
+        messages: [
+          { role: "user", content: [{ type: "text", text: "Hi" }] },
+          { role: "assistant", content: [] },
+        ],
+      }),
+    );
+    const assistantMessages = body.messages.filter(
+      (m: any) => m.role === "assistant",
+    );
+    expect(assistantMessages).toHaveLength(0);
   });
 
   it("clamps max_tokens to the DeepSeek 8192 ceiling", async () => {

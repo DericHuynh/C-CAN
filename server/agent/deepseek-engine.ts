@@ -166,7 +166,21 @@ function engineMessagesToDeepSeek(messages: EngineMessage[]): Record<string, unk
           },
         }));
       if (toolCalls.length > 0) assistant.tool_calls = toolCalls;
-      out.push(assistant);
+      // DeepSeek rejects assistant turns with neither content nor tool_calls
+      // (HTTP 400 "content or tool_calls must be set"). A reasoning-only turn
+      // — no text, no tool call, just chain-of-thought — must still send
+      // content, so fall back to the thinking text instead of an empty
+      // assistant message. A fully-empty turn is dropped entirely.
+      if (assistant.content === undefined && toolCalls.length === 0) {
+        const thinking = msg.content
+          .filter((part) => part.type === "thinking")
+          .map((part) => part.text)
+          .join("");
+        if (thinking) assistant.content = thinking;
+      }
+      if (assistant.content !== undefined || assistant.tool_calls !== undefined) {
+        out.push(assistant);
+      }
     }
   }
   return out;
@@ -193,6 +207,23 @@ function buildRequestBody(opts: EngineStreamOptions): Record<string, unknown> {
   const messages = engineMessagesToDeepSeek(opts.messages);
   if (opts.systemPrompt) {
     messages.unshift({ role: "system", content: opts.systemPrompt });
+  }
+  // Final safety net: DeepSeek hard-rejects (HTTP 400) any assistant message
+  // with neither content nor tool_calls. The translator already repairs
+  // thinking-only turns and drops empty ones, but this pass guarantees no
+  // malformed assistant message can ever reach the wire, whatever shape the
+  // framework handed us (e.g. whitespace-only content).
+  for (const message of messages) {
+    if (message.role !== "assistant") continue;
+    const hasToolCalls = Array.isArray(message.tool_calls) && message.tool_calls.length > 0;
+    if (hasToolCalls) continue;
+    const content = typeof message.content === "string" ? message.content.trim() : "";
+    if (content) {
+      message.content = content;
+      continue;
+    }
+    // Nothing to salvage — drop the empty assistant turn entirely.
+    messages.splice(messages.indexOf(message), 1);
   }
   const body: Record<string, unknown> = {
     model: opts.model,
@@ -522,11 +553,15 @@ class DeepSeekEngine implements AgentEngine {
       }
 
       // Assemble the assistant turn from everything the stream delivered.
+      // Thinking first, then text — the same order the stream produced them,
+      // so the persisted message matches the live preview. (A text-first
+      // assembly made the answer jump above the "Thought" cell on completion
+      // and the message re-render look like the text was overwriting itself.)
       const assistantParts: EngineContentPart[] = [];
-      if (fullText) assistantParts.push({ type: "text", text: fullText });
       if (reasoningText) {
         assistantParts.push({ type: "thinking", text: reasoningText });
       }
+      if (fullText) assistantParts.push({ type: "text", text: fullText });
 
       // A tool call the stream announced but never finished must not vanish:
       // recover it from its deltas when the JSON parses, or report it in-band

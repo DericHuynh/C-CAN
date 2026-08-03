@@ -12,11 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  useUpdateProjectSettings,
-  type ProjectDetail,
-} from "@/hooks/use-projects";
+import { useUpdateProjectSettings, type ProjectDetail } from "@/hooks/use-projects";
 import { defaultStyling } from "@shared/cyoa";
+import type { ImageResource } from "@shared/types";
 
 import {
   ColorField,
@@ -26,6 +24,7 @@ import {
   TextInputField,
   ToggleField,
 } from "./design-fields";
+import { ImageResourceSelect } from "./ImageResourceSelect";
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -80,10 +79,7 @@ function asBool(draft: Record<string, unknown>, key: string): boolean {
   return draft[key] === true;
 }
 
-function asNumber(
-  draft: Record<string, unknown>,
-  key: string,
-): number | undefined {
+function asNumber(draft: Record<string, unknown>, key: string): number | undefined {
   const value = draft[key];
   return typeof value === "number" ? value : undefined;
 }
@@ -96,6 +92,7 @@ function asString(draft: Record<string, unknown>, key: string): string {
 interface SectionProps {
   draft: Record<string, unknown>;
   set: (key: string, value: unknown) => void;
+  images?: ImageResource[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -111,23 +108,31 @@ interface DesignPanelProps {
  */
 export function DesignPanel({ project }: DesignPanelProps) {
   const updateSettings = useUpdateProjectSettings();
-  const [draft, setDraft] = useState<Record<string, unknown>>(
-    project.app.styling ?? {},
-  );
+  const images = project.app.images ?? [];
+  const [draft, setDraft] = useState<Record<string, unknown>>(project.app.styling ?? {});
 
   function set(key: string, value: unknown) {
     setDraft((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleSave() {
+    const next = { ...draft };
+    // "__custom__" is a UI-only marker for the image selects — never persist it.
+    for (const key of [
+      "backgroundImage",
+      "rowBackgroundImage",
+      "objectBackgroundImage",
+      "addonBackgroundImage",
+      "backpackBgImage",
+    ]) {
+      if (next[key] === "__custom__") next[key] = "";
+    }
     updateSettings.mutate(
-      { projectId: project.id, patch: { styling: draft } },
+      { projectId: project.id, patch: { styling: next } },
       {
         onSuccess: () => toast.success("Styling saved"),
         onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to save styling",
-          ),
+          toast.error(err instanceof Error ? err.message : "Failed to save styling"),
       },
     );
   }
@@ -142,29 +147,25 @@ export function DesignPanel({ project }: DesignPanelProps) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Global styling lives in <code className="text-foreground">app.styling</code>.
-        Edits below are collected into a draft and applied when you save.
+        Global styling lives in <code className="text-foreground">app.styling</code>. Edits below
+        are collected into a draft and applied when you save.
       </p>
 
-      <BackgroundSection draft={draft} set={set} />
-      <TextSection draft={draft} set={set} />
-      <RowDesignSection draft={draft} set={set} />
-      <ChoiceDesignSection draft={draft} set={set} />
-      <AddonDesignSection draft={draft} set={set} />
-      <FiltersSection draft={draft} set={set} />
-      <PointBarSection draft={draft} set={set} />
-      <BackpackSection draft={draft} set={set} />
-      <MultiChoiceSection draft={draft} set={set} />
+      <BackgroundSection draft={draft} set={set} images={images} />
+      <TextSection draft={draft} set={set} images={images} />
+      <RowDesignSection draft={draft} set={set} images={images} />
+      <ChoiceDesignSection draft={draft} set={set} images={images} />
+      <AddonDesignSection draft={draft} set={set} images={images} />
+      <FiltersSection draft={draft} set={set} images={images} />
+      <PointBarSection draft={draft} set={set} images={images} />
+      <BackpackSection draft={draft} set={set} images={images} />
+      <MultiChoiceSection draft={draft} set={set} images={images} />
 
       <div className="sticky bottom-0 z-10 flex items-center justify-between gap-2 border-t border-border bg-background/95 py-3 backdrop-blur">
         <Button type="button" variant="ghost" onClick={handleReset}>
           Reset styling to defaults
         </Button>
-        <Button
-          type="button"
-          onClick={handleSave}
-          disabled={updateSettings.isPending}
-        >
+        <Button type="button" onClick={handleSave} disabled={updateSettings.isPending}>
           {updateSettings.isPending ? "Saving…" : "Save changes"}
         </Button>
       </div>
@@ -176,13 +177,10 @@ export function DesignPanel({ project }: DesignPanelProps) {
 /* Background                                                          */
 /* ------------------------------------------------------------------ */
 
-function BackgroundSection({ draft, set }: SectionProps) {
+function BackgroundSection({ draft, set, images = [] }: SectionProps) {
   return (
     <>
-      <SectionCard
-        title="Background"
-        description="Page background (what sits behind every row)."
-      >
+      <SectionCard title="Background" description="Page background (what sits behind every row).">
         <ToggleField
           label="Background color"
           checked={asBool(draft, "bgColorIsOn")}
@@ -193,11 +191,12 @@ function BackgroundSection({ draft, set }: SectionProps) {
           value={asString(draft, "backgroundColor")}
           onChange={(value) => set("backgroundColor", value)}
         />
-        <TextInputField
-          label="Image URL"
+        <ImageResourceSelect
+          id="design-bg-image"
+          label="Image"
+          images={images}
           value={asString(draft, "backgroundImage")}
           onChange={(value) => set("backgroundImage", value)}
-          placeholder="https://…"
         />
         <div className="grid gap-2 sm:grid-cols-3">
           <ToggleField
@@ -229,11 +228,12 @@ function BackgroundSection({ draft, set }: SectionProps) {
           value={asString(draft, "rowBgColor")}
           onChange={(value) => set("rowBgColor", value)}
         />
-        <TextInputField
-          label="Image URL"
+        <ImageResourceSelect
+          id="design-row-bg-image"
+          label="Image"
+          images={images}
           value={asString(draft, "rowBackgroundImage")}
           onChange={(value) => set("rowBackgroundImage", value)}
-          placeholder="https://…"
         />
         <div className="grid gap-2 sm:grid-cols-3">
           <ToggleField
@@ -265,11 +265,12 @@ function BackgroundSection({ draft, set }: SectionProps) {
           value={asString(draft, "objectBgColor")}
           onChange={(value) => set("objectBgColor", value)}
         />
-        <TextInputField
-          label="Image URL"
+        <ImageResourceSelect
+          id="design-object-bg-image"
+          label="Image"
+          images={images}
           value={asString(draft, "objectBackgroundImage")}
           onChange={(value) => set("objectBackgroundImage", value)}
-          placeholder="https://…"
         />
         <div className="grid gap-2 sm:grid-cols-3">
           <ToggleField
@@ -318,11 +319,7 @@ interface TextGroup {
   sizeKey: string;
 }
 
-function TextGroupCard({
-  group,
-  draft,
-  set,
-}: { group: TextGroup } & SectionProps) {
+function TextGroupCard({ group, draft, set }: { group: TextGroup } & SectionProps) {
   const customKey = `custom${group.id.charAt(0).toUpperCase()}${group.id.slice(1)}`;
   return (
     <CollapsibleCard title={group.label}>
@@ -362,10 +359,7 @@ function TextGroupCard({
 
 function RowDesignSection({ draft, set }: SectionProps) {
   return (
-    <SectionCard
-      title="Row design"
-      description="Layout, shadow, border, and gradient for rows."
-    >
+    <SectionCard title="Row design" description="Layout, shadow, border, and gradient for rows.">
       <Subheading>Layout</Subheading>
       <div className="grid gap-4 sm:grid-cols-2">
         <NumberField
@@ -468,12 +462,9 @@ function ChoiceDesignSection({ draft, set }: SectionProps) {
   );
 }
 
-function AddonDesignSection({ draft, set }: SectionProps) {
+function AddonDesignSection({ draft, set, images = [] }: SectionProps) {
   return (
-    <SectionCard
-      title="Addon design"
-      description="Design for the addon strip under choice text."
-    >
+    <SectionCard title="Addon design" description="Design for the addon strip under choice text.">
       <ToggleField
         label="Use a separate design"
         checked={asBool(draft, "useAddonDesign")}
@@ -506,11 +497,12 @@ function AddonDesignSection({ draft, set }: SectionProps) {
         checked={asBool(draft, "useAddonBackgroundImage")}
         onChange={(value) => set("useAddonBackgroundImage", value)}
       />
-      <TextInputField
-        label="Background image URL"
+      <ImageResourceSelect
+        id="design-addon-bg-image"
+        label="Background image"
+        images={images}
         value={asString(draft, "addonBackgroundImage")}
         onChange={(value) => set("addonBackgroundImage", value)}
-        placeholder="https://…"
       />
       <div className="grid gap-2 sm:grid-cols-3">
         <ToggleField
@@ -559,12 +551,7 @@ function FiltersSection({ draft, set }: SectionProps) {
     >
       <div className="space-y-3">
         {FILTER_GROUPS.map((group) => (
-          <FilterGroupCard
-            key={group.prefix}
-            group={group}
-            draft={draft}
-            set={set}
-          />
+          <FilterGroupCard key={group.prefix} group={group} draft={draft} set={set} />
         ))}
       </div>
     </SectionCard>
@@ -576,11 +563,7 @@ interface FilterGroup {
   label: string;
 }
 
-function FilterGroupCard({
-  group,
-  draft,
-  set,
-}: { group: FilterGroup } & SectionProps) {
+function FilterGroupCard({ group, draft, set }: { group: FilterGroup } & SectionProps) {
   const p = group.prefix;
   return (
     <CollapsibleCard title={group.label} defaultOpen={p === "sel"}>
@@ -768,7 +751,7 @@ function PointBarSection({ draft, set }: SectionProps) {
   );
 }
 
-function BackpackSection({ draft, set }: SectionProps) {
+function BackpackSection({ draft, set, images = [] }: SectionProps) {
   return (
     <SectionCard title="Backpack" description="Design for the backpack screen.">
       <ToggleField
@@ -787,12 +770,15 @@ function BackpackSection({ draft, set }: SectionProps) {
           value={asNumber(draft, "backPackWidth")}
           onChange={(value) => set("backPackWidth", value)}
         />
-        <TextInputField
-          label="Background image URL"
-          value={asString(draft, "backpackBgImage")}
-          onChange={(value) => set("backpackBgImage", value)}
-          placeholder="https://…"
-        />
+        <div className="sm:col-span-2">
+          <ImageResourceSelect
+            id="design-backpack-bg-image"
+            label="Background image"
+            images={images}
+            value={asString(draft, "backpackBgImage")}
+            onChange={(value) => set("backpackBgImage", value)}
+          />
+        </div>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <ToggleField
@@ -812,10 +798,7 @@ function BackpackSection({ draft, set }: SectionProps) {
 
 function MultiChoiceSection({ draft, set }: SectionProps) {
   return (
-    <SectionCard
-      title="Multi-choice"
-      description="Text and counter for multi-choice pickers."
-    >
+    <SectionCard title="Multi-choice" description="Text and counter for multi-choice pickers.">
       <div className="grid gap-4 sm:grid-cols-2">
         <ToggleField
           label="Custom text font"
@@ -1021,11 +1004,7 @@ interface CollapsibleCardProps {
   children: ReactNode;
 }
 
-function CollapsibleCard({
-  title,
-  defaultOpen = false,
-  children,
-}: CollapsibleCardProps) {
+function CollapsibleCard({ title, defaultOpen = false, children }: CollapsibleCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <Card>
@@ -1076,9 +1055,5 @@ function SelectField({ label, value, options, onChange }: SelectFieldProps) {
 }
 
 function Subheading({ children }: { children: ReactNode }) {
-  return (
-    <h3 className="pt-1 text-sm font-semibold text-muted-foreground">
-      {children}
-    </h3>
-  );
+  return <h3 className="pt-1 text-sm font-semibold text-muted-foreground">{children}</h3>;
 }

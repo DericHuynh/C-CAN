@@ -1,25 +1,12 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { IconListCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconListCheck, IconPlus, IconTrash } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import {
   useAddGlobalRequirement,
   useDeleteGlobalRequirement,
@@ -29,7 +16,10 @@ import {
 import type { GlobalRequirement, Requireds } from "@shared/types";
 
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { EditorPane } from "./EditorPane";
+import { MasterDetail } from "./MasterDetail";
 import { RequirementListEditor } from "./RequirementListEditor";
+import { PaginatedList } from "./PaginatedList";
 
 interface RequirementPanelProps {
   project: ProjectDetail;
@@ -72,46 +62,37 @@ export function RequirementPanel({ project }: RequirementPanelProps) {
     [project.app],
   );
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<GlobalRequirement | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<GlobalRequirement | null>(
-    null,
-  );
+  const [selected, setSelected] = useState<GlobalRequirement | "new" | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<GlobalRequirement | null>(null);
 
   function handleSave(name: string, requireds: Requireds[]) {
     if (!name.trim()) return;
-    if (editing) {
-      updateRequirement.mutate(
-        {
-          projectId,
-          requirementId: editing.id,
-          patch: { name: name.trim(), requireds },
-        },
-        {
-          onSuccess: () => {
-            toast.success("Requirement updated");
-            setDialogOpen(false);
-          },
-          onError: (err) =>
-            toast.error(
-              err instanceof Error
-                ? err.message
-                : "Failed to update requirement",
-            ),
-        },
-      );
-    } else {
+    if (selected === "new") {
       addRequirement.mutate(
         { projectId, name: name.trim() },
         {
           onSuccess: () => {
             toast.success("Requirement added");
-            setDialogOpen(false);
+            setSelected(null);
           },
           onError: (err) =>
-            toast.error(
-              err instanceof Error ? err.message : "Failed to add requirement",
-            ),
+            toast.error(err instanceof Error ? err.message : "Failed to add requirement"),
+        },
+      );
+    } else if (selected) {
+      updateRequirement.mutate(
+        {
+          projectId,
+          requirementId: selected.id,
+          patch: { name: name.trim(), requireds },
+        },
+        {
+          onSuccess: () => {
+            toast.success("Requirement updated");
+            setSelected(null);
+          },
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to update requirement"),
         },
       );
     }
@@ -125,26 +106,63 @@ export function RequirementPanel({ project }: RequirementPanelProps) {
       {
         onSuccess: () => {
           toast.success("Requirement deleted");
+          if (selected !== null && selected !== "new" && selected.id === target.id) {
+            setSelected(null);
+          }
           setDeleteTarget(null);
         },
         onError: (err) => {
-          toast.error(
-            err instanceof Error ? err.message : "Failed to delete requirement",
-          );
+          toast.error(err instanceof Error ? err.message : "Failed to delete requirement");
           setDeleteTarget(null);
         },
       },
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+  const busy = addRequirement.isPending || updateRequirement.isPending;
+
+  const detail =
+    selected === "new" ? (
+      <RequirementForm
+        key="new"
+        item={null}
+        choices={choiceOptions}
+        pointTypes={pointTypeOptions}
+        globalRequirements={globalReqOptions}
+        busy={busy}
+        onCancel={() => setSelected(null)}
+        onSave={handleSave}
+      />
+    ) : selected ? (
+      <RequirementForm
+        key={selected.id}
+        item={selected}
+        choices={choiceOptions}
+        pointTypes={pointTypeOptions}
+        globalRequirements={globalReqOptions}
+        busy={busy}
+        onCancel={() => setSelected(null)}
+        onSave={handleSave}
+      />
+    ) : (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
+          <IconListCheck className="size-6 text-muted-foreground/50" />
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Select a global requirement to edit it here, or add a new one — no more dialogs.
+          </p>
+        </CardContent>
+      </Card>
+    );
+
+  const master = (
+    <div className="space-y-3">
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-background/95 py-2 backdrop-blur">
         <p className="text-sm text-muted-foreground">
           {requirements.length} global requirement
           {requirements.length === 1 ? "" : "s"} — reusable gates for choices
         </p>
-        <Button type="button" size="sm" onClick={() => setDialogOpen(true)}>
+        <Button type="button" size="sm" onClick={() => setSelected("new")}>
           <IconPlus className="mr-1.5 size-4" />
           Add requirement
         </Button>
@@ -154,80 +172,72 @@ export function RequirementPanel({ project }: RequirementPanelProps) {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <p className="text-sm text-muted-foreground">
-              No global requirements yet. Global requirements can be attached to
-              choices to gate them on other selections or point thresholds.
+              No global requirements yet. Global requirements can be attached to choices to gate
+              them on other selections or point thresholds.
             </p>
-            <Button type="button" onClick={() => setDialogOpen(true)}>
+            <Button type="button" onClick={() => setSelected("new")}>
               <IconPlus className="mr-1.5 size-4" />
               Add requirement
             </Button>
           </CardContent>
         </Card>
       ) : (
-        requirements.map((requirement) => (
-          <Card key={requirement.id}>
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <IconListCheck className="size-4 shrink-0 text-muted-foreground" />
-                    <CardTitle className="text-base">
-                      {requirement.name || "Untitled requirement"}
-                    </CardTitle>
+        <PaginatedList
+          items={requirements}
+          getItemKey={(requirement) => requirement.id}
+          pageSize={25}
+          renderItem={(requirement) => (
+            <Card
+              key={requirement.id}
+              className={cn(
+                "cursor-pointer transition-colors",
+                selected !== null &&
+                  selected !== "new" &&
+                  selected.id === requirement.id &&
+                  "border-primary bg-primary/5",
+              )}
+              onClick={() => setSelected(requirement)}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <IconListCheck className="size-4 shrink-0 text-muted-foreground" />
+                      <CardTitle className="text-base">{requirement.name}</CardTitle>
+                    </div>
+                    <CardDescription className="mt-1">
+                      {requirement.requireds?.length ?? 0} condition
+                      {(requirement.requireds?.length ?? 0) === 1 ? "" : "s"}
+                    </CardDescription>
                   </div>
-                  <CardDescription className="mt-1">
-                    {requirement.requireds?.length ?? 0} condition
-                    {(requirement.requireds?.length ?? 0) === 1 ? "" : "s"}
-                  </CardDescription>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-muted-foreground hover:text-destructive"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeleteTarget(requirement);
+                      }}
+                      aria-label={`Delete ${requirement.name}`}
+                      title="Delete"
+                    >
+                      <IconTrash className="size-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-0.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground"
-                    onClick={() => {
-                      setEditing(requirement);
-                      setDialogOpen(true);
-                    }}
-                    aria-label={`Edit ${requirement.name}`}
-                    title="Edit"
-                  >
-                    <IconPencil className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => setDeleteTarget(requirement)}
-                    aria-label={`Delete ${requirement.name}`}
-                    title="Delete"
-                  >
-                    <IconTrash className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
-        ))
+              </CardHeader>
+            </Card>
+          )}
+        />
       )}
+    </div>
+  );
 
-      <RequirementDialog
-        key={editing?.id ?? "new-requirement"}
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditing(null);
-        }}
-        requirement={editing}
-        choices={choiceOptions}
-        pointTypes={pointTypeOptions}
-        globalRequirements={globalReqOptions}
-        busy={addRequirement.isPending || updateRequirement.isPending}
-        onSave={handleSave}
-      />
-
+  return (
+    <>
+      <MasterDetail master={master} detail={detail} />
       <ConfirmDeleteDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
@@ -238,89 +248,70 @@ export function RequirementPanel({ project }: RequirementPanelProps) {
         busy={deleteRequirement.isPending}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-interface RequirementDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  requirement: GlobalRequirement | null;
+interface RequirementFormProps {
+  item: GlobalRequirement | null;
   choices: { id: string; label: string }[];
   pointTypes: { id: string; name: string }[];
   globalRequirements: { id: string; name: string }[];
   busy?: boolean;
+  onCancel: () => void;
   onSave: (name: string, requireds: Requireds[]) => void;
 }
 
-function RequirementDialog({
-  open,
-  onOpenChange,
-  requirement,
+function RequirementForm({
+  item,
   choices,
   pointTypes,
   globalRequirements,
   busy = false,
+  onCancel,
   onSave,
-}: RequirementDialogProps) {
-  const [value, setValue] = useState(requirement?.name ?? "");
-  const [requireds, setRequireds] = useState<Requireds[]>(
-    requirement?.requireds ?? [],
-  );
-  const isEdit = Boolean(requirement);
+}: RequirementFormProps) {
+  const [value, setValue] = useState(item?.name ?? "");
+  const [requireds, setRequireds] = useState<Requireds[]>(item?.requireds ?? []);
+  const isEdit = Boolean(item);
+
+  function handleSave() {
+    onSave(value, requireds);
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {isEdit ? "Edit requirement" : "Add requirement"}
-          </DialogTitle>
-          <DialogDescription>
-            Give the requirement a descriptive name and add the conditions that
-            gate it. Conditions are AND-combined.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="requirement-name">Name</Label>
-            <Input
-              id="requirement-name"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              placeholder="e.g. Has a weapon"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Conditions</Label>
-            <RequirementListEditor
-              requireds={requireds}
-              onChange={setRequireds}
-              choices={choices}
-              pointTypes={pointTypes}
-              globalRequirements={globalRequirements}
-            />
-          </div>
+    <EditorPane
+      title={isEdit ? "Edit requirement" : "Add requirement"}
+      description="Give the requirement a descriptive name and add the conditions that gate it. Conditions are AND-combined."
+      busy={busy}
+      saveLabel={isEdit ? "Save" : "Add"}
+      canSave={value.trim().length > 0}
+      onCancel={onCancel}
+      onSave={handleSave}
+    >
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="requirement-name">Name</Label>
+          <Input
+            id="requirement-name"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder="e.g. Has a weapon"
+          />
         </div>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={() => onSave(value, requireds)}
-            disabled={busy || value.trim().length === 0}
-          >
-            {isEdit ? "Save" : "Add"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="space-y-2">
+          <Label>Conditions</Label>
+          <RequirementListEditor
+            requireds={requireds}
+            onChange={setRequireds}
+            choices={choices}
+            pointTypes={pointTypes}
+            globalRequirements={globalRequirements}
+          />
+        </div>
+      </div>
+    </EditorPane>
   );
 }

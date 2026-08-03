@@ -1,21 +1,9 @@
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  useUpdateProjectSettings,
-  type ProjectDetail,
-} from "@/hooks/use-projects";
-import {
-  STYLE_TEMPLATE_NAMES,
-  applyStyleTemplate,
-} from "@shared/style-templates";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useUpdateProjectSettings, type ProjectDetail } from "@/hooks/use-projects";
+import { STYLE_TEMPLATE_NAMES, applyStyleTemplate } from "@shared/style-templates";
 
 interface TemplatesPanelProps {
   project: ProjectDetail;
@@ -40,9 +28,7 @@ export function TemplatesPanel({ project }: TemplatesPanelProps) {
       {
         onSuccess: () => toast.success("Template applied"),
         onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to apply template",
-          ),
+          toast.error(err instanceof Error ? err.message : "Failed to apply template"),
       },
     );
   }
@@ -52,9 +38,7 @@ export function TemplatesPanel({ project }: TemplatesPanelProps) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Style templates</CardTitle>
-          <CardDescription>
-            Preset looks ported from the original ICCPlus creator.
-          </CardDescription>
+          <CardDescription>Preset looks ported from the original ICCPlus creator.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -68,17 +52,15 @@ export function TemplatesPanel({ project }: TemplatesPanelProps) {
                 onClick={() => handleApply(index)}
               >
                 <span className="text-sm font-medium">{name}</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  Apply template
-                </span>
+                <span className="text-xs font-normal text-muted-foreground">Apply template</span>
               </Button>
             ))}
           </div>
         </CardContent>
       </Card>
       <p className="text-xs text-muted-foreground">
-        Templates merge into your current styling — they only override the keys
-        they include, so apply one and then fine-tune it in the Design tab.
+        Templates merge into your current styling — they only override the keys they include, so
+        apply one and then fine-tune it in the Design tab.
       </p>
     </div>
   );

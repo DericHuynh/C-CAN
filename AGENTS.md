@@ -52,14 +52,31 @@ and every operation is an action shared by chat, UI, HTTP, MCP, A2A, and CLI.
   - `rows: Row[]` — each row has `id`, `index`, `title`, `titleText`, `image`,
     `objectWidth`, `allowedChoices`, `requireds`, and `objects: Choice[]`.
   - `Choice` — `id`, `index`, `title`, `text`, `image`, `scores: Score[]`,
-    `groups: string[]`, `requireds`. `Score.id` references a point type;
-    `Score.value` is negative for a cost, positive for a reward.
+    `groups: string[]`, `requireds`. `Score.id` references a point type.
+    `Score.value` is applied to the total as `total -= value` (the original
+    ICCPlus viewer's convention): a positive value is a cost, a negative
+    value is a gain.
   - `pointTypes: PointType[]` — the currencies (`name`, `startingSum`,
     `initValue`, `beforeText`/`afterText` labels).
-  - `groups: Group[]` — `elements` (choice ids) in the same group are mutually
-    exclusive in the viewer.
+  - `groups: Group[]` — namespaces that tag choices so requirements
+    (`selFromGroups`), discounts, and activate/deactivate-other effects can
+    target them together. Like the original ICCPlus viewer, groups do NOT
+    auto-deselect members — exclusivity is expressed with "not selected"
+    (`required: false`) requirements, enforced by the viewer's
+    missing-requirement cascade.
   - `globalRequirements: GlobalRequirement[]` — named `requireds` sets.
   - `backpack` — the result/backpack rows shown after play.
+  - `images: ImageResource[]` — the image-resource collection. Choices, rows,
+    addons and point types reference images **by id** (like choices/rows
+    reference each other). An `ImageResource` has `id`, `name`, `image` (data
+    URL or remote URL), `imageIsURL`, `sourceTooltip`. The viewer resolves ids
+    via `resolveImageRef()`; un-resolvable strings render as-is (legacy
+    inline images keep working).
+  - `Choice.imageVariants: ImageVariant[]` — requirement-gated image
+    switching (`imageSwitchingIsOn`): the highest-priority (`priority`,
+    lower wins) variant whose `requireds` are met replaces the base image.
+    Requirements may target choices, **selectable addons**, points, groups or
+    global requirements.
   - `viewerConfig.title` — the in-viewer title (distinct from the `projects`
     metadata `title`).
 - **Normalization** — `normalizeApp()` (in `shared/cyoa.ts`) deep-merges any
@@ -74,6 +91,15 @@ and every operation is an action shared by chat, UI, HTTP, MCP, A2A, and CLI.
   `pnpm script generate-example-tests` after changing `examples/project.json`);
   `pnpm script aggregate-json-stats` prints a context-safe summary that skips
   embedded image payloads.
+- **ACL import translation** — `aclImportImages()` (in `shared/cyoa.ts`) is the
+  compatibility layer that rewrites legacy ICCPlus documents into the
+  image-resource system on import (called by `import-project-json` after
+  `normalizeApp`): inline image strings on choices/rows/addons/point types and
+  image variants become `images` resources, deduplicated by payload, and the
+  entity references are rewritten to resource ids. It is idempotent (already-
+  translated documents are untouched). **Import must accept old ICCPlus files;
+  re-export uses the new id-based format and is NOT expected to load in the
+  original ICCPlus editor.**
 
 ## Actions
 
@@ -85,18 +111,24 @@ in sync when actions change.
 | --- | --- |
 | `list-projects` | Summaries of all projects (rows/choices/point types counts) |
 | `get-project` | Full project: metadata, `summary`, parsed `app` document |
+| `get-project-summary` | **Lightweight** structure read (no images/bodies): rows → choices with ids, titles, counts, `requiredIds`, groups + point types — for planning wiring without loading the doc |
+| `list-project-changes` | Recent agent tool calls that mutated a project (action + timestamp + result summary) — "what changed since X" |
 | `create-project` | New project from the default document |
 | `update-project` | Patch list metadata (`title`, `description`) |
 | `delete-project` | Remove a project |
 | `duplicate-project` | Clone a project ("(Copy)" suffix, fresh timestamps) |
 | `import-project-json` | Import an ICCPlus JSON document (string or object) |
 | `export-project-json` | Return the parsed document for download/copy |
-| `add-row` / `update-row` / `delete-row` / `move-row` | Row CRUD + ordering |
-| `add-choice` / `update-choice` / `delete-choice` / `move-choice` | Choice CRUD + ordering |
+| `add-row` / `update-row` / `delete-row` / `move-row` | Row CRUD + ordering; `add-row` accepts optional `fields` (title, requireds, styling, …) to create fully-formed |
+| `add-rows` | **Bulk** create many rows in one call (`rows: [{ index?, fields? }]`) |
+| `add-choice` / `update-choice` / `delete-choice` / `move-choice` | Choice CRUD + ordering; `add-choice` accepts optional `fields` (title, text, scores, requireds, …); `move-choice` also reparents across rows (`rowId` is the target row) |
+| `add-choices` | **Bulk** create many choices in one row (`choices: [{ index?, fields? }]`) |
 | `add-score` / `delete-score` | Attach/remove a point score on a choice |
+| `move-addon` / `delete-addon` | Move an addon (by array index) between choices or reorder within one (rewrites `parentId`); remove an addon from a choice |
 | `add-point-type` / `update-point-type` / `delete-point-type` | Currency CRUD; delete also strips referencing scores |
 | `add-group` / `update-group` / `delete-group` | Group CRUD |
 | `add-global-requirement` / `update-global-requirement` / `delete-global-requirement` | Global requirement CRUD |
+| `patch-app-document` | Wholesale-replace any top-level app field (`rows`, `images`, …) in one call — the sanctioned way to rewrite a big section without hundreds of mutations |
 | `update-project-settings` | Viewer title, description, and top-level app defaults |
 
 ## Application State
@@ -113,6 +145,13 @@ in sync when actions change.
 The agent runs on whichever provider key is configured, with **per-user keys
 winning over deployment env vars**. DeepSeek is registered through the
 framework's standard extension points in `server/plugins/deepseek.ts`:
+
+> **Context window**: the framework's model catalog (`@agent-native/core`
+> `getContextWindowForModel`) defaults unknown models to 128k. This repo
+> patches the installed package via `patches/` + `pnpm-workspace.yaml`
+> `patchedDependencies` so `deepseek-*` resolves to a 1M window (what the
+> Context X-Ray meter reports). Re-apply after a clean install with
+> `pnpm install`; keep the patch in sync when upgrading `@agent-native/core`.
 
 - `registerAgentEngine()` — engine entry (`deepseek`, OpenAI-compatible
   endpoint, `deepseek-chat` / `deepseek-reasoner`), so it appears in the

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { IconArrowLeft, IconEye, IconPencil } from "@tabler/icons-react";
 import { useSetPageTitle } from "@agent-native/toolkit/app-shell";
@@ -23,6 +24,7 @@ import { DesignGroupsPanel } from "@/components/projects/DesignGroupsPanel";
 import { DesignPanel } from "@/components/projects/DesignPanel";
 import { GroupPanel } from "@/components/projects/GroupPanel";
 import { IdListPanel } from "@/components/projects/IdListPanel";
+import { ImagesPanel } from "@/components/projects/ImagesPanel";
 import { JsonPanel } from "@/components/projects/JsonPanel";
 import { PointTypePanel } from "@/components/projects/PointTypePanel";
 import { ProjectStatsPanel } from "@/components/projects/ProjectStatsPanel";
@@ -41,10 +43,70 @@ export function meta() {
   return [{ title: `Project Editor — ${APP_TITLE}` }];
 }
 
+/** Editor tabs grouped into a two-level navigation. */
+const TAB_GROUPS: { id: string; label: string; tabs: { value: string; label: string }[] }[] = [
+  {
+    id: "content",
+    label: "Content",
+    tabs: [
+      { value: "rows", label: "Rows" },
+      { value: "points", label: "Points" },
+      { value: "groups", label: "Groups" },
+      { value: "images", label: "Images" },
+      { value: "requirements", label: "Requirements" },
+      { value: "variables", label: "Variables" },
+      { value: "words", label: "Words" },
+    ],
+  },
+  {
+    id: "design",
+    label: "Design",
+    tabs: [
+      { value: "design-groups", label: "Design Groups" },
+      { value: "categories", label: "Categories" },
+      { value: "backpack", label: "Backpack" },
+      { value: "design", label: "Design" },
+      { value: "templates", label: "Templates" },
+      { value: "sound-effects", label: "Sound Effects" },
+    ],
+  },
+  {
+    id: "viewer",
+    label: "Viewer",
+    tabs: [
+      { value: "viewer-config", label: "Viewer Config" },
+      { value: "custom-css", label: "Custom CSS" },
+    ],
+  },
+  {
+    id: "project",
+    label: "Project",
+    tabs: [
+      { value: "stats", label: "Stats" },
+      { value: "id-list", label: "ID List" },
+      { value: "settings", label: "Settings" },
+      { value: "json", label: "JSON" },
+    ],
+  },
+];
+
 export default function ProjectEditorRoute() {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: project, isLoading, isError, refetch } = useProject(id);
+  // Two-level nav: the active tab plus the group that owns it. Seeded from
+  // ?tab= so individual editor tabs can be deep-linked.
+  const [activeTab, setActiveTab] = useState(
+    () =>
+      TAB_GROUPS.flatMap((group) => group.tabs).find(
+        (tab) => tab.value === searchParams.get("tab"),
+      )?.value ?? "rows",
+  );
+  const [tabGroup, setTabGroup] = useState(
+    () =>
+      TAB_GROUPS.find((group) => group.tabs.some((tab) => tab.value === activeTab))?.id ??
+      "content",
+  );
 
   const mode =
     searchParams.get("mode") === "viewer" ? "viewer" : "editor";
@@ -57,11 +119,44 @@ export default function ProjectEditorRoute() {
       : "Project Editor",
   );
 
+  const activeGroup =
+    TAB_GROUPS.find((group) => group.id === tabGroup) ?? TAB_GROUPS[0];
+
   function handleModeChange(next: string) {
     if (!next || next === mode) return;
     setSearchParams(next === "viewer" ? { mode: "viewer" } : {}, {
       replace: true,
     });
+  }
+
+  function syncTabParam(tab: string) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (tab === "rows") next.delete("tab");
+        else next.set("tab", tab);
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function handleTabChange(value: string) {
+    setActiveTab(value);
+    syncTabParam(value);
+  }
+
+  function handleGroupChange(value: string) {
+    if (!value || value === tabGroup) return;
+    const group = TAB_GROUPS.find((g) => g.id === value);
+    if (!group) return;
+    setTabGroup(value);
+    // If the active tab doesn't live in the newly selected group, fall back to
+    // the group's first tab so the content never points at a hidden tab.
+    if (!group.tabs.some((tab) => tab.value === activeTab)) {
+      setActiveTab(group.tabs[0].value);
+      syncTabParam(group.tabs[0].value);
+    }
   }
 
   if (isLoading) {
@@ -106,9 +201,12 @@ export default function ProjectEditorRoute() {
   }
 
   const title = project.title || "Untitled CYOA";
+  const rowCount = project.app.rows?.length ?? 0;
+  const choiceCount =
+    project.app.rows?.reduce((sum, row) => sum + (row.objects?.length ?? 0), 0) ?? 0;
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 p-4 lg:p-6">
+    <div className="mx-auto w-full space-y-6 p-4 lg:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -157,32 +255,45 @@ export default function ProjectEditorRoute() {
         </div>
       </div>
 
+      {/* The original ICCPlus viewer renders full-page — give the embedded
+          viewer the same breathing room so its columns match the author's
+          breakpoints instead of being squeezed into a narrow column. */}
       {mode === "viewer" ? (
-        <div className="mx-auto w-full max-w-4xl">
+        <div className="w-full">
           <CyoaViewer app={project.app} />
         </div>
       ) : (
-        <Tabs defaultValue="rows">
-          <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
-            <TabsTrigger value="rows">Rows</TabsTrigger>
-            <TabsTrigger value="points">Points</TabsTrigger>
-            <TabsTrigger value="groups">Groups</TabsTrigger>
-            <TabsTrigger value="requirements">Requirements</TabsTrigger>
-            <TabsTrigger value="variables">Variables</TabsTrigger>
-            <TabsTrigger value="words">Words</TabsTrigger>
-            <TabsTrigger value="design-groups">Design Groups</TabsTrigger>
-            <TabsTrigger value="categories">Categories</TabsTrigger>
-            <TabsTrigger value="backpack">Backpack</TabsTrigger>
-            <TabsTrigger value="design">Design</TabsTrigger>
-            <TabsTrigger value="templates">Templates</TabsTrigger>
-            <TabsTrigger value="sound-effects">Sound Effects</TabsTrigger>
-            <TabsTrigger value="viewer-config">Viewer Config</TabsTrigger>
-            <TabsTrigger value="custom-css">Custom CSS</TabsTrigger>
-            <TabsTrigger value="stats">Stats</TabsTrigger>
-            <TabsTrigger value="id-list">ID List</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-            <TabsTrigger value="json">JSON</TabsTrigger>
-          </TabsList>
+        <div className="space-y-3">
+          <ToggleGroup
+            type="single"
+            value={tabGroup}
+            onValueChange={handleGroupChange}
+            variant="outline"
+            size="sm"
+            aria-label="Editor section"
+            className="justify-start"
+          >
+            {TAB_GROUPS.map((group) => (
+              <ToggleGroupItem key={group.id} value={group.id} className="gap-1.5">
+                {group.label}
+                {group.id === "content" ? (
+                  <span className="text-muted-foreground">
+                    · {rowCount} row{rowCount === 1 ? "" : "s"} · {choiceCount}{" "}
+                    choice{choiceCount === 1 ? "" : "s"}
+                  </span>
+                ) : null}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
+              {activeGroup.tabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           <TabsContent value="rows" className="mt-4">
             <RowsPanel project={project} />
           </TabsContent>
@@ -191,6 +302,9 @@ export default function ProjectEditorRoute() {
           </TabsContent>
           <TabsContent value="groups" className="mt-4">
             <GroupPanel project={project} />
+          </TabsContent>
+          <TabsContent value="images" className="mt-4">
+            <ImagesPanel project={project} />
           </TabsContent>
           <TabsContent value="requirements" className="mt-4">
             <RequirementPanel project={project} />
@@ -237,7 +351,8 @@ export default function ProjectEditorRoute() {
           <TabsContent value="json" className="mt-4">
             <JsonPanel project={project} />
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </div>
       )}
     </div>
   );

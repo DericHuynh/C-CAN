@@ -1,17 +1,15 @@
-import { useMemo, useState } from "react";
-import { useParams } from "react-router";
+import { memo, useMemo, useState } from "react";
+import { IconPlus } from "@tabler/icons-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@agent-native/toolkit/ui/accordion";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,28 +20,33 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useProject } from "@/hooks/use-projects";
 import { createDefaultAddon } from "@shared/cyoa";
 import type {
   Addon,
+  App,
   Choice,
   Group,
+  ImageVariant,
   PointType,
   Requireds,
   Score,
 } from "@shared/types";
 
+import { EditorPane } from "./EditorPane";
+import { LazySelect } from "./LazySelect";
 import { pointTypeName } from "./project-utils";
 import { RequirementListEditor } from "./RequirementListEditor";
 import { ChoiceFunctionsEditor } from "./ChoiceFunctionsEditor";
 
-interface ChoiceEditorDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+interface ChoiceEditorProps {
   choice: Choice | null;
+  app: App;
   pointTypes: PointType[];
   groups: Group[];
   busy?: boolean;
+  /** Accordion section to open by default (e.g. "addons"). */
+  initialSection?: string;
+  onCancel: () => void;
   onSave: (patch: Record<string, unknown>) => void;
 }
 
@@ -202,20 +205,18 @@ const FUNCTION_KEYS: string[] = [
   "defaultImage",
 ];
 
-export function ChoiceEditorDialog({
-  open,
-  onOpenChange,
-  choice,
-  pointTypes,
-  groups,
-  busy = false,
-  onSave,
-}: ChoiceEditorDialogProps) {
-  const { id: projectId } = useParams<{ id: string }>();
-  const { data: project } = useProject(projectId);
-  const app = project?.app;
-
-  const [title, setTitle] = useState(choice?.title ?? "");
+export const ChoiceEditor = memo(
+  function ChoiceEditor({
+    choice,
+    app,
+    pointTypes,
+    groups,
+    busy = false,
+    initialSection,
+    onCancel,
+    onSave,
+  }: ChoiceEditorProps) {
+    const [title, setTitle] = useState(choice?.title ?? "");
   const [text, setText] = useState(choice?.text ?? "");
   const [groupIds, setGroupIds] = useState<string[]>(choice?.groups ?? []);
   const [scores, setScores] = useState<Score[]>(choice?.scores ?? []);
@@ -230,34 +231,22 @@ export function ChoiceEditorDialog({
     choice?.isSelectableMultiple ?? false,
   );
   const [numMultipleTimesPluss, setNumMultipleTimesPluss] = useState(
-    choice?.numMultipleTimesPluss != null
-      ? String(choice.numMultipleTimesPluss)
-      : "0",
+    choice?.numMultipleTimesPluss != null ? String(choice.numMultipleTimesPluss) : "0",
   );
   const [numMultipleTimesMinus, setNumMultipleTimesMinus] = useState(
-    choice?.numMultipleTimesMinus != null
-      ? String(choice.numMultipleTimesMinus)
-      : "0",
+    choice?.numMultipleTimesMinus != null ? String(choice.numMultipleTimesMinus) : "0",
   );
-  const [allowSelectByClick, setAllowSelectByClick] = useState(
-    choice?.allowSelectByClick ?? false,
-  );
+  const [allowSelectByClick, setAllowSelectByClick] = useState(choice?.allowSelectByClick ?? false);
   const [isMultipleUseVariable, setIsMultipleUseVariable] = useState(
     choice?.isMultipleUseVariable ?? false,
   );
 
-  const [isNotSelectable, setIsNotSelectable] = useState(
-    choice?.isNotSelectable ?? false,
-  );
+  const [isNotSelectable, setIsNotSelectable] = useState(choice?.isNotSelectable ?? false);
   const [selectOnce, setSelectOnce] = useState(choice?.selectOnce ?? false);
   const [isAutoActive, setIsAutoActive] = useState(choice?.isAutoActive ?? false);
   const [isNotResult, setIsNotResult] = useState(choice?.isNotResult ?? false);
-  const [isNotSearchable, setIsNotSearchable] = useState(
-    choice?.isNotSearchable ?? false,
-  );
-  const [isImageUpload, setIsImageUpload] = useState(
-    choice?.isImageUpload ?? false,
-  );
+  const [isNotSearchable, setIsNotSearchable] = useState(choice?.isNotSearchable ?? false);
+  const [isImageUpload, setIsImageUpload] = useState(choice?.isImageUpload ?? false);
   const [cleanACtivatedOnSelect, setCleanACtivatedOnSelect] = useState(
     choice?.cleanACtivatedOnSelect ?? false,
   );
@@ -265,18 +254,30 @@ export function ChoiceEditorDialog({
     choice?.hideCounterUntilSelect ?? false,
   );
 
-  const [isChangeVariables, setIsChangeVariables] = useState(
-    choice?.isChangeVariables ?? false,
-  );
+  const [isChangeVariables, setIsChangeVariables] = useState(choice?.isChangeVariables ?? false);
   const [changedVariables, setChangedVariables] = useState(
     choice?.changedVariables?.join(", ") ?? "",
   );
   const [changeType, setChangeType] = useState(choice?.changeType ?? "1");
 
   const [addons, setAddons] = useState<Addon[]>(choice?.addons ?? []);
-  const [requireds, setRequireds] = useState<Requireds[]>(
-    choice?.requireds ?? [],
+  const [requireds, setRequireds] = useState<Requireds[]>(choice?.requireds ?? []);
+  const [imageSwitchingIsOn, setImageSwitchingIsOn] = useState(choice?.imageSwitchingIsOn ?? false);
+  const [imageVariants, setImageVariants] = useState<ImageVariant[]>(choice?.imageVariants ?? []);
+
+  // Image options for the lazy selects: mounted only while a dropdown is open
+  // (1,000+ images made every editor mount create thousands of hidden items).
+  const imageItems = useMemo(
+    () =>
+      (app.images ?? []).map((img) => ({
+        value: img.id,
+        label: img.name || img.id,
+        searchText: `${img.name ?? ""} ${img.id}`,
+      })),
+    [app],
   );
+  const imageName = (id: string) =>
+    (app.images ?? []).find((img) => img.id === id)?.name ?? id;
 
   // Choice functions (ChoiceFunc): seeded from the current choice, merged
   // into the save patch.
@@ -293,9 +294,7 @@ export function ChoiceEditorDialog({
     () => new Set(scores.map((score) => score.id ?? score.type).filter(Boolean)),
     [scores],
   );
-  const availablePointTypes = pointTypes.filter(
-    (pt) => !usedPointTypeIds.has(pt.id),
-  );
+  const availablePointTypes = pointTypes.filter((pt) => !usedPointTypeIds.has(pt.id));
 
   const allChoices = useMemo(() => {
     const result: { id: string; label: string }[] = [];
@@ -345,17 +344,13 @@ export function ChoiceEditorDialog({
 
   function toggleGroup(groupId: string) {
     setGroupIds((prev) =>
-      prev.includes(groupId)
-        ? prev.filter((id) => id !== groupId)
-        : [...prev, groupId],
+      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId],
     );
   }
 
   function updateScoreValue(score: Score, value: string) {
     setScores((prev) =>
-      prev.map((item) =>
-        item === score ? { ...item, value: Number(value) || 0 } : item,
-      ),
+      prev.map((item) => (item === score ? { ...item, value: Number(value) || 0 } : item)),
     );
   }
 
@@ -416,7 +411,8 @@ export function ChoiceEditorDialog({
       text,
       groups: groupIds,
       scores,
-      image,
+      // "__custom__" is a UI-only marker for the image select — never persist it.
+      image: image === "__custom__" ? "" : image,
       template,
       objectWidth,
       isSelectableMultiple,
@@ -438,23 +434,35 @@ export function ChoiceEditorDialog({
         .map((part) => part.trim())
         .filter(Boolean),
       changeType,
-      addons,
+      addons: addons.map((addon) =>
+        addon.image === "__custom__" ? { ...addon, image: "" } : addon,
+      ),
       requireds,
+      imageSwitchingIsOn,
+      imageVariants,
       ...functions,
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Edit choice</DialogTitle>
-          <DialogDescription>
-            Update the choice's title, text, groups, point scores, and
-            appearance.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-5">
+    <EditorPane
+      title="Edit choice"
+      description="Update the choice's title, text, groups, point scores, and appearance."
+      busy={busy}
+      onCancel={onCancel}
+      onSave={handleSave}
+    >
+      <div className="space-y-5">
+        <Accordion
+          type="multiple"
+          defaultValue={
+            initialSection ? [initialSection] : ["basics", "scores", "requirements"]
+          }
+          className="space-y-3"
+        >
+            <AccordionItem value="basics">
+              <AccordionTrigger>Basics</AccordionTrigger>
+              <AccordionContent className="space-y-5 pt-2">
           <div className="space-y-2">
             <Label htmlFor="choice-title">Title</Label>
             <Input
@@ -476,15 +484,20 @@ export function ChoiceEditorDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="choice-image">Image URL</Label>
-              <Input
-                id="choice-image"
-                value={image}
-                onChange={(event) => setImage(event.target.value)}
-                placeholder="https://…"
-              />
-            </div>
+            <LazySelect
+              id="choice-image"
+              label="Image"
+              value={image}
+              onValueChange={setImage}
+              items={imageItems}
+              placeholder="Select an image"
+              searchable
+              allowCustom
+              renderValue={(value) => {
+                if (value === "__custom__") return "Custom URL / data…";
+                return imageName(value);
+              }}
+            />
             <div className="space-y-2">
               <Label htmlFor="choice-template">Template</Label>
               <Select
@@ -505,13 +518,22 @@ export function ChoiceEditorDialog({
             </div>
           </div>
 
+          <ImageVariantsEditor
+            isOn={imageSwitchingIsOn}
+            onIsOnChange={setImageSwitchingIsOn}
+            variants={imageVariants}
+            onChange={setImageVariants}
+            images={app.images ?? []}
+            choices={allChoices}
+            pointTypes={pointTypes}
+            globalRequirements={globalRequirementOptions}
+          />
+
           <div className="space-y-2">
             <Label htmlFor="choice-width">Width</Label>
             <Select
               value={objectWidth === "" ? "row" : objectWidth}
-              onValueChange={(value) =>
-                setObjectWidth(value === "row" ? "" : value)
-              }
+              onValueChange={(value) => setObjectWidth(value === "row" ? "" : value)}
             >
               <SelectTrigger id="choice-width" className="w-full">
                 <SelectValue />
@@ -548,13 +570,18 @@ export function ChoiceEditorDialog({
               </p>
             </div>
           ) : null}
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="scores">
+              <AccordionTrigger>Scores</AccordionTrigger>
+              <AccordionContent className="space-y-5 pt-2">
 
           <div className="space-y-2">
             <Label>Scores</Label>
             {scores.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No point scores yet. Add one below to make this choice cost or
-                grant points.
+                No point scores yet. Add one below to make this choice cost or grant points.
               </p>
             ) : (
               <div className="space-y-1.5">
@@ -578,9 +605,7 @@ export function ChoiceEditorDialog({
                       aria-label={`Value for ${pointTypeName(pointTypes, score.id ?? score.type)}`}
                     />
                     <span className="text-xs text-muted-foreground">
-                      {score.value !== undefined && score.value < 0
-                        ? "cost"
-                        : "gain"}
+                      {score.value !== undefined && score.value < 0 ? "cost" : "gain"}
                     </span>
                     <Button
                       type="button"
@@ -600,10 +625,7 @@ export function ChoiceEditorDialog({
               <div className="flex flex-wrap items-end gap-2 pt-1">
                 <div className="min-w-40 flex-1 space-y-1">
                   <Label htmlFor="new-score-point-type">Point type</Label>
-                  <Select
-                    value={scorePointType}
-                    onValueChange={setScorePointType}
-                  >
+                  <Select value={scorePointType} onValueChange={setScorePointType}>
                     <SelectTrigger id="new-score-point-type" className="w-full">
                       <SelectValue placeholder="Select a point type" />
                     </SelectTrigger>
@@ -641,20 +663,24 @@ export function ChoiceEditorDialog({
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
-                All point types are already scored. Add a point type on the
-                Points tab to attach more scores.
+                All point types are already scored. Add a point type on the Points tab to attach
+                more scores.
               </p>
             )}
           </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="multi-select">
+              <AccordionTrigger>Multi-select</AccordionTrigger>
+              <AccordionContent className="space-y-3 pt-2">
 
           <div className="space-y-3 rounded-md border border-border p-3">
             <div className="space-y-2">
               <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <Checkbox
                   checked={isSelectableMultiple}
-                  onCheckedChange={(checked) =>
-                    setIsSelectableMultiple(checked === true)
-                  }
+                  onCheckedChange={(checked) => setIsSelectableMultiple(checked === true)}
                 />
                 Allow multiple selection
               </label>
@@ -669,9 +695,7 @@ export function ChoiceEditorDialog({
                       type="number"
                       min={0}
                       value={numMultipleTimesPluss}
-                      onChange={(event) =>
-                        setNumMultipleTimesPluss(event.target.value)
-                      }
+                      onChange={(event) => setNumMultipleTimesPluss(event.target.value)}
                     />
                   </div>
                   <div className="space-y-1">
@@ -681,33 +705,33 @@ export function ChoiceEditorDialog({
                       type="number"
                       min={0}
                       value={numMultipleTimesMinus}
-                      onChange={(event) =>
-                        setNumMultipleTimesMinus(event.target.value)
-                      }
+                      onChange={(event) => setNumMultipleTimesMinus(event.target.value)}
                     />
                   </div>
                 </div>
                 <label className="flex cursor-pointer items-center gap-2 text-sm">
                   <Checkbox
                     checked={allowSelectByClick}
-                    onCheckedChange={(checked) =>
-                      setAllowSelectByClick(checked === true)
-                    }
+                    onCheckedChange={(checked) => setAllowSelectByClick(checked === true)}
                   />
                   Allow select by click
                 </label>
                 <label className="flex cursor-pointer items-center gap-2 text-sm">
                   <Checkbox
                     checked={isMultipleUseVariable}
-                    onCheckedChange={(checked) =>
-                      setIsMultipleUseVariable(checked === true)
-                    }
+                    onCheckedChange={(checked) => setIsMultipleUseVariable(checked === true)}
                   />
                   Track selections in a variable
                 </label>
               </div>
             ) : null}
           </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="behavior">
+              <AccordionTrigger>Behavior</AccordionTrigger>
+              <AccordionContent className="space-y-5 pt-2">
 
           <div className="space-y-2">
             <Label>Behavior</Label>
@@ -719,8 +743,16 @@ export function ChoiceEditorDialog({
                 { label: "Not a result", checked: isNotResult, set: setIsNotResult },
                 { label: "Not searchable", checked: isNotSearchable, set: setIsNotSearchable },
                 { label: "Image upload", checked: isImageUpload, set: setIsImageUpload },
-                { label: "Clean activated on select", checked: cleanACtivatedOnSelect, set: setCleanACtivatedOnSelect },
-                { label: "Hide counter until selected", checked: hideCounterUntilSelect, set: setHideCounterUntilSelect },
+                {
+                  label: "Clean activated on select",
+                  checked: cleanACtivatedOnSelect,
+                  set: setCleanACtivatedOnSelect,
+                },
+                {
+                  label: "Hide counter until selected",
+                  checked: hideCounterUntilSelect,
+                  set: setHideCounterUntilSelect,
+                },
               ].map((flag) => (
                 <label
                   key={flag.label}
@@ -740,18 +772,14 @@ export function ChoiceEditorDialog({
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <Checkbox
                 checked={isChangeVariables}
-                onCheckedChange={(checked) =>
-                  setIsChangeVariables(checked === true)
-                }
+                onCheckedChange={(checked) => setIsChangeVariables(checked === true)}
               />
               Change variables
             </label>
             {isChangeVariables ? (
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <Label htmlFor="choice-changed-variables">
-                    Variable ids (comma-separated)
-                  </Label>
+                  <Label htmlFor="choice-changed-variables">Variable ids (comma-separated)</Label>
                   <Input
                     id="choice-changed-variables"
                     value={changedVariables}
@@ -761,10 +789,7 @@ export function ChoiceEditorDialog({
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="choice-change-type">Change</Label>
-                  <Select
-                    value={changeType}
-                    onValueChange={setChangeType}
-                  >
+                  <Select value={changeType} onValueChange={setChangeType}>
                     <SelectTrigger id="choice-change-type" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -780,17 +805,17 @@ export function ChoiceEditorDialog({
               </div>
             ) : null}
           </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="addons">
+              <AccordionTrigger>Addons</AccordionTrigger>
+              <AccordionContent className="space-y-3 pt-2">
 
           <div className="space-y-3 rounded-md border border-border p-3">
             <div className="flex items-center justify-between gap-2">
               <Label>Addons</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addAddon}
-                disabled={!app}
-              >
+              <Button type="button" variant="outline" size="sm" onClick={addAddon} disabled={!app}>
                 Add addon
               </Button>
             </div>
@@ -806,9 +831,7 @@ export function ChoiceEditorDialog({
                     className="space-y-2 rounded-md border border-border p-3"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 truncate text-sm font-medium">
-                        {addon.title || "Untitled addon"}
-                      </span>
+                      <span className="min-w-0 truncate text-sm font-medium">{addon.title}</span>
                       <Badge variant="secondary">
                         {addon.isSelectable ? "Selectable" : "Not selectable"}
                       </Badge>
@@ -817,28 +840,29 @@ export function ChoiceEditorDialog({
                       <Label>Title</Label>
                       <Input
                         value={addon.title ?? ""}
-                        onChange={(event) =>
-                          updateAddon(addon, { title: event.target.value })
-                        }
+                        onChange={(event) => updateAddon(addon, { title: event.target.value })}
                       />
                     </div>
                     <div className="space-y-1">
                       <Label>Text</Label>
                       <Input
                         value={addon.text ?? ""}
-                        onChange={(event) =>
-                          updateAddon(addon, { text: event.target.value })
-                        }
+                        onChange={(event) => updateAddon(addon, { text: event.target.value })}
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label>Image URL</Label>
-                      <Input
+                      <Label>Image</Label>
+                      <LazySelect
                         value={addon.image ?? ""}
-                        onChange={(event) =>
-                          updateAddon(addon, { image: event.target.value })
-                        }
-                        placeholder="https://…"
+                        onValueChange={(value) => updateAddon(addon, { image: value })}
+                        items={imageItems}
+                        placeholder="Select an image"
+                        searchable
+                        allowCustom
+                        renderValue={(value) => {
+                          if (value === "__custom__") return "Custom URL / data…";
+                          return imageName(value);
+                        }}
                       />
                     </div>
                     <label className="flex cursor-pointer items-center gap-2 text-sm">
@@ -855,9 +879,7 @@ export function ChoiceEditorDialog({
                         <Label className="text-xs text-muted-foreground">Template</Label>
                         <Select
                           value={String(addon.template ?? 1)}
-                          onValueChange={(value) =>
-                            updateAddon(addon, { template: Number(value) })
-                          }
+                          onValueChange={(value) => updateAddon(addon, { template: Number(value) })}
                         >
                           <SelectTrigger className="h-8 w-full text-sm">
                             <SelectValue />
@@ -875,9 +897,7 @@ export function ChoiceEditorDialog({
                         <Label className="text-xs text-muted-foreground">Width</Label>
                         <Select
                           value={addon.addonWidth || "col-12"}
-                          onValueChange={(value) =>
-                            updateAddon(addon, { addonWidth: value })
-                          }
+                          onValueChange={(value) => updateAddon(addon, { addonWidth: value })}
                         >
                           <SelectTrigger className="h-8 w-full text-sm">
                             <SelectValue />
@@ -922,7 +942,9 @@ export function ChoiceEditorDialog({
                       </label>
                       <label className="flex cursor-pointer items-center gap-2 text-sm">
                         <Checkbox
-                          checked={(addon as unknown as Record<string, unknown>).countAsChoice === true}
+                          checked={
+                            (addon as unknown as Record<string, unknown>).countAsChoice === true
+                          }
                           onCheckedChange={(checked) =>
                             updateAddon(addon, { countAsChoice: checked === true })
                           }
@@ -974,11 +996,13 @@ export function ChoiceEditorDialog({
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">
-                            Addon scores (selectable addons can carry their own
-                            point scores)
+                            Addon scores (selectable addons can carry their own point scores)
                           </Label>
                           {(addon.scores ?? []).map((score, scoreIndex) => (
-                            <div key={`${score.id ?? score.type}-${scoreIndex}`} className="flex items-center gap-2">
+                            <div
+                              key={`${score.id ?? score.type}-${scoreIndex}`}
+                              className="flex items-center gap-2"
+                            >
                               <Badge
                                 variant="secondary"
                                 className="w-28 shrink-0 justify-center overflow-hidden text-ellipsis"
@@ -1055,6 +1079,18 @@ export function ChoiceEditorDialog({
                         </div>
                       </>
                     ) : null}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">
+                        Addon requirements (controls when the addon is enabled / shown)
+                      </Label>
+                      <RequirementListEditor
+                        requireds={addon.requireds ?? []}
+                        onChange={(next) => updateAddon(addon, { requireds: next })}
+                        choices={allChoices}
+                        pointTypes={pointTypes}
+                        globalRequirements={globalRequirementOptions}
+                      />
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
@@ -1069,6 +1105,12 @@ export function ChoiceEditorDialog({
               </div>
             )}
           </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="requirements">
+              <AccordionTrigger>Requirements</AccordionTrigger>
+              <AccordionContent className="space-y-3 pt-2">
 
           <div className="space-y-3 rounded-md border border-border p-3">
             <Label>Requirements</Label>
@@ -1080,13 +1122,18 @@ export function ChoiceEditorDialog({
               globalRequirements={globalRequirementOptions}
             />
           </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="functions">
+              <AccordionTrigger>Functions</AccordionTrigger>
+              <AccordionContent className="space-y-3 pt-2">
 
           <div className="space-y-3 rounded-md border border-border p-3">
             <Label>Functions</Label>
             <p className="text-xs text-muted-foreground">
               Runtime behaviors: linked activation, discounts, duplication,
-              template/width/background changes, music, fades, delays, sounds
-              and more.
+              template/width/background changes, music, fades, delays, sounds and more.
             </p>
             <ChoiceFunctionsEditor
               value={functions}
@@ -1098,20 +1145,141 @@ export function ChoiceEditorDialog({
               soundEffects={sfxOptions}
             />
           </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
+    </EditorPane>
+  );
+});
+
+/* ------------------------------------------------------------------ */
+/* Image variants (requirement-gated image switching)                  */
+/* ------------------------------------------------------------------ */
+
+function ImageVariantsEditor({
+  isOn,
+  onIsOnChange,
+  variants,
+  onChange,
+  images,
+  choices,
+  pointTypes,
+  globalRequirements,
+}: {
+  isOn: boolean;
+  onIsOnChange: (value: boolean) => void;
+  variants: ImageVariant[];
+  onChange: (variants: ImageVariant[]) => void;
+  images: { id: string; name?: string }[];
+  choices: { id: string; label: string }[];
+  pointTypes: PointType[];
+  globalRequirements: { id: string; name: string }[];
+}) {
+  function update(index: number, patch: Partial<ImageVariant>) {
+    onChange(variants.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  }
+
+  const variantImageItems = useMemo(
+    () =>
+      images.map((img) => ({
+        value: img.id,
+        label: img.name || img.id,
+        searchText: `${img.name ?? ""} ${img.id}`,
+      })),
+    [images],
+  );
+
+  function addVariant() {
+    onChange([
+      ...variants,
+      {
+        id: `variant-${Date.now().toString(36)}`,
+        image: images[0]?.id ?? "",
+        requireds: [],
+        priority: variants.length + 1,
+        name: `Variant ${variants.length + 1}`,
+      },
+    ]);
+  }
+
+  return (
+    <div className="space-y-3 rounded-md border border-border p-3">
+      <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+        <Checkbox checked={isOn} onCheckedChange={(checked) => onIsOnChange(checked === true)} />
+        Switch image when requirements are met
+      </label>
+      {isOn ? (
+        <>
+          <p className="text-xs text-muted-foreground">
+            The image switches to the highest-priority variant whose requirements are met (lower
+            priority number wins). Requirements can reference choices, selectable addons, point
+            values, groups or global requirements.
+          </p>
+          {variants.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No variants yet — add one to swap the image.
+            </p>
+          ) : (
+            variants.map((variant, index) => (
+              <div key={variant.id} className="space-y-2 rounded-md border border-border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-xs">{variant.name || `Variant ${index + 1}`}</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-muted-foreground hover:text-destructive"
+                    onClick={() => onChange(variants.filter((_, i) => i !== index))}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Image</Label>
+                    <LazySelect
+                      value={variant.image}
+                      onValueChange={(value) => update(index, { image: value })}
+                      items={variantImageItems}
+                      placeholder="Select an image"
+                      triggerClassName="h-8 text-sm"
+                      renderValue={(value) =>
+                        images.find((img) => img.id === value)?.name ?? value
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Priority (lower wins)</Label>
+                    <Input
+                      type="number"
+                      className="h-8 text-sm"
+                      value={String(variant.priority ?? 0)}
+                      onChange={(event) =>
+                        update(index, { priority: Number(event.target.value) || 0 })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Requirements</Label>
+                  <RequirementListEditor
+                    requireds={variant.requireds ?? []}
+                    onChange={(next) => update(index, { requireds: next })}
+                    choices={choices}
+                    pointTypes={pointTypes}
+                    globalRequirements={globalRequirements}
+                  />
+                </div>
+              </div>
+            ))
+          )}
+          <Button type="button" variant="outline" size="sm" onClick={addVariant}>
+            <IconPlus className="mr-1.5 size-4" />
+            Add variant
           </Button>
-          <Button type="button" onClick={handleSave} disabled={busy}>
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      ) : null}
+    </div>
   );
 }

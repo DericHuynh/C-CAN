@@ -33,6 +33,25 @@ import {
 } from "./cyoa-engine.js";
 import type { Choice, Requireds, Row } from "./types.js";
 
+/** Build a positive/negated choice-id requirement. */
+function idReq(reqId: string, required = true): Requireds {
+  return {
+    required,
+    requireds: [],
+    orRequired: [],
+    id: "1",
+    type: "id",
+    reqId,
+    reqId1: "",
+    reqId2: "",
+    reqId3: "",
+    reqPoints: 0,
+    showRequired: true,
+    afterText: "",
+    beforeText: "",
+  };
+}
+
 function appWith(patch: Partial<ReturnType<typeof createDefaultApp>>) {
   const app = createDefaultApp();
   return { ...app, ...patch };
@@ -226,11 +245,20 @@ describe("cyoa-engine requirements", () => {
 });
 
 describe("cyoa-engine points", () => {
-  it("computes totals from starting sum and scores", () => {
+  it("computes totals from starting sum and scores (ICCPlus: negative value is a gain)", () => {
     const row = makeRow("row_1");
     const choice = makeChoice("choice_a", {
       scores: [
-        { idx: "0", id: "pt_gold", type: "pt_gold", value: 5, beforeText: "", afterText: "", requireds: [], showScore: true },
+        {
+          idx: "0",
+          id: "pt_gold",
+          type: "pt_gold",
+          value: -5,
+          beforeText: "",
+          afterText: "",
+          requireds: [],
+          showScore: true,
+        },
       ],
     });
     row.objects = [choice];
@@ -253,15 +281,114 @@ describe("cyoa-engine points", () => {
     expect(totals.get("pt_gold")?.total).toBe(10);
     const next = selectChoice(choice, row, idx, state);
     const totals2 = computePointTotals(app, idx, next);
+    // value -5 = gain of 5: 10 - (-5) = 15 (the original applies `-score.value`).
     expect(totals2.get("pt_gold")?.total).toBe(15);
   });
 
-  it("scales scores by multiple count", () => {
+  it("treats a positive score value as a cost (ICCPlus convention)", () => {
+    const row = makeRow("row_1");
+    const choice = makeChoice("choice_a", {
+      scores: [
+        {
+          idx: "0",
+          id: "pt_gold",
+          type: "pt_gold",
+          value: 5,
+          beforeText: "",
+          afterText: "",
+          requireds: [],
+          showScore: true,
+        },
+      ],
+    });
+    row.objects = [choice];
+    const app = appWith({
+      rows: [row],
+      pointTypes: [
+        {
+          id: "pt_gold",
+          name: "Gold",
+          startingSum: 10,
+          initValue: 0,
+          beforeText: "",
+          afterText: "",
+        } as never,
+      ],
+    });
+    const idx = buildCyoaIndex(app);
+    const next = selectChoice(choice, row, idx, createCyoaState(app));
+    expect(computePointTotals(app, idx, next).get("pt_gold")?.total).toBe(5);
+  });
+
+  it("point requirements see active choices' accumulated scores", () => {
+    const row = makeRow("row_1");
+    const gain = makeChoice("choice_gain", {
+      scores: [
+        {
+          idx: "0",
+          id: "pt_gold",
+          type: "pt_gold",
+          value: -5, // gain of 5 (ICCPlus convention)
+          beforeText: "",
+          afterText: "",
+          requireds: [],
+          showScore: true,
+        },
+      ],
+    });
+    row.objects = [gain];
+    const app = appWith({
+      rows: [row],
+      pointTypes: [
+        {
+          id: "pt_gold",
+          name: "Gold",
+          startingSum: 0,
+          initValue: 0,
+          beforeText: "",
+          afterText: "",
+        } as never,
+      ],
+    });
+    const idx = buildCyoaIndex(app);
+    const req: Requireds = {
+      required: true,
+      requireds: [],
+      orRequired: [],
+      id: "2",
+      type: "points",
+      reqId: "pt_gold",
+      reqId1: "",
+      reqId2: "",
+      reqId3: "",
+      reqPoints: 5,
+      operator: "2", // >=
+      showRequired: true,
+      afterText: "",
+      beforeText: "",
+    };
+    let state = createCyoaState(app);
+    expect(checkRequirements([req], idx, state)).toBe(false); // 0 >= 5
+    state = selectChoice(gain, row, idx, state);
+    expect(checkRequirements([req], idx, state)).toBe(true); // 5 >= 5
+  });
+
+  it("scales scores by multiple count (multiplyByTimes: cumulative 1+2+...+N)", () => {
     const row = makeRow("row_1");
     const choice = makeChoice("choice_a", {
       isSelectableMultiple: true,
       scores: [
-        { idx: "0", id: "pt_gold", type: "pt_gold", value: 5, beforeText: "", afterText: "", requireds: [], showScore: true, multiplyByTimes: true },
+        {
+          idx: "0",
+          id: "pt_gold",
+          type: "pt_gold",
+          value: -5,
+          beforeText: "",
+          afterText: "",
+          requireds: [],
+          showScore: true,
+          multiplyByTimes: true,
+        },
       ],
     });
     row.objects = [choice];
@@ -283,8 +410,52 @@ describe("cyoa-engine points", () => {
     const once = selectOneMore(choice, row, state);
     expect(once.activated.get("choice_a")?.multiple).toBe(1);
     const twice = selectOneMore(choice, row, once);
-    const totals = computePointTotals(app, idx, twice);
-    expect(totals.get("pt_gold")?.total).toBe(15); // 5 * (|2| + 1)
+    const thrice = selectOneMore(choice, row, twice);
+    // multiplyByTimes applies val*(selNum+1) per increment: count 3 = 1+2+3 = 6x.
+    // value -5 (gain) at count 3: -(-5 * 6) = 30.
+    expect(computePointTotals(app, idx, thrice).get("pt_gold")?.total).toBe(30);
+    // count 2 = 1+2 = 3x.
+    expect(computePointTotals(app, idx, twice).get("pt_gold")?.total).toBe(15);
+  });
+
+  it("scales scores linearly with the count for plain multi-selects", () => {
+    const row = makeRow("row_1");
+    const choice = makeChoice("choice_a", {
+      isSelectableMultiple: true,
+      scores: [
+        {
+          idx: "0",
+          id: "pt_gold",
+          type: "pt_gold",
+          value: -5, // gain of 5 per copy
+          beforeText: "",
+          afterText: "",
+          requireds: [],
+          showScore: true,
+        },
+      ],
+    });
+    row.objects = [choice];
+    const app = appWith({
+      rows: [row],
+      pointTypes: [
+        {
+          id: "pt_gold",
+          name: "Gold",
+          startingSum: 0,
+          initValue: 0,
+          beforeText: "",
+          afterText: "",
+        } as never,
+      ],
+    });
+    const idx = buildCyoaIndex(app);
+    const state = createCyoaState(app);
+    const once = selectOneMore(choice, row, state);
+    const twice = selectOneMore(choice, row, once);
+    // Each copy applies the base value once: count 2 -> 2 * 5 = 10.
+    expect(computePointTotals(app, idx, once).get("pt_gold")?.total).toBe(5);
+    expect(computePointTotals(app, idx, twice).get("pt_gold")?.total).toBe(10);
   });
 });
 
@@ -340,9 +511,7 @@ describe("cyoa-engine misc", () => {
     });
     const idx = buildCyoaIndex(app);
     const state = createCyoaState(app);
-    expect(replaceText("Hello word_hero, welcome!", idx, state)).toBe(
-      "Hello Hercules, welcome!",
-    );
+    expect(replaceText("Hello word_hero, welcome!", idx, state)).toBe("Hello Hercules, welcome!");
     expect(evalExpression("{pt_gold} * 2", idx, state)).toBe(84);
   });
 
@@ -526,6 +695,93 @@ describe("cyoa-engine allowed-choices and counts", () => {
   });
 });
 
+describe("cyoa-engine groups are namespaces (parity with ICCPlus)", () => {
+  it("does NOT auto-deselect same-group choices (exclusivity comes from not-requirements)", () => {
+    // The original ICCPlus viewer has no automatic group exclusivity — groups
+    // tag choices for requirements/effects, and legacy documents use them as
+    // namespaces that span rows (e.g. the SleepersDream "Dream1" group).
+    const a = makeChoice("choice_a", { groups: ["group_1"] });
+    const b = makeChoice("choice_b", { groups: ["group_1"] });
+    const row = makeRow("row_1", [a, b]);
+    const app = appWith({
+      rows: [row],
+      groups: [{ id: "group_1", name: "G", elements: ["choice_a", "choice_b"], rowElements: [] } as never],
+    });
+    const idx = buildCyoaIndex(app);
+    let state = createCyoaState(app);
+    state = selectChoice(a, row, idx, state);
+    state = selectChoice(b, row, idx, state);
+    // Both stay selected; a real "not selected" requirement would exclude
+    // them instead (enforced by the viewer's missing-requirement cascade).
+    expect(state.activated.has("choice_a")).toBe(true);
+    expect(state.activated.has("choice_b")).toBe(true);
+  });
+
+  it("keeps chained choices active across rows (no chain collapse)", () => {
+    // A row-gated dream chain: each stage is a choice in a group that spans
+    // many rows; selecting a later stage must not deselect earlier ones.
+    const sleep = makeChoice("choice_sleep", { groups: ["dream1"] });
+    const stage1 = makeChoice("choice_stage1", { groups: ["dream1"] });
+    const stage2 = makeChoice("choice_stage2", { groups: ["dream1"] });
+    const row0 = makeRow("row_0", [sleep]);
+    const row1 = makeRow("row_1", [stage1]);
+    const row2 = makeRow("row_2", [stage2]);
+    const app = appWith({
+      rows: [row0, row1, row2],
+      groups: [{ id: "dream1", name: "Dream1", elements: [], rowElements: [] } as never],
+    });
+    const idx = buildCyoaIndex(app);
+    let state = createCyoaState(app);
+    state = selectChoice(sleep, row0, idx, state);
+    state = selectChoice(stage1, row1, idx, state);
+    state = selectChoice(stage2, row2, idx, state);
+    expect(state.activated.has("choice_sleep")).toBe(true);
+    expect(state.activated.has("choice_stage1")).toBe(true);
+    expect(state.activated.has("choice_stage2")).toBe(true);
+    expect(state.currentChoices.get("row_0")).toBe(1);
+    expect(state.currentChoices.get("row_1")).toBe(1);
+    expect(state.currentChoices.get("row_2")).toBe(1);
+  });
+
+  it("keeps chained exclusive choices active instead of deselecting both (softlock)", () => {
+    const base = makeChoice("choice_base", { groups: ["group_1"] });
+    const upgrade = makeChoice("choice_upgrade", {
+      groups: ["group_1"],
+      requireds: [idReq("choice_base")],
+    });
+    const row = makeRow("row_1", [base, upgrade]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = createCyoaState(app);
+    state = selectChoice(base, row, idx, state);
+    state = selectChoice(upgrade, row, idx, state);
+    expect(state.activated.has("choice_base")).toBe(true);
+    expect(state.activated.has("choice_upgrade")).toBe(true);
+  });
+
+  it("keeps deep chains active (C requires B requires A)", () => {
+    const a = makeChoice("choice_a", { groups: ["group_1"] });
+    const b = makeChoice("choice_b", {
+      groups: ["group_1"],
+      requireds: [idReq("choice_a")],
+    });
+    const c = makeChoice("choice_c", {
+      groups: ["group_1"],
+      requireds: [idReq("choice_b")],
+    });
+    const row = makeRow("row_1", [a, b, c]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = createCyoaState(app);
+    state = selectChoice(a, row, idx, state);
+    state = selectChoice(b, row, idx, state);
+    state = selectChoice(c, row, idx, state);
+    expect(state.activated.has("choice_a")).toBe(true);
+    expect(state.activated.has("choice_b")).toBe(true);
+    expect(state.activated.has("choice_c")).toBe(true);
+  });
+});
+
 describe("cyoa-engine linked activation", () => {
   it("activateOtherChoice force-selects targets and releases them on deselect", () => {
     const rowA = makeRow("row_a");
@@ -578,9 +834,16 @@ describe("cyoa-engine linked activation", () => {
     });
     rowA.objects = [a];
     const rowB = makeRow("row_b");
-    const b = makeChoice("choice_b", { isSelectableMultiple: true, isMultipleUseVariable: true, numMultipleTimesPluss: 5 });
+    const b = makeChoice("choice_b", {
+      isSelectableMultiple: true,
+      isMultipleUseVariable: true,
+      numMultipleTimesPluss: 5,
+    });
     rowB.objects = [b];
-    const app = appWith({ rows: [rowA, rowB], groups: [{ id: "group_1", name: "G", elements: ["choice_b"], rowElements: [] } as never] });
+    const app = appWith({
+      rows: [rowA, rowB],
+      groups: [{ id: "group_1", name: "G", elements: ["choice_b"], rowElements: [] } as never],
+    });
     const idx = buildCyoaIndex(app);
     let state = createCyoaState(app);
     state = selectChoice(a, rowA, idx, state);
@@ -658,8 +921,16 @@ describe("cyoa-engine linked activation", () => {
     });
     rowA.objects = [a];
     const rowB = makeRow("row_b");
-    const b = makeChoice("choice_b", { isSelectableMultiple: true, isMultipleUseVariable: true, numMultipleTimesPluss: 5 });
-    const c = makeChoice("choice_c", { isSelectableMultiple: true, isMultipleUseVariable: true, numMultipleTimesPluss: 5 });
+    const b = makeChoice("choice_b", {
+      isSelectableMultiple: true,
+      isMultipleUseVariable: true,
+      numMultipleTimesPluss: 5,
+    });
+    const c = makeChoice("choice_c", {
+      isSelectableMultiple: true,
+      isMultipleUseVariable: true,
+      numMultipleTimesPluss: 5,
+    });
     rowB.objects = [b, c];
     const app = appWith({ rows: [rowA, rowB] });
     const idx = buildCyoaIndex(app);
@@ -674,12 +945,19 @@ describe("cyoa-engine linked activation", () => {
     expect(perCount?.length).toBe(2);
     expect(perCount![0]?.length).toBe(1);
     expect(perCount![1]?.length).toBe(1);
-    // Deselecting count 2 releases only count-2's pick.
+    // Deselecting count 2 releases only count-2's pick. When the RNG picked
+    // the same target for both counts, releasing count 2 leaves one pick
+    // (the target stays at multiple 1) — the release is per count, not per
+    // target.
     const released = applyDeselectActivateOther(state, a, idx, 2);
     const pick2 = perCount![1][0];
-    expect(released.activated.has(pick2)).toBe(false);
     const pick1 = perCount![0][0];
-    if (pick1 !== pick2) expect(released.activated.has(pick1)).toBe(true);
+    if (pick1 !== pick2) {
+      expect(released.activated.has(pick2)).toBe(false);
+      expect(released.activated.has(pick1)).toBe(true);
+    } else {
+      expect(released.activated.get(pick1)?.multiple).toBe(1);
+    }
   });
 
   it("picksOverride replays recorded picks without re-randomizing", () => {
@@ -706,7 +984,12 @@ describe("cyoa-engine linked activation", () => {
 });
 
 describe("cyoa-engine per-score discounts", () => {
-  function discountedApp(): { app: ReturnType<typeof appWith>; row: Row; discount: Choice; target: Choice } {
+  function discountedApp(): {
+    app: ReturnType<typeof appWith>;
+    row: Row;
+    discount: Choice;
+    target: Choice;
+  } {
     const row = makeRow("row_main");
     const discount = makeChoice("choice_dis", {
       discountOther: true,
@@ -754,7 +1037,16 @@ describe("cyoa-engine per-score discounts", () => {
     row.objects = [discount, target];
     const app = appWith({
       rows: [row],
-      pointTypes: [{ id: "pt_a", name: "A", startingSum: 0, initValue: 0, beforeText: "Cost:", afterText: "gold" } as never],
+      pointTypes: [
+        {
+          id: "pt_a",
+          name: "A",
+          startingSum: 0,
+          initValue: 0,
+          beforeText: "Cost:",
+          afterText: "gold",
+        } as never,
+      ],
     });
     return { app, row, discount, target };
   }
@@ -864,7 +1156,12 @@ describe("cyoa-engine duplicate rows", () => {
     expect(idx2.choiceMap.has("choice_x/D#1")).toBe(true);
     expect(idx2.rowById.has("row_dup_me/D#1")).toBe(true);
     // `makeRow` gives every row index 0, so the stable sort appends the dup.
-    expect(idx2.rows.map((r) => r.id)).toEqual(["row_a", "row_place", "row_dup_me", "row_dup_me/D#1"]);
+    expect(idx2.rows.map((r) => r.id)).toEqual([
+      "row_a",
+      "row_place",
+      "row_dup_me",
+      "row_dup_me/D#1",
+    ]);
   });
 
   it("dRowAddSufReq=false keeps original requirement refs", () => {
@@ -1003,7 +1300,12 @@ describe("cyoa-engine template/width/chrome overrides", () => {
 });
 
 describe("cyoa-engine discount scope", () => {
-  function appWithDiscount(): { app: ReturnType<typeof appWith>; row: Row; discount: Choice; target: Choice } {
+  function appWithDiscount(): {
+    app: ReturnType<typeof appWith>;
+    row: Row;
+    discount: Choice;
+    target: Choice;
+  } {
     const row = makeRow("row_main");
     const discount = makeChoice("choice_dis", {
       discountOther: true,
@@ -1015,12 +1317,32 @@ describe("cyoa-engine discount scope", () => {
       discountLowLimit: 3,
     });
     const target = makeChoice("choice_target", {
-      scores: [{ idx: "s0", id: "pt_a", type: "pt_a", value: 10, requireds: [], beforeText: "", afterText: "", showScore: true }],
+      scores: [
+        {
+          idx: "s0",
+          id: "pt_a",
+          type: "pt_a",
+          value: 10,
+          requireds: [],
+          beforeText: "",
+          afterText: "",
+          showScore: true,
+        },
+      ],
     });
     row.objects = [discount, target];
     const app = appWith({
       rows: [row],
-      pointTypes: [{ id: "pt_a", name: "A", startingSum: 0, initValue: 0, beforeText: "", afterText: "" } as never],
+      pointTypes: [
+        {
+          id: "pt_a",
+          name: "A",
+          startingSum: 0,
+          initValue: 0,
+          beforeText: "",
+          afterText: "",
+        } as never,
+      ],
     });
     return { app, row, discount, target };
   }
@@ -1040,7 +1362,18 @@ describe("cyoa-engine discount scope", () => {
   it("discountRows scopes the discount to choices in the listed rows", () => {
     const rowOther = makeRow("row_other");
     const other = makeChoice("choice_other", {
-      scores: [{ idx: "s1", id: "pt_a", type: "pt_a", value: 10, requireds: [], beforeText: "", afterText: "", showScore: true }],
+      scores: [
+        {
+          idx: "s1",
+          id: "pt_a",
+          type: "pt_a",
+          value: 10,
+          requireds: [],
+          beforeText: "",
+          afterText: "",
+          showScore: true,
+        },
+      ],
     });
     rowOther.objects = [other];
     const { app, row, discount } = appWithDiscount();
@@ -1061,12 +1394,26 @@ describe("cyoa-engine discount scope", () => {
   it("useDiscountCount gates the discount until enough targets are selected", () => {
     const { app, row, discount } = appWithDiscount();
     const extra = makeChoice("choice_extra", {
-      scores: [{ idx: "s2", id: "pt_a", type: "pt_a", value: 10, requireds: [], beforeText: "", afterText: "", showScore: true }],
+      scores: [
+        {
+          idx: "s2",
+          id: "pt_a",
+          type: "pt_a",
+          value: 10,
+          requireds: [],
+          beforeText: "",
+          afterText: "",
+          showScore: true,
+        },
+      ],
     });
     row.objects.push(extra);
     (discount as unknown as Record<string, unknown>).useDiscountCount = true;
     (discount as unknown as Record<string, unknown>).discountCount = 2;
-    (discount as unknown as Record<string, unknown>).discountChoices = ["choice_target", "choice_extra"];
+    (discount as unknown as Record<string, unknown>).discountChoices = [
+      "choice_target",
+      "choice_extra",
+    ];
     const idx = buildCyoaIndex(app);
     let state = createCyoaState(app);
     state = selectChoice(discount, row, idx, state);

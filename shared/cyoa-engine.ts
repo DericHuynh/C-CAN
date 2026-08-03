@@ -120,8 +120,14 @@ export interface CyoaIndex {
   wordMap: Map<string, Word>;
   globalReqMap: Map<string, Requireds[]>;
   /** id -> styling-carrying row design group */
-  rowDesignMap: Map<string, { styling: Record<string, unknown>; activatedId?: string; [key: string]: unknown }>;
-  objectDesignMap: Map<string, { styling: Record<string, unknown>; activatedId?: string; [key: string]: unknown }>;
+  rowDesignMap: Map<
+    string,
+    { styling: Record<string, unknown>; activatedId?: string; [key: string]: unknown }
+  >;
+  objectDesignMap: Map<
+    string,
+    { styling: Record<string, unknown>; activatedId?: string; [key: string]: unknown }
+  >;
 }
 
 export function buildCyoaIndex(app: App, dupRows: Row[] = []): CyoaIndex {
@@ -138,7 +144,8 @@ export function buildCyoaIndex(app: App, dupRows: Row[] = []): CyoaIndex {
     for (const choice of row.objects ?? []) {
       choiceMap.set(choice.id, { choice, row });
       for (const addon of choice.addons ?? []) {
-        if (addon.isSelectable) choiceMap.set(addon.id, { choice: addon as unknown as Choice, row });
+        if (addon.isSelectable)
+          choiceMap.set(addon.id, { choice: addon as unknown as Choice, row });
       }
     }
   };
@@ -191,9 +198,7 @@ export function buildCyoaIndex(app: App, dupRows: Row[] = []): CyoaIndex {
   }
   // Merged, ordered rows: document rows (indices 0..n-1) first, then runtime
   // dups, sorted by their insertion `index` (stable for ties).
-  const rows = [...(app.rows ?? []), ...dupRows].sort(
-    (a, b) => (a.index ?? 0) - (b.index ?? 0),
-  );
+  const rows = [...(app.rows ?? []), ...dupRows].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
   return {
     app,
     rowById,
@@ -228,15 +233,24 @@ export function checkActivated(str: string, state: CyoaState): boolean {
   return state.activated.has(key);
 }
 
-/** Live sum of a point type (starting sum + runtime adjustments). */
-export function pointSum(
-  pointId: string,
-  idx: CyoaIndex,
-  state: CyoaState,
-): number {
+/** Base of a point type: starting sum + row-button adjustments (no scores). */
+function pointSumBase(pointId: string, idx: CyoaIndex, state: CyoaState): number {
   const pointType = idx.pointTypeMap.get(pointId);
   if (!pointType) return 0;
   return Number(pointType.startingSum ?? 0) + (state.pointAdjustments.get(pointId) ?? 0);
+}
+
+/**
+ * Live sum of a point type — the same value the point bar displays: base +
+ * active choices' scores + point modifiers (the original viewer's mutated
+ * `startingSum`). Point requirements (`points` / `pointCompare`) evaluate
+ * against this, matching ICCPlus where a requirement like "Dream > 5"
+ * reflects what the player has actually accumulated.
+ */
+export function pointSum(pointId: string, idx: CyoaIndex, state: CyoaState): number {
+  const pointType = idx.pointTypeMap.get(pointId);
+  if (!pointType) return 0;
+  return computePointTotals(idx.app, idx, state).get(pointId)?.total ?? 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -304,7 +318,11 @@ function comparePoint(actual: number, operator: string | undefined, req: number)
   }
 }
 
-function countFromOperators(count: number, selFromOperators: string | undefined, selNum: number): boolean {
+function countFromOperators(
+  count: number,
+  selFromOperators: string | undefined,
+  selNum: number,
+): boolean {
   const op = selFromOperators ?? "1";
   switch (op) {
     case "1":
@@ -508,16 +526,12 @@ export function replaceText(str: string, idx: CyoaIndex, state: CyoaState): stri
 // ---------------------------------------------------------------------------
 
 /** Minimal safe expression evaluator for `expValue` strings ("{pointId} * 2"). */
-export function evalExpression(
-  expr: string,
-  idx: CyoaIndex,
-  state: CyoaState,
-): number {
+export function evalExpression(expr: string, idx: CyoaIndex, state: CyoaState): number {
   let text = expr;
   const tokenRegex = /\{([^}]+)\}/g;
   let m: RegExpExecArray | null;
   while ((m = tokenRegex.exec(text)) !== null) {
-    const value = pointSum(m[1], idx, state);
+    const value = pointSumBase(m[1], idx, state);
     text = text.replace(m[0], String(value));
   }
   const sanitized = text.replace(/[^0-9+\-*/().\s]/g, "");
@@ -624,9 +638,7 @@ function discountAppliesTo(
     other.discountPointTypes.length === 0 ||
     other.discountPointTypes.includes(score.id ?? score.type);
   const inChoices = !other.isDisChoices || (other.discountChoices ?? []).includes(choice.id);
-  const inGroups = (other.discountGroups ?? []).some((gid) =>
-    (choice.groups ?? []).includes(gid),
-  );
+  const inGroups = (other.discountGroups ?? []).some((gid) => (choice.groups ?? []).includes(gid));
   const inRows =
     (other.discountRows ?? []).length === 0 ||
     (targetRow !== undefined && (other.discountRows ?? []).includes(targetRow.id));
@@ -657,9 +669,7 @@ function discountAppliesTo(
           (other.discountRows ?? []).includes(oMap.row.id);
         if (other.isDisChoices && !oInChoices && !oInGroups && !oInRows) continue;
         applied +=
-          other.countPerSelection &&
-          oChoice.isSelectableMultiple &&
-          oChoice.isMultipleUseVariable
+          other.countPerSelection && oChoice.isSelectableMultiple && oChoice.isMultipleUseVariable
             ? Math.max(0, oentry.multiple ?? 0)
             : 1;
       }
@@ -730,14 +740,28 @@ export function computeScoreNet(
   multiple: number,
 ): number {
   let value = scoreValue(choice.id, scoreIndex, score, idx, state);
-  if (score.multiplyByTimes && Math.abs(multiple) > 0) {
-    value = value * (Math.abs(multiple) + 1);
+  const count = Math.abs(multiple);
+  if (count > 0) {
+    if (score.multiplyByTimes) {
+      // The original applies `val * (selNum + 1)` on each increment
+      // (selectCalculateScore), so the cumulative effect at count N is
+      // val * N(N+1)/2 (1st copy costs val, 2nd 2·val, 3rd 3·val, ...).
+      value = value * ((count * (count + 1)) / 2);
+    } else {
+      // Each increment applies the base value once.
+      value = value * count;
+    }
   }
 
   // Discount engine: choices with `discountOther` modify other choices'
   // matching scores; per-score `discounts[]` stacks apply on top.
   if (!score.isNotDiscountable) {
-    const matchingDiscounts: Array<{ operator: string; value: number; stackable: boolean; lowLimit?: number }> = [];
+    const matchingDiscounts: Array<{
+      operator: string;
+      value: number;
+      stackable: boolean;
+      lowLimit?: number;
+    }> = [];
     const targetRow = idx.choiceMap.get(choice.id)?.row;
     for (const [otherId, otherVal] of state.activated) {
       if (otherId === choice.id || otherVal.isRowButton || otherVal.isVariable) continue;
@@ -815,7 +839,7 @@ export function computePointTotals(
   const totals = new Map<string, PointTotal>();
   const base = new Map<string, number>();
   for (const pointType of app.pointTypes ?? []) {
-    base.set(pointType.id, pointSum(pointType.id, idx, state));
+    base.set(pointType.id, pointSumBase(pointType.id, idx, state));
   }
   applyPointModifiers(base, idx, state);
   for (const pointType of app.pointTypes ?? []) {
@@ -835,7 +859,11 @@ export function computePointTotals(
       const total = totals.get(pointTypeId);
       if (!total) return;
       const net = computeScoreNet(choice, scoreIndex, score, idx, state, entry.multiple);
-      total.total += net;
+      // ICCPlus applies scores as `startingSum -= score.value` (select) and
+      // `startingSum += score.value` (deselect): a POSITIVE value is a cost,
+      // a NEGATIVE value is a gain — the document stores the negated change.
+      // Mirror that so imported documents match the original viewer.
+      total.total -= net;
     });
   }
   for (const total of totals.values()) {
@@ -851,11 +879,7 @@ export function computePointTotals(
  * the base (starting sum + row-button adjustments) before scores are added,
  * matching the original's live `startingSum` mutation semantics.
  */
-function applyPointModifiers(
-  base: Map<string, number>,
-  idx: CyoaIndex,
-  state: CyoaState,
-): void {
+function applyPointModifiers(base: Map<string, number>, idx: CyoaIndex, state: CyoaState): void {
   for (const [choiceId, entry] of state.activated) {
     if (entry.isRowButton || entry.isVariable) continue;
     const cMap = idx.choiceMap.get(choiceId);
@@ -901,9 +925,7 @@ function applyPointModifiers(
     if (choice.setPointtypeIsOn && Array.isArray(choice.pointTypeToSet)) {
       const raw = String(choice.setWithThis ?? "");
       let value = Number.NaN;
-      const replaced = raw.replace(/\{([^{}]+)\}/g, (_, id: string) =>
-        String(base.get(id) ?? 0),
-      );
+      const replaced = raw.replace(/\{([^{}]+)\}/g, (_, id: string) => String(base.get(id) ?? 0));
       const sanitized = replaced.replace(/[^0-9+\-*/().\s]/g, "");
       if (sanitized.trim()) {
         try {
@@ -949,11 +971,7 @@ export function isRowButtonDisabled(row: Row, state: CyoaState): boolean {
 }
 
 /** Execute a row button's activation in a new state snapshot. */
-export function activateRowButton(
-  row: Row,
-  idx: CyoaIndex,
-  state: CyoaState,
-): CyoaState {
+export function activateRowButton(row: Row, idx: CyoaIndex, state: CyoaState): CyoaState {
   const next = cloneState(state);
   const isSumAddon = row.btnPointAddon === true && row.buttonTypeRadio === "sumaddon";
   if (isSumAddon) {
@@ -1017,14 +1035,18 @@ function pickWeighted(choices: Choice[], count: number, state: CyoaState): Choic
   const pool = [...choices];
   for (let i = 0; i < count && pool.length > 0; i++) {
     const totalWeight = pool.reduce(
-      (sum, c) => sum + Math.max(0, Number((c as Choice & { randomWeight?: number }).randomWeight ?? 1)),
+      (sum, c) =>
+        sum + Math.max(0, Number((c as Choice & { randomWeight?: number }).randomWeight ?? 1)),
       0,
     );
     if (totalWeight <= 0) break;
     let roll = Math.random() * totalWeight;
     let index = 0;
     for (let j = 0; j < pool.length; j++) {
-      roll -= Math.max(0, Number((pool[j] as Choice & { randomWeight?: number }).randomWeight ?? 1));
+      roll -= Math.max(
+        0,
+        Number((pool[j] as Choice & { randomWeight?: number }).randomWeight ?? 1),
+      );
       if (roll <= 0) {
         index = j;
         break;
@@ -1051,9 +1073,7 @@ export function cloneState(state: CyoaState): CyoaState {
     tmpActivated: new Map(state.tmpActivated),
     // Copy the inner pick arrays so per-count splices never mutate a
     // previous state's record.
-    activatedRandom: new Map(
-      [...state.activatedRandom].map(([key, value]) => [key, [...value]]),
-    ),
+    activatedRandom: new Map([...state.activatedRandom].map(([key, value]) => [key, [...value]])),
     dupRows: [...state.dupRows],
   };
 }
@@ -1062,10 +1082,7 @@ function bumpRowCount(state: CyoaState, rowId: string, delta: number): void {
   state.currentChoices.set(rowId, (state.currentChoices.get(rowId) ?? 0) + delta);
 }
 
-export function isChoiceSelectable(
-  choice: Choice | SelectableAddon,
-  state: CyoaState,
-): boolean {
+export function isChoiceSelectable(choice: Choice | SelectableAddon, state: CyoaState): boolean {
   if (choice.isNotSelectable) return false;
   if (choice.selectOnce && state.activated.has(choice.id)) return false;
   return true;
@@ -1088,17 +1105,18 @@ export function rowAllowedChoices(
   localChoice?: Choice | SelectableAddon,
 ): number {
   let limit = Number(row.allowedChoices ?? 0);
-  if (
-    localChoice?.addToAllowChoice &&
-    (localChoice.idOfAllowChoice ?? []).includes(row.id)
-  ) {
+  if (localChoice?.addToAllowChoice && (localChoice.idOfAllowChoice ?? []).includes(row.id)) {
     limit += Number(localChoice.numbAddToAllowChoice ?? 0);
   }
   for (const [id, entry] of state.activated) {
     if (entry.isRowButton || entry.isVariable) continue;
     const cMap = idx.choiceMap.get(id);
     const choice = cMap?.choice as
-      | (Choice & { addToAllowChoice?: boolean; idOfAllowChoice?: string[]; numbAddToAllowChoice?: number })
+      | (Choice & {
+          addToAllowChoice?: boolean;
+          idOfAllowChoice?: string[];
+          numbAddToAllowChoice?: number;
+        })
       | undefined;
     if (choice?.addToAllowChoice && (choice.idOfAllowChoice ?? []).includes(row.id)) {
       limit += Number(choice.numbAddToAllowChoice ?? 0);
@@ -1120,8 +1138,16 @@ export function countsTowardLimit(choice: Choice | SelectableAddon): boolean {
 }
 
 /**
- * Select a choice (single-selection semantics with group exclusivity,
- * allowed-choices displacement, and clean-on-select). Returns a new state.
+ * Select a choice (single-selection semantics with allowed-choices
+ * displacement and clean-on-select). Returns a new state.
+ *
+ * NOTE: the original ICCPlus viewer has NO automatic group exclusivity —
+ * groups are namespaces for `selFromGroups` requirements, discounts, and
+ * activate/deactivate-other targets. Exclusivity between choices comes from
+ * "not selected" (`required: false`) requirements, enforced by the
+ * missing-requirement cascade in the viewer. Auto-deselecting same-group
+ * members here breaks legacy documents whose groups span rows (the whole
+ * chain collapses), so we deliberately do not do it.
  */
 export function selectChoice(
   choice: Choice | SelectableAddon,
@@ -1135,19 +1161,6 @@ export function selectChoice(
   if (choice.cleanACtivatedOnSelect) {
     next.activated.clear();
     for (const r of idx.rows ?? []) next.currentChoices.set(r.id, 0);
-  }
-
-  // Group exclusivity: selecting a member deselects other selected choices
-  // that share any of its groups.
-  const choiceGroupIds = choice.groups ?? [];
-  for (const selectedId of [...next.activated.keys()]) {
-    const other = idx.choiceMap.get(selectedId)?.choice;
-    if (!other) continue;
-    const groups = other.groups ?? [];
-    if (groups.some((groupId) => choiceGroupIds.includes(groupId))) {
-      next.activated.delete(selectedId);
-      bumpRowCount(next, row.id, -1);
-    }
   }
 
   // allowedChoices limit: drop the earliest selection to make room.
@@ -1411,7 +1424,8 @@ export function applyActivateOther(
   next.activatedRandom = new Map(next.activatedRandom);
   const queue: ActivationTarget[] = [];
   const pushTargets = (activator: Choice | SelectableAddon) => {
-    if (!activator.activateOtherChoice || typeof activator.activateThisChoice === "undefined") return;
+    if (!activator.activateOtherChoice || typeof activator.activateThisChoice === "undefined")
+      return;
     // `picksOverride` replays a recorded random pick set (build load / reset);
     // otherwise targets come from the activator's list (random subset if set).
     let targets =
@@ -1437,7 +1451,7 @@ export function applyActivateOther(
       if (num < targets.length) targets = shuffle(targets).slice(0, num);
       const picks = targets.map((t) => (t.num > 0 ? `${t.id}/ON#${t.num}` : t.id));
       const count = activator.isSelectableMultiple
-        ? Math.max(1, (next.activated.get(activator.id)?.multiple ?? 1))
+        ? Math.max(1, next.activated.get(activator.id)?.multiple ?? 1)
         : 1;
       const existing = next.activatedRandom.get(activator.id) ?? [];
       const perCount = [...existing];
@@ -1461,9 +1475,14 @@ export function applyActivateOther(
       next.tmpActivated.set(id, { ...existing });
     }
     if (target.isSelectableMultiple && target.isMultipleUseVariable) {
-      if (num !== 0) {
+      // A linked target without an explicit `/ON#` count activates once — the
+      // original's non-random path force-selects each target (selectedOneMore),
+      // and random picks record the bare id. Skipping num === 0 left recorded
+      // random picks permanently unactivated.
+      const linkedNum = num === 0 ? 1 : num;
+      if (linkedNum !== 0) {
         const current = existing?.multiple ?? 0;
-        const nextMultiple = Math.max(0, current + num);
+        const nextMultiple = Math.max(0, current + linkedNum);
         if (nextMultiple === 0) {
           removeActivated(next, idx, id);
         } else {
@@ -1522,8 +1541,11 @@ export function applyDeselectActivateOther(
     const entry = next.activated.get(t.id);
     if (!entry) continue;
     if (target.isSelectableMultiple && target.isMultipleUseVariable) {
-      if (t.num !== 0 && !local.isNotDeactivate) {
-        const nextMultiple = Math.max(0, (entry.multiple ?? 0) - Math.abs(t.num));
+      // Mirror the activation default: a linked target without an explicit
+      // `/ON#` count was activated once, so release one count.
+      const linkedNum = t.num === 0 ? 1 : t.num;
+      if (linkedNum !== 0 && !local.isNotDeactivate) {
+        const nextMultiple = Math.max(0, (entry.multiple ?? 0) - Math.abs(linkedNum));
         if (nextMultiple === 0) removeActivated(next, idx, t.id);
         else next.activated.set(t.id, { ...entry, multiple: nextMultiple });
       }
@@ -1615,11 +1637,7 @@ function suffixTargetList(list: string, suffix: string): string {
 }
 
 /** Deep-clone a row with `/D#n`-suffixed ids (port of the original `duplicateRow`). */
-function cloneRowWithSuffix(
-  source: Row,
-  suffix: string,
-  local: Choice | SelectableAddon,
-): Row {
+function cloneRowWithSuffix(source: Row, suffix: string, local: Choice | SelectableAddon): Row {
   const clone = structuredClone(source) as Row;
   clone.id = `${source.id.split("/D#")[0]}${suffix}`;
   clone.currentChoices = 0;
@@ -1662,9 +1680,16 @@ function cloneRowWithSuffix(
         record.activateThisChoice = suffixTargetList(record.activateThisChoice as string, suffix);
       }
       if (record.deactivateOtherChoice && typeof record.deactivateThisChoice === "string") {
-        record.deactivateThisChoice = suffixTargetList(record.deactivateThisChoice as string, suffix);
+        record.deactivateThisChoice = suffixTargetList(
+          record.deactivateThisChoice as string,
+          suffix,
+        );
       }
-      if (record.duplicateRow && typeof record.duplicateRowId === "string" && typeof record.duplicateRowPlace === "string") {
+      if (
+        record.duplicateRow &&
+        typeof record.duplicateRowId === "string" &&
+        typeof record.duplicateRowPlace === "string"
+      ) {
         record.duplicateRowId = `${(record.duplicateRowId as string).split("/D#")[0]}${suffix}`;
         record.duplicateRowPlace = `${(record.duplicateRowPlace as string).split("/D#")[0]}${suffix}`;
       }
@@ -1760,7 +1785,11 @@ export function templateOverrideFor(
   for (const [id, entry] of state.activated) {
     if (entry.isRowButton || entry.isVariable) continue;
     const choice = idx.choiceMap.get(id)?.choice as
-      | (Choice & { changeTemplates?: boolean; changeTemplatesList?: string; changeToThisTemplate?: number })
+      | (Choice & {
+          changeTemplates?: boolean;
+          changeTemplatesList?: string;
+          changeToThisTemplate?: number;
+        })
       | undefined;
     if (!choice?.changeTemplates) continue;
     if (!listContains(choice.changeTemplatesList, entity, isRow, idx)) continue;
@@ -1856,7 +1885,12 @@ export function backgroundOverrides(idx: CyoaIndex, state: CyoaState): Backgroun
   for (const [id, entry] of state.activated) {
     if (entry.isRowButton || entry.isVariable) continue;
     const choice = idx.choiceMap.get(id)?.choice as
-      | (Choice & { changeBackground?: boolean; changeBgImage?: boolean; bgImage?: string; changedBgColorCode?: string })
+      | (Choice & {
+          changeBackground?: boolean;
+          changeBgImage?: boolean;
+          bgImage?: string;
+          changedBgColorCode?: string;
+        })
       | undefined;
     if (!choice?.changeBackground) continue;
     if (choice.changeBgImage) {
@@ -1902,7 +1936,11 @@ export function encodeBuildCode(app: App, idx: CyoaIndex, state: CyoaState): str
           text += `/RND#${flattened.join("/AND#").replace(/\/ON#/g, "/RON#")}`;
         }
       }
-      if (aChoice.textfieldIsOn && aChoice.customTextfieldIsOn && typeof aChoice.wordChangeSelect !== "undefined") {
+      if (
+        aChoice.textfieldIsOn &&
+        aChoice.customTextfieldIsOn &&
+        typeof aChoice.wordChangeSelect !== "undefined"
+      ) {
         text += `/WORD#${aChoice.wordChangeSelect.replace(/,/g, "/CHAR#")}`;
       }
       if (aChoice.isImageUpload && aChoice.image !== aChoice.defaultImage) {
@@ -1957,18 +1995,16 @@ export function parseBuildCode(code: string): ParsedBuildEntry[] {
       }
       const rndMatch = part.match(/\/RND#(.+?)(?:\/RS#|\/WORD#|\/IMG#|$)/);
       if (rndMatch) {
-        entry.randomActivations = rndMatch[1].split("/AND#").map((id) => id.replace(/\/RON#/g, "/ON#"));
+        entry.randomActivations = rndMatch[1]
+          .split("/AND#")
+          .map((id) => id.replace(/\/RON#/g, "/ON#"));
       }
       return entry;
     });
 }
 
 /** Apply a build code to a fresh state (equivalent of `loadActivated`). */
-export function loadBuildCode(
-  code: string,
-  app: App,
-  idx: CyoaIndex,
-): CyoaState {
+export function loadBuildCode(code: string, app: App, idx: CyoaIndex): CyoaState {
   let state = createCyoaState(app);
   const entries = parseBuildCode(code);
   for (const entry of entries) {
@@ -1996,7 +2032,10 @@ export function loadBuildCode(
     if (!cMap) continue;
     const { choice, row } = cMap;
     state.activated.set(entry.id, { multiple: entry.multiple });
-    state.currentChoices.set(row.id, (state.currentChoices.get(row.id) ?? 0) + (entry.multiple > 0 ? 1 : 1));
+    state.currentChoices.set(
+      row.id,
+      (state.currentChoices.get(row.id) ?? 0) + (entry.multiple > 0 ? 1 : 1),
+    );
     if (entry.word) state.wordValues.set(entry.id, entry.word);
     if (entry.image) state.uploadedImages.set(entry.id, entry.image);
     if (entry.randomRolls) {
@@ -2053,12 +2092,94 @@ export function getSearchables(app: App): SearchableEntry[] {
   return entries;
 }
 
+/** Entity kinds covered by the project-wide search bar. */
+export type ProjectSearchType =
+  | "choice"
+  | "addon"
+  | "row"
+  | "point"
+  | "group"
+  | "globalRequirement"
+  | "word";
+
+export interface ProjectSearchEntry {
+  type: ProjectSearchType;
+  id: string;
+  /** Human-readable label shown in the result list. */
+  label: string;
+  /** Short kind label, e.g. "Choice" / "Point". */
+  kindLabel: string;
+  /** For choice/addon entries: the object to select and the row it lives in. */
+  choice?: Choice;
+  row?: Row;
+  /** For addon entries: the parent choice id (scroll + toggle target). */
+  parentId?: string;
+}
+
+/**
+ * Every jumpable/searchable entity in the document: rows, selectable
+ * choices, selectable addons, point types, groups, global requirements and
+ * words. The viewer's search bar filters these by kind and jumps to them.
+ */
+export function getProjectSearchEntries(app: App): ProjectSearchEntry[] {
+  const entries: ProjectSearchEntry[] = [];
+  for (const row of app.rows ?? []) {
+    entries.push({ type: "row", id: row.id, label: row.title || row.id, kindLabel: "Row", row });
+    for (const choice of row.objects ?? []) {
+      if (!choice.isNotSelectable && !choice.isNotSearchable) {
+        entries.push({
+          type: "choice",
+          id: choice.id,
+          label: choice.title || choice.id,
+          kindLabel: "Choice",
+          choice,
+          row,
+        });
+      }
+      for (const addon of choice.addons ?? []) {
+        if (!addon.isSelectable || addon.isNotSelectable || addon.isNotSearchable) continue;
+        entries.push({
+          type: "addon",
+          id: addon.id,
+          label: addon.title || addon.id,
+          kindLabel: "Addon",
+          choice: addon as unknown as Choice,
+          row,
+          parentId: choice.id,
+        });
+      }
+    }
+  }
+  for (const point of app.pointTypes ?? []) {
+    entries.push({ type: "point", id: point.id, label: point.name || point.id, kindLabel: "Point" });
+  }
+  for (const group of app.groups ?? []) {
+    entries.push({ type: "group", id: group.id, label: group.name || group.id, kindLabel: "Group" });
+  }
+  for (const globalReq of app.globalRequirements ?? []) {
+    entries.push({
+      type: "globalRequirement",
+      id: globalReq.id,
+      label: globalReq.name || globalReq.id,
+      kindLabel: "Requirement",
+    });
+  }
+  for (const word of app.words ?? []) {
+    entries.push({ type: "word", id: word.id, label: word.replaceText || word.id, kindLabel: "Word" });
+  }
+  return entries;
+}
+
 // ---------------------------------------------------------------------------
 // Result / group rows
 // ---------------------------------------------------------------------------
 
 /** Choices shown by a result row, following the original result-row rules. */
-export function resultRowChoices(row: Row, idx: CyoaIndex, state: CyoaState): Array<{ choice: Choice; row: Row }> {
+export function resultRowChoices(
+  row: Row,
+  idx: CyoaIndex,
+  state: CyoaState,
+): Array<{ choice: Choice; row: Row }> {
   const out: Array<{ choice: Choice; row: Row }> = [];
   const activatedIds = new Set<string>();
   for (const id of state.activated.keys()) {
@@ -2122,7 +2243,11 @@ export function hiddenContentsFor(row: Row, idx: CyoaIndex, state: CyoaState): S
     if (entry.isRowButton || entry.isVariable) continue;
     const cMap = idx.choiceMap.get(id);
     const choice = cMap?.choice as
-      | (Choice & { isContentHidden?: boolean; hiddenContentsRow?: string[]; hiddenContentsType?: string[] })
+      | (Choice & {
+          isContentHidden?: boolean;
+          hiddenContentsRow?: string[];
+          hiddenContentsType?: string[];
+        })
       | undefined;
     if (!choice?.isContentHidden) continue;
     if (!(choice.hiddenContentsRow ?? []).includes(row.id)) continue;
@@ -2150,5 +2275,3 @@ export function hexToRgba(hex: string, opacity: number): string {
   const b = parseInt(full.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
-
-

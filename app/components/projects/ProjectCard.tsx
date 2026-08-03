@@ -14,13 +14,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,11 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  useDeleteProject,
-  useDuplicateProject,
-  type ProjectSummary,
-} from "@/hooks/use-projects";
+import { useDeleteProject, useDuplicateProject, type ProjectSummary } from "@/hooks/use-projects";
 
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { formatDate } from "./project-utils";
@@ -56,9 +46,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
       {
         onSuccess: () => toast.success("Project duplicated"),
         onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to duplicate project",
-          ),
+          toast.error(err instanceof Error ? err.message : "Failed to duplicate project"),
       },
     );
   }
@@ -72,9 +60,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
           setDeleteOpen(false);
         },
         onError: (err) => {
-          toast.error(
-            err instanceof Error ? err.message : "Failed to delete project",
-          );
+          toast.error(err instanceof Error ? err.message : "Failed to delete project");
           setDeleteOpen(false);
         },
       },
@@ -85,9 +71,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
     <Card className="flex flex-col overflow-hidden transition-colors hover:border-muted-foreground/30">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="line-clamp-2 text-base leading-snug">
-            {title}
-          </CardTitle>
+          <CardTitle className="line-clamp-2 text-base leading-snug">{title}</CardTitle>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -124,9 +108,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
           ) : null}
         </div>
         {project.description ? (
-          <CardDescription className="line-clamp-2">
-            {project.description}
-          </CardDescription>
+          <CardDescription className="line-clamp-2">{project.description}</CardDescription>
         ) : null}
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4">

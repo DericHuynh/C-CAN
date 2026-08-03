@@ -696,6 +696,10 @@ export type Choice = {
     styling?: Styling,
     addonJustify?: string,
     linkedObjects?: string[]
+    /** Requirement-gated image switching: when enabled, the highest-priority
+     *  matching ImageVariant replaces the base `image`. */
+    imageSwitchingIsOn?: boolean,
+    imageVariants?: ImageVariant[]
 } & ChoiceFunc;
 export type Row = {
     [key: string]: any,
@@ -851,6 +855,37 @@ export type Word = {
     id: string,
     replaceText: string,
     category?: number
+}
+/**
+ * An image resource in the CYOA document. Choices/rows/addons reference
+ * resources by id (like choices and rows reference each other); the ACL
+ * import translation (aclImportImages) rewrites legacy inline image strings
+ * (data URLs / URLs) into these resources on import.
+ */
+export type ImageResource = {
+    [key: string]: any,
+    id: string,
+    name?: string,
+    /** Inline data URL or remote URL (whatever the source document used). */
+    image?: string,
+    imageIsURL?: boolean,
+    sourceTooltip?: string,
+    category?: number
+}
+/**
+ * A requirement-gated image variant for a choice: when `requireds` are met
+ * the variant's image is shown instead of the choice's base image. Lower
+ * `priority` wins when several variants match. `requireds` may reference
+ * choices, selectable addons, point values, groups or global requirements.
+ */
+export type ImageVariant = {
+    [key: string]: any,
+    id: string,
+    /** Image resource id (or legacy inline string). */
+    image: string,
+    requireds: Requireds[],
+    priority: number,
+    name?: string
 }
 export type RowDesignGroup = {
     [key: string]: any,
@@ -1035,6 +1070,7 @@ export type App = {
     activated: string[],
     rows: Row[],
     backpack: Row[],
+    images: ImageResource[],
     styling: Styling,
     categories: Category[],
     cropperPosition: number,

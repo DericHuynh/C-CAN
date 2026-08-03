@@ -3,17 +3,8 @@ import { toast } from "sonner";
 import { IconCopy, IconDownload } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  useExportProjectJson,
-  type ProjectDetail,
-} from "@/hooks/use-projects";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useExportProjectJson, type ProjectDetail } from "@/hooks/use-projects";
 
 interface JsonPanelProps {
   project: ProjectDetail;
@@ -81,17 +72,11 @@ export function JsonPanel({ project }: JsonPanelProps) {
             <div>
               <CardTitle className="text-base">CYOA document (JSON)</CardTitle>
               <CardDescription className="mt-1">
-                The full document as stored. Export it to back up or re-import
-                the CYOA.
+                The full document as stored. Export it to back up or re-import the CYOA.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCopy}
-              >
+              <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
                 <IconCopy className="mr-1.5 size-4" />
                 {copied ? "Copied" : "Copy"}
               </Button>

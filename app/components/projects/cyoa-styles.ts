@@ -8,6 +8,7 @@ import {
   type CyoaState,
 } from "@shared/cyoa-engine";
 import { buildFilterString, getStyling } from "@shared/cyoa-styling";
+import { resolveImageRef } from "@shared/cyoa";
 import type { App, Choice, PointType, Row } from "@shared/types";
 
 /**
@@ -16,13 +17,78 @@ import type { App, Choice, PointType, Row } from "@shared/types";
  */
 const SANITIZE_CONFIG = {
   ALLOWED_TAGS: [
-    "address", "article", "aside", "footer", "header", "h1", "h2", "h3", "h4", "h5", "h6",
-    "hgroup", "nav", "section", "blockquote", "dd", "div", "dl", "dt", "figcaption",
-    "figure", "hr", "li", "main", "ol", "p", "pre", "ul", "a", "abbr", "b", "bdi",
-    "bdo", "br", "cite", "code", "data", "dfn", "em", "i", "kbd", "mark", "q", "rb",
-    "rp", "rt", "rtc", "ruby", "s", "samp", "small", "span", "strong", "sub", "sup",
-    "time", "u", "var", "wbr", "caption", "col", "colgroup", "table", "tbody", "td",
-    "tfoot", "th", "thead", "tr", "font", "iframe", "img",
+    "address",
+    "article",
+    "aside",
+    "footer",
+    "header",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hgroup",
+    "nav",
+    "section",
+    "blockquote",
+    "dd",
+    "div",
+    "dl",
+    "dt",
+    "figcaption",
+    "figure",
+    "hr",
+    "li",
+    "main",
+    "ol",
+    "p",
+    "pre",
+    "ul",
+    "a",
+    "abbr",
+    "b",
+    "bdi",
+    "bdo",
+    "br",
+    "cite",
+    "code",
+    "data",
+    "dfn",
+    "em",
+    "i",
+    "kbd",
+    "mark",
+    "q",
+    "rb",
+    "rp",
+    "rt",
+    "rtc",
+    "ruby",
+    "s",
+    "samp",
+    "small",
+    "span",
+    "strong",
+    "sub",
+    "sup",
+    "time",
+    "u",
+    "var",
+    "wbr",
+    "caption",
+    "col",
+    "colgroup",
+    "table",
+    "tbody",
+    "td",
+    "tfoot",
+    "th",
+    "thead",
+    "tr",
+    "font",
+    "iframe",
+    "img",
   ],
   ADD_ATTR: ["href", "target", "style", "class"],
 };
@@ -161,12 +227,14 @@ export function choiceSurfaceStyle(
   if (isOn(backgroundStyle, "objectBgColorIsOn") && str(backgroundStyle, "objectBgColor")) {
     backgroundColor = str(backgroundStyle, "objectBgColor");
   }
-  // Background image (repeat / fit-in / cover).
+  // Background image (repeat / fit-in / cover). Styling values may be
+  // image-resource ids (the design tab writes ids) or legacy URLs — resolve
+  // both to a renderable payload.
   let backgroundImage = "";
   let backgroundRepeat = "repeat";
   let backgroundSize = "cover";
   if (str(backgroundStyle, "objectBackgroundImage")) {
-    backgroundImage = str(backgroundStyle, "objectBackgroundImage");
+    backgroundImage = resolveImageRef(idx.app, str(backgroundStyle, "objectBackgroundImage")) ?? "";
     backgroundRepeat = isOn(backgroundStyle, "isObjectBackgroundRepeat") ? "repeat" : "";
     backgroundSize = isOn(backgroundStyle, "isObjectBackgroundFitIn") ? "100% 100%" : "cover";
   }
@@ -263,13 +331,54 @@ export function choiceSurfaceStyle(
   };
 }
 
-/** CSS filter string for an addon in its current state. */
-export function addonFilter(
-  addon: Choice,
+/**
+ * Resolve the image shown for a choice, honoring requirement-gated image
+ * switching: when `imageSwitchingIsOn`, the highest-priority `ImageVariant`
+ * whose requirements are met wins over the base image. Requirements may
+ * target choices, selectable addons, point values, groups or global
+ * requirements. Falls back to the legacy inline `image` string.
+ */
+export function resolveChoiceImage(
+  choice: Choice,
+  idx: CyoaIndex,
+  state: CyoaState,
+): string | undefined {
+  const app = idx.app;
+  if (choice.imageSwitchingIsOn && Array.isArray(choice.imageVariants)) {
+    const matching = choice.imageVariants
+      .filter((variant) => isEnabled(variant.requireds, idx, state))
+      .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+    if (matching.length > 0) {
+      return resolveImageRef(app, matching[0].image);
+    }
+  }
+  return resolveImageRef(app, choice.image);
+}
+
+/**
+ * The choice card's outer margin (`objectMargin`) as a CSS padding value for
+ * the column wrapper. The original viewer puts the margin on the card itself
+ * while the card is stretched by a flex parent — with `height: 100%` that
+ * inflates the card beyond its content and leaves an empty band under the
+ * body text. Moving the spacing to the wrapper (padding) keeps the same outer
+ * gaps but lets the card size exactly to its content.
+ */
+export function choiceMargin(
+  choice: Choice,
   row: Row,
   idx: CyoaIndex,
   state: CyoaState,
-): string {
+): string | undefined {
+  const objectStyle = getStyling("privateObjectIsOn", idx, state, row, choice) as Record<
+    string,
+    unknown
+  >;
+  const margin = num(objectStyle, "objectMargin");
+  return margin > 0 ? `${margin}px` : undefined;
+}
+
+/** CSS filter string for an addon in its current state. */
+export function addonFilter(addon: Choice, row: Row, idx: CyoaIndex, state: CyoaState): string {
   const visualState = choiceVisualState(addon, idx, state);
   const filterStyling = getStyling("privateFilterIsOn", idx, state, row, addon) as Record<
     string,
@@ -291,9 +400,7 @@ export type TextStyleGroup =
   | "addonText"
   | "scoreText";
 
-const STATE_TEXT_KEYS: Partial<
-  Record<TextStyleGroup, { colorOn: string; color: string }>
-> = {
+const STATE_TEXT_KEYS: Partial<Record<TextStyleGroup, { colorOn: string; color: string }>> = {
   objectTitle: { colorOn: "CTitleColorIsOn", color: "FilterCTitleColor" },
   objectText: { colorOn: "CTextColorIsOn", color: "FilterCTextColor" },
   addonTitle: { colorOn: "ATitleColorIsOn", color: "FilterATitleColor" },
@@ -309,10 +416,7 @@ export function textStyle(
   row?: Row,
   choice?: Choice,
 ): React.CSSProperties {
-  const styling = getStyling("privateTextIsOn", idx, state, row, choice) as Record<
-    string,
-    unknown
-  >;
+  const styling = getStyling("privateTextIsOn", idx, state, row, choice) as Record<string, unknown>;
   const family = str(styling, group);
   const size = num(styling, `${group}TextSize`);
   const color = str(styling, `${group}Color`);
@@ -447,7 +551,8 @@ export function imageStyle(
     br: `${kind === "rowImage" ? "rowImg" : kind === "objectImage" ? "objectImg" : "addonImg"}BorderRadiusBottomRight`,
     bl: `${kind === "rowImage" ? "rowImg" : kind === "objectImage" ? "objectImg" : "addonImg"}BorderRadiusBottomLeft`,
   };
-  const imgPrefix = kind === "rowImage" ? "rowImg" : kind === "objectImage" ? "objectImg" : "addonImg";
+  const imgPrefix =
+    kind === "rowImage" ? "rowImg" : kind === "objectImage" ? "objectImg" : "addonImg";
   const radiusIsPixelsKey = `${imgPrefix}BorderRadiusIsPixels`;
 
   const width = typeof styling[widthKey] === "number" ? styling[widthKey] : 100;
@@ -531,11 +636,7 @@ export interface RowSurfaceStyle {
  * from the styling cascade. Port of the original `AppRow.rowBackground` +
  * `rowBody` (the row header box that wraps image/title/text).
  */
-export function rowSurfaceStyle(
-  row: Row,
-  idx: CyoaIndex,
-  state: CyoaState,
-): RowSurfaceStyle {
+export function rowSurfaceStyle(row: Row, idx: CyoaIndex, state: CyoaState): RowSurfaceStyle {
   const rowStyle = getStyling("privateRowIsOn", idx, state, row) as Record<string, unknown>;
   const backgroundStyle = getStyling("privateBackgroundIsOn", idx, state, row) as Record<
     string,
@@ -550,12 +651,14 @@ export function rowSurfaceStyle(
   let backgroundRepeat = "repeat";
   let backgroundSize = "cover";
   if (str(backgroundStyle, "rowBackgroundImage")) {
-    backgroundImage = str(backgroundStyle, "rowBackgroundImage");
+    backgroundImage = resolveImageRef(idx.app, str(backgroundStyle, "rowBackgroundImage")) ?? "";
     backgroundRepeat = isOn(backgroundStyle, "isRowBackgroundRepeat") ? "repeat" : "";
     backgroundSize = isOn(backgroundStyle, "isRowBackgroundFitIn") ? "100% 100%" : "cover";
   }
 
-  const gradient = isOn(rowStyle, "rowGradientIsOn") ? gradientToCss(str(rowStyle, "rowGradient")) : "";
+  const gradient = isOn(rowStyle, "rowGradientIsOn")
+    ? gradientToCss(str(rowStyle, "rowGradient"))
+    : "";
 
   const suffix = isOn(rowStyle, "rowBorderRadiusIsPixels") ? "px" : "%";
   const borderRadius = `${num(rowStyle, "rowBorderRadiusTopLeft")}${suffix} ${num(rowStyle, "rowBorderRadiusTopRight")}${suffix} ${num(rowStyle, "rowBorderRadiusBottomRight")}${suffix} ${num(rowStyle, "rowBorderRadiusBottomLeft")}${suffix}`;
@@ -607,11 +710,7 @@ export function rowSurfaceStyle(
  * provides the background/border. Note the original mapping: top/bottom =
  * `rowButtonXPadding`, left/right = `rowButtonYPadding`.
  */
-export function rowButtonStyle(
-  row: Row,
-  idx: CyoaIndex,
-  state: CyoaState,
-): React.CSSProperties {
+export function rowButtonStyle(row: Row, idx: CyoaIndex, state: CyoaState): React.CSSProperties {
   const rowStyle = getStyling("privateRowIsOn", idx, state, row) as Record<string, unknown>;
   const textStyling = getStyling("privateTextIsOn", idx, state, row) as Record<string, unknown>;
   const padX = num(rowStyle, "rowButtonXPadding");
@@ -720,19 +819,12 @@ export function fixedWidth(width: string): string {
  * `objectWidthClass`: the choice's width falls back to the row's, and the
  * app-level `objectsPerRow`/viewport rules pick the responsive grid column.
  */
-export function choiceWidthClass(
-  row: Row,
-  choice: Choice,
-  app: App,
-  viewport: number,
-): string {
-  const objectWidth = row.overrideWidth
-    ? row.objectWidth
-    : choice.objectWidth || row.objectWidth;
+export function choiceWidthClass(row: Row, choice: Choice, app: App, viewport: number): string {
+  const objectWidth = row.overrideWidth ? row.objectWidth : choice.objectWidth || row.objectWidth;
   const objectWidthNum = objectWidthToNum(objectWidth);
   const objectsPerRowNum =
     app.objectsPerRow === "col-6" ? 2 : app.objectsPerRow === "col-4" ? 3 : 4;
-  if (viewport > 1280) return objectWidth || "col-sm-6 col-12";
+  if (viewport > 1280) return objectWidth || "col-12";
   if (viewport > Number(app.smallerScreenPx ?? 720)) {
     if (app.objectsPerRow === "default") return fixedWidth(objectWidth);
     switch (objectWidthNum) {
@@ -761,7 +853,7 @@ export function formatPointValue(point: PointType, value: number): string {
   return value.toFixed(places);
 }
 
-/** Row template layout: 1 image-top, 2 image-right, 3 image-left, 4 image-bottom, 5 image-center. */
+/** Row template layout: 1 image-top, 2 image-right, 3 image-left, 4 image-bottom, 5 image-inline. */
 export function templateClasses(template: number | undefined): {
   container: string;
   image: string;
@@ -773,7 +865,9 @@ export function templateClasses(template: number | undefined): {
     case 3:
       return { container: "flex flex-row-reverse gap-3", image: "w-2/5 shrink-0", body: "flex-1" };
     case 5:
-      return { container: "space-y-3", image: "absolute inset-0", body: "relative" };
+      // Original ICCPlus template 5: the image flows inline between the
+      // requirements and the body text (not a background).
+      return { container: "space-y-3", image: "", body: "" };
     case 4:
       return { container: "flex flex-col-reverse gap-3", image: "", body: "" };
     case 1:
@@ -783,12 +877,7 @@ export function templateClasses(template: number | undefined): {
 }
 
 /** True when the choice should be hidden by its state's filter visibility. */
-export function isChoiceShown(
-  choice: Choice,
-  row: Row,
-  idx: CyoaIndex,
-  state: CyoaState,
-): boolean {
+export function isChoiceShown(choice: Choice, row: Row, idx: CyoaIndex, state: CyoaState): boolean {
   const styling = getStyling("privateFilterIsOn", idx, state, row, choice) as Record<
     string,
     unknown

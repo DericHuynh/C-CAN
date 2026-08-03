@@ -1,12 +1,6 @@
 import { useId, type ReactNode } from "react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,11 +27,7 @@ export function ToggleField({ label, checked, onChange }: ToggleFieldProps) {
   const id = useId();
   return (
     <label htmlFor={id} className="flex cursor-pointer items-center gap-2 text-sm">
-      <Checkbox
-        id={id}
-        checked={checked}
-        onCheckedChange={(value) => onChange(value === true)}
-      />
+      <Checkbox id={id} checked={checked} onCheckedChange={(value) => onChange(value === true)} />
       {label}
     </label>
   );
@@ -53,14 +43,7 @@ interface NumberFieldProps {
 }
 
 /** Number input; reports `undefined` when cleared or non-numeric. */
-export function NumberField({
-  label,
-  value,
-  onChange,
-  min,
-  max,
-  step,
-}: NumberFieldProps) {
+export function NumberField({ label, value, onChange, min, max, step }: NumberFieldProps) {
   const id = useId();
   return (
     <div className="space-y-2">
@@ -135,11 +118,7 @@ interface TextAlignFieldProps {
   onChange: (value: string) => void;
 }
 
-export function TextAlignField({
-  label,
-  value,
-  onChange,
-}: TextAlignFieldProps) {
+export function TextAlignField({ label, value, onChange }: TextAlignFieldProps) {
   const id = useId();
   return (
     <div className="space-y-2">
@@ -168,12 +147,7 @@ interface TextInputFieldProps {
 }
 
 /** Plain text input (font names, image URLs, gradient CSS strings). */
-export function TextInputField({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: TextInputFieldProps) {
+export function TextInputField({ label, value, onChange, placeholder }: TextInputFieldProps) {
   const id = useId();
   return (
     <div className="space-y-2">
@@ -196,11 +170,7 @@ interface SectionCardProps {
 }
 
 /** Card wrapper used for every styling section. */
-export function SectionCard({
-  title,
-  description,
-  children,
-}: SectionCardProps) {
+export function SectionCard({ title, description, children }: SectionCardProps) {
   return (
     <Card>
       <CardHeader>

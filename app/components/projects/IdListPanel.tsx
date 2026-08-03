@@ -1,13 +1,16 @@
+import { useMemo, useState } from "react";
+import { IconChevronRight } from "@tabler/icons-react";
+
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { ProjectDetail } from "@/hooks/use-projects";
 import type { App, Row } from "@shared/types";
+
+import { cn } from "@/lib/utils";
+import { CopyId } from "./CopyId";
+import { PaginatedList } from "./PaginatedList";
 
 interface IdListPanelProps {
   project: ProjectDetail;
@@ -55,22 +58,87 @@ function csvEscape(value: string): string {
   return value;
 }
 
+/** One row node: id chip (copy), title, and its choices as children. */
+function RowNode({ row, open, onToggle }: { row: Row; open: boolean; onToggle: () => void }) {
+  const choices = row.objects ?? [];
+  return (
+    <Collapsible open={open} onOpenChange={() => onToggle()}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        {choices.length > 0 ? (
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              aria-label={open ? "Collapse row" : "Expand row"}
+              className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <IconChevronRight
+                className={cn("size-4 transition-transform", open && "rotate-90")}
+              />
+            </button>
+          </CollapsibleTrigger>
+        ) : (
+          <span className="inline-block w-5" />
+        )}
+        <CopyId id={row.id ?? ""} />
+        {row.debugTitle ? (
+          <span className="font-mono text-xs text-muted-foreground">{row.debugTitle}</span>
+        ) : null}
+        {row.title ? <span className="text-sm font-medium">{row.title}</span> : null}
+        <Badge variant="secondary" className="ml-auto shrink-0">
+          {choices.length} choice{choices.length === 1 ? "" : "s"}
+        </Badge>
+      </div>
+      <CollapsibleContent>
+        <ul className="ml-5 space-y-1 border-l border-border pl-3 pt-1">
+          {choices.map((choice) => (
+            <li
+              key={choice.id ?? `choice-${choice.index}`}
+              className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+            >
+              <CopyId id={choice.id ?? ""} />
+              {choice.title ? (
+                <span className="text-sm text-muted-foreground">{choice.title}</span>
+              ) : null}
+            </li>
+          ))}
+          {choices.length === 0 ? (
+            <li className="text-xs text-muted-foreground">No choices</li>
+          ) : null}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 /**
- * Read-only reference of every row and choice id. Useful for wiring up
- * requirements, buttons and "activated by" ids. Exports the same listing as
- * a CSV file with a UTF-8 BOM so Excel opens it correctly.
+ * Read-only reference of every row and choice id (tree view, ids copy on
+ * click). Useful for wiring up requirements, buttons and "activated by" ids.
+ * Exports the same listing as a CSV file with a UTF-8 BOM so Excel opens it
+ * correctly.
  */
 export function IdListPanel({ project }: IdListPanelProps) {
   const app = project.app;
-  const rows = allRows(app);
+  const rows = useMemo(() => allRows(app), [app]);
+  // Open-state lives here (not per node) so collapsed rows stay collapsed
+  // when the virtualized list unmounts them off-screen.
+  const [openRows, setOpenRows] = useState<Set<string>>(
+    () => new Set(rows.map((row) => row.id ?? "")),
+  );
+
+  function toggleRow(id: string) {
+    setOpenRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function handleExport() {
     const lines = ["id,title,debugTitle,type"];
     for (const record of csvRecords(app)) {
       lines.push(
-        [record.id, record.title, record.debugTitle, record.type]
-          .map(csvEscape)
-          .join(","),
+        [record.id, record.title, record.debugTitle, record.type].map(csvEscape).join(","),
       );
     }
     const blob = new Blob([`\uFEFF${lines.join("\n")}`], {
@@ -93,7 +161,7 @@ export function IdListPanel({ project }: IdListPanelProps) {
           <div className="min-w-0">
             <CardTitle className="text-base">IDs</CardTitle>
             <CardDescription>
-              Every row and choice id in document order, for wiring up
+              Every row and choice id in document order — click any id to copy it. For wiring up
               requirements, buttons and "activated by" ids.
             </CardDescription>
           </div>
@@ -108,49 +176,25 @@ export function IdListPanel({ project }: IdListPanelProps) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No rows yet. Add a row to see its id here.
           </p>
         ) : (
-          rows.map((row) => (
-            <div key={row.id ?? `row-${row.index}`} className="space-y-1.5">
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                  {row.id}
-                </code>
-                {row.debugTitle ? (
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {row.debugTitle}
-                  </span>
-                ) : null}
-                <span className="text-sm font-medium">
-                  {row.title || "Untitled row"}
-                </span>
-              </div>
-              <ul className="ml-5 space-y-1 border-l border-border pl-3">
-                {(row.objects ?? []).map((choice) => (
-                  <li
-                    key={choice.id ?? `choice-${choice.index}`}
-                    className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
-                  >
-                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                      {choice.id}
-                    </code>
-                    <span className="text-sm text-muted-foreground">
-                      {choice.title || "Untitled choice"}
-                    </span>
-                  </li>
-                ))}
-                {(row.objects ?? []).length === 0 ? (
-                  <li className="text-xs text-muted-foreground">
-                    No choices
-                  </li>
-                ) : null}
-              </ul>
-            </div>
-          ))
+          <PaginatedList
+            items={rows}
+            getItemKey={(row) => row.id ?? `row-${row.index}`}
+            pageSize={25}
+            renderItem={(row) => (
+              <RowNode
+                key={row.id ?? `row-${row.index}`}
+                row={row}
+                open={openRows.has(row.id ?? "")}
+                onToggle={() => toggleRow(row.id ?? "")}
+              />
+            )}
+          />
         )}
       </CardContent>
     </Card>

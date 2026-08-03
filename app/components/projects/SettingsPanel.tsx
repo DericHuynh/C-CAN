@@ -2,13 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -42,11 +36,7 @@ export function SettingsPanel({ project }: SettingsPanelProps) {
             {
               onSuccess: () => toast.success("Project details saved"),
               onError: (err) =>
-                toast.error(
-                  err instanceof Error
-                    ? err.message
-                    : "Failed to save project details",
-                ),
+                toast.error(err instanceof Error ? err.message : "Failed to save project details"),
             },
           )
         }
@@ -69,11 +59,7 @@ export function SettingsPanel({ project }: SettingsPanelProps) {
             {
               onSuccess: () => toast.success("Viewer settings saved"),
               onError: (err) =>
-                toast.error(
-                  err instanceof Error
-                    ? err.message
-                    : "Failed to save viewer settings",
-                ),
+                toast.error(err instanceof Error ? err.message : "Failed to save viewer settings"),
             },
           )
         }
@@ -93,11 +79,7 @@ export function SettingsPanel({ project }: SettingsPanelProps) {
             {
               onSuccess: () => toast.success("Default settings saved"),
               onError: (err) =>
-                toast.error(
-                  err instanceof Error
-                    ? err.message
-                    : "Failed to save default settings",
-                ),
+                toast.error(err instanceof Error ? err.message : "Failed to save default settings"),
             },
           )
         }
@@ -114,11 +96,7 @@ interface ProjectDetailsCardProps {
   onSave: (title: string, description: string) => void;
 }
 
-function ProjectDetailsCard({
-  project,
-  busy = false,
-  onSave,
-}: ProjectDetailsCardProps) {
+function ProjectDetailsCard({ project, busy = false, onSave }: ProjectDetailsCardProps) {
   const [title, setTitle] = useState(project.title ?? "");
   const [description, setDescription] = useState(project.description ?? "");
 
@@ -126,9 +104,7 @@ function ProjectDetailsCard({
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Project details</CardTitle>
-        <CardDescription>
-          How this project appears on the projects list.
-        </CardDescription>
+        <CardDescription>How this project appears on the projects list.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -177,9 +153,7 @@ function ViewerCard({ title, busy = false, onSave }: ViewerCardProps) {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Viewer</CardTitle>
-        <CardDescription>
-          The title shown to readers at the top of the play page.
-        </CardDescription>
+        <CardDescription>The title shown to readers at the top of the play page.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -192,12 +166,7 @@ function ViewerCard({ title, busy = false, onSave }: ViewerCardProps) {
           />
         </div>
         <div className="flex justify-end">
-          <Button
-            type="button"
-            size="sm"
-            disabled={busy}
-            onClick={() => onSave(value)}
-          >
+          <Button type="button" size="sm" disabled={busy} onClick={() => onSave(value)}>
             {busy ? "Saving…" : "Save"}
           </Button>
         </div>
@@ -217,31 +186,17 @@ interface DefaultsCardProps {
   onSave: (patch: Record<string, unknown>) => void;
 }
 
-function DefaultsCard({
-  defaults,
-  busy = false,
-  onSave,
-}: DefaultsCardProps) {
-  const [defaultRowTitle, setDefaultRowTitle] = useState(
-    defaults.defaultRowTitle,
-  );
-  const [defaultChoiceTitle, setDefaultChoiceTitle] = useState(
-    defaults.defaultChoiceTitle,
-  );
-  const [defaultBeforePoint, setDefaultBeforePoint] = useState(
-    defaults.defaultBeforePoint,
-  );
-  const [defaultAfterPoint, setDefaultAfterPoint] = useState(
-    defaults.defaultAfterPoint,
-  );
+function DefaultsCard({ defaults, busy = false, onSave }: DefaultsCardProps) {
+  const [defaultRowTitle, setDefaultRowTitle] = useState(defaults.defaultRowTitle);
+  const [defaultChoiceTitle, setDefaultChoiceTitle] = useState(defaults.defaultChoiceTitle);
+  const [defaultBeforePoint, setDefaultBeforePoint] = useState(defaults.defaultBeforePoint);
+  const [defaultAfterPoint, setDefaultAfterPoint] = useState(defaults.defaultAfterPoint);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Defaults</CardTitle>
-        <CardDescription>
-          Templates used when creating new rows and choices.
-        </CardDescription>
+        <CardDescription>Templates used when creating new rows and choices.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -255,9 +210,7 @@ function DefaultsCard({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="settings-default-choice">
-              Default choice title
-            </Label>
+            <Label htmlFor="settings-default-choice">Default choice title</Label>
             <Input
               id="settings-default-choice"
               value={defaultChoiceTitle}

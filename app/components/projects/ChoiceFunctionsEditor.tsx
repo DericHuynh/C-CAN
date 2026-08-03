@@ -78,12 +78,7 @@ function Toggle({
   indent?: boolean;
 }) {
   return (
-    <label
-      className={cn(
-        "flex cursor-pointer items-center gap-2 text-sm",
-        indent && "pl-4",
-      )}
-    >
+    <label className={cn("flex cursor-pointer items-center gap-2 text-sm", indent && "pl-4")}>
       <Checkbox checked={checked} onCheckedChange={(v) => onChange(v === true)} />
       <span>{label}</span>
     </label>
@@ -209,9 +204,7 @@ function TargetListField({
               key={option.id}
               type="button"
               className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
-              onClick={() =>
-                onChange(value ? `${value},${option.id}` : option.id)
-              }
+              onClick={() => onChange(value ? `${value},${option.id}` : option.id)}
             >
               {option.label}
             </button>
@@ -257,20 +250,16 @@ export function ChoiceFunctionsEditor({
 }: ChoiceFunctionsEditorProps) {
   const get = (key: string): unknown => value[key];
   const bool = (key: string): boolean => value[key] === true;
-  const num = (key: string): string =>
-    value[key] == null ? "" : String(value[key]);
+  const num = (key: string): string => (value[key] == null ? "" : String(value[key]));
   const str = (key: string): string =>
     typeof value[key] === "string" ? (value[key] as string) : "";
 
   const set = (key: string, next: unknown) => onChange({ [key]: next });
-  const setNum = (key: string) => (next: number) =>
-    onChange({ [key]: Number(next) || 0 });
+  const setNum = (key: string) => (next: number) => onChange({ [key]: Number(next) || 0 });
   const setStr = (key: string) => (next: string) => onChange({ [key]: next });
   const setBool = (key: string) => (next: boolean) => onChange({ [key]: next });
-  const setCsv = (key: string) => (next: string) =>
-    onChange({ [key]: toArray(next) });
-  const setStrList = (key: string) => (next: string) =>
-    onChange({ [key]: next });
+  const setCsv = (key: string) => (next: string) => onChange({ [key]: toArray(next) });
+  const setStrList = (key: string) => (next: string) => onChange({ [key]: next });
 
   const pointTypeOptions = pointTypes.map((pt) => ({ value: pt.id, label: pt.name }));
   const sfxOptions = soundEffects.map((sfx) => ({ value: sfx.id, label: sfx.label }));
@@ -535,13 +524,19 @@ export function ChoiceFunctionsEditor({
             <SelectField
               label="Row to duplicate"
               value={str("duplicateRowId") || " "}
-              options={[{ value: " ", label: "None" }, ...rows.map((r) => ({ value: r.id, label: r.label }))]}
+              options={[
+                { value: " ", label: "None" },
+                ...rows.map((r) => ({ value: r.id, label: r.label })),
+              ]}
               onChange={(v) => set("duplicateRowId", v === " " ? undefined : v)}
             />
             <SelectField
               label="Insert after row"
               value={str("duplicateRowPlace") || " "}
-              options={[{ value: " ", label: "None" }, ...rows.map((r) => ({ value: r.id, label: r.label }))]}
+              options={[
+                { value: " ", label: "None" },
+                ...rows.map((r) => ({ value: r.id, label: r.label })),
+              ]}
               onChange={(v) => set("duplicateRowPlace", v === " " ? undefined : v)}
             />
             <Toggle
@@ -863,11 +858,7 @@ export function ChoiceFunctionsEditor({
               onChange={setBool("useAudioURL")}
             />
             <div className="grid grid-cols-2 gap-3">
-              <Toggle
-                label="Fade in"
-                checked={bool("bgmFadeIn")}
-                onChange={setBool("bgmFadeIn")}
-              />
+              <Toggle label="Fade in" checked={bool("bgmFadeIn")} onChange={setBool("bgmFadeIn")} />
               <Toggle
                 label="Fade out"
                 checked={bool("bgmFadeOut")}

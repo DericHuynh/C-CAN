@@ -4,7 +4,6 @@ import {
   IconArrowDown,
   IconArrowUp,
   IconMusic,
-  IconPencil,
   IconPlayerPlay,
   IconPlus,
   IconTrash,
@@ -12,31 +11,19 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  useUpdateProjectSettings,
-  type ProjectDetail,
-} from "@/hooks/use-projects";
+import { cn } from "@/lib/utils";
+import { useUpdateProjectSettings, type ProjectDetail } from "@/hooks/use-projects";
 import type { Requireds, SoundEffect } from "@shared/types";
-import { createDefaultSoundEffect } from "@shared/cyoa";
 
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { CopyId } from "./CopyId";
+import { EditorPane } from "./EditorPane";
+import { MasterDetail } from "./MasterDetail";
+import { PaginatedList } from "./PaginatedList";
 import { RequirementListEditor } from "./RequirementListEditor";
 
 interface SoundEffectsPanelProps {
@@ -72,8 +59,7 @@ export function SoundEffectsPanel({ project }: SoundEffectsPanelProps) {
 
   const updateSettings = useUpdateProjectSettings();
 
-  const [editing, setEditing] = useState<SoundEffect | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selected, setSelected] = useState<SoundEffect | "new" | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SoundEffect | null>(null);
 
   const choiceOptions = useMemo(() => {
@@ -105,41 +91,33 @@ export function SoundEffectsPanel({ project }: SoundEffectsPanelProps) {
     [project.app],
   );
 
-  function handleAdd() {
-    // The factory defaults (volume 100, pitch 1) come from the legacy
-    // scale; the viewer consumes volume 0-1 and pitch in semitones, so a
-    // fresh effect starts at neutral values.
-    const next = { ...createDefaultSoundEffect(), volume: 1, pitch: 0 };
-    updateSettings.mutate(
-      { projectId, patch: { soundEffects: [...soundEffects, next] } },
-      {
-        onSuccess: () => toast.success("Sound effect added"),
-        onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to add sound effect",
-          ),
-      },
-    );
-  }
-
   function handleSave(form: SoundEffectForm) {
-    if (!editing) return;
-    const next = soundEffects.map((sfx) =>
-      sfx.id === editing.id ? { ...sfx, ...form } : sfx,
-    );
-    updateSettings.mutate(
-      { projectId, patch: { soundEffects: next } },
-      {
-        onSuccess: () => {
-          toast.success("Sound effect updated");
-          setDialogOpen(false);
+    if (selected === "new") {
+      updateSettings.mutate(
+        { projectId, patch: { soundEffects: [...soundEffects, { ...form }] } },
+        {
+          onSuccess: () => {
+            toast.success("Sound effect added");
+            setSelected(null);
+          },
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to add sound effect"),
         },
-        onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to update sound effect",
-          ),
-      },
-    );
+      );
+    } else if (selected) {
+      const next = soundEffects.map((sfx) => (sfx.id === selected.id ? { ...sfx, ...form } : sfx));
+      updateSettings.mutate(
+        { projectId, patch: { soundEffects: next } },
+        {
+          onSuccess: () => {
+            toast.success("Sound effect updated");
+            setSelected(null);
+          },
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to update sound effect"),
+        },
+      );
+    }
   }
 
   function handleDelete() {
@@ -151,12 +129,13 @@ export function SoundEffectsPanel({ project }: SoundEffectsPanelProps) {
       {
         onSuccess: () => {
           toast.success("Sound effect deleted");
+          if (selected !== null && selected !== "new" && selected.id === target.id) {
+            setSelected(null);
+          }
           setDeleteTarget(null);
         },
         onError: (err) => {
-          toast.error(
-            err instanceof Error ? err.message : "Failed to delete sound effect",
-          );
+          toast.error(err instanceof Error ? err.message : "Failed to delete sound effect");
           setDeleteTarget(null);
         },
       },
@@ -173,9 +152,7 @@ export function SoundEffectsPanel({ project }: SoundEffectsPanelProps) {
       {
         onSuccess: () => toast.success("Sound effect moved"),
         onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to move sound effect",
-          ),
+          toast.error(err instanceof Error ? err.message : "Failed to move sound effect"),
       },
     );
   }
@@ -193,15 +170,48 @@ export function SoundEffectsPanel({ project }: SoundEffectsPanelProps) {
     }
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+  const detail =
+    selected === "new" ? (
+      <SoundEffectDialog
+        key="new"
+        item={null}
+        choices={choiceOptions}
+        pointTypes={pointTypeOptions}
+        globalRequirements={globalReqOptions}
+        busy={updateSettings.isPending}
+        onCancel={() => setSelected(null)}
+        onSave={handleSave}
+      />
+    ) : selected ? (
+      <SoundEffectDialog
+        key={selected.id}
+        item={selected}
+        choices={choiceOptions}
+        pointTypes={pointTypeOptions}
+        globalRequirements={globalReqOptions}
+        busy={updateSettings.isPending}
+        onCancel={() => setSelected(null)}
+        onSave={handleSave}
+      />
+    ) : (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
+          <IconMusic className="size-6 text-muted-foreground/50" />
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Select a sound effect to edit it here, or add a new one — no more dialogs.
+          </p>
+        </CardContent>
+      </Card>
+    );
+
+  const master = (
+    <div className="space-y-3">
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-background/95 py-2 backdrop-blur">
         <p className="text-sm text-muted-foreground">
           {soundEffects.length} sound effect
-          {soundEffects.length === 1 ? "" : "s"} — played when choices are
-          selected or deselected
+          {soundEffects.length === 1 ? "" : "s"} — played when choices are selected or deselected
         </p>
-        <Button type="button" size="sm" onClick={handleAdd}>
+        <Button type="button" size="sm" onClick={() => setSelected("new")}>
           <IconPlus className="mr-1.5 size-4" />
           Add sound effect
         </Button>
@@ -211,158 +221,146 @@ export function SoundEffectsPanel({ project }: SoundEffectsPanelProps) {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <p className="text-sm text-muted-foreground">
-              No sound effects yet. Sound effects play on choice selection
-              (and deselection) when they are marked as default.
+              No sound effects yet. Sound effects play on choice selection (and deselection) when
+              they are marked as default.
             </p>
-            <Button type="button" onClick={handleAdd}>
+            <Button type="button" onClick={() => setSelected("new")}>
               <IconPlus className="mr-1.5 size-4" />
               Add sound effect
             </Button>
           </CardContent>
         </Card>
       ) : (
-        soundEffects.map((sfx, index) => {
-          const groupCount = sfx.groups?.length ?? 0;
-          const requiredCount = sfx.requireds?.length ?? 0;
-          return (
-            <Card key={sfx.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <IconMusic className="size-4 shrink-0 text-muted-foreground" />
-                      <CardTitle className="font-mono text-base">
-                        {sfx.name || sfx.id}
-                      </CardTitle>
+        <PaginatedList
+          items={soundEffects}
+          getItemKey={(sfx) => sfx.id}
+          pageSize={25}
+          renderItem={(sfx, index) => {
+            const groupCount = sfx.groups?.length ?? 0;
+            const requiredCount = sfx.requireds?.length ?? 0;
+            return (
+              <Card
+                key={sfx.id}
+                className={cn(
+                  "cursor-pointer transition-colors",
+                  selected !== null &&
+                    selected !== "new" &&
+                    selected.id === sfx.id &&
+                    "border-primary bg-primary/5",
+                )}
+                onClick={() => setSelected(sfx)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <IconMusic className="size-4 shrink-0 text-muted-foreground" />
+                        <CardTitle className="font-mono text-base">{sfx.name || sfx.id}</CardTitle>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {sfx.name ? <CopyId id={sfx.id} /> : null}
+                        {sfx.isDefault ? (
+                          <Badge>Default</Badge>
+                        ) : (
+                          <Badge variant="outline">Not default</Badge>
+                        )}
+                        {sfx.onSelected ? <Badge variant="secondary">On select</Badge> : null}
+                        {sfx.onDeselected ? <Badge variant="secondary">On deselect</Badge> : null}
+                      </div>
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      {sfx.name ? (
-                        <span className="text-xs text-muted-foreground">
-                          {sfx.id}
-                        </span>
-                      ) : null}
-                      {sfx.isDefault ? (
-                        <Badge>Default</Badge>
-                      ) : (
-                        <Badge variant="outline">Not default</Badge>
-                      )}
-                      {sfx.onSelected ? (
-                        <Badge variant="secondary">On select</Badge>
-                      ) : null}
-                      {sfx.onDeselected ? (
-                        <Badge variant="secondary">On deselect</Badge>
-                      ) : null}
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleMove(index, -1);
+                        }}
+                        disabled={index === 0}
+                        aria-label={`Move ${sfx.name || sfx.id} up`}
+                        title="Move up"
+                      >
+                        <IconArrowUp className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleMove(index, 1);
+                        }}
+                        disabled={index === soundEffects.length - 1}
+                        aria-label={`Move ${sfx.name || sfx.id} down`}
+                        title="Move down"
+                      >
+                        <IconArrowDown className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          playSound(sfx);
+                        }}
+                        disabled={!sfx.audio}
+                        aria-label={`Play ${sfx.name || sfx.id}`}
+                        title="Play test"
+                      >
+                        <IconPlayerPlay className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground hover:text-destructive"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setDeleteTarget(sfx);
+                        }}
+                        aria-label={`Delete ${sfx.name || sfx.id}`}
+                        title="Delete"
+                      >
+                        <IconTrash className="size-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-0.5">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-muted-foreground"
-                      onClick={() => handleMove(index, -1)}
-                      disabled={index === 0}
-                      aria-label={`Move ${sfx.name || sfx.id} up`}
-                      title="Move up"
-                    >
-                      <IconArrowUp className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-muted-foreground"
-                      onClick={() => handleMove(index, 1)}
-                      disabled={index === soundEffects.length - 1}
-                      aria-label={`Move ${sfx.name || sfx.id} down`}
-                      title="Move down"
-                    >
-                      <IconArrowDown className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-muted-foreground"
-                      onClick={() => playSound(sfx)}
-                      disabled={!sfx.audio}
-                      aria-label={`Play ${sfx.name || sfx.id}`}
-                      title="Play test"
-                    >
-                      <IconPlayerPlay className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-muted-foreground"
-                      onClick={() => {
-                        setEditing(sfx);
-                        setDialogOpen(true);
-                      }}
-                      aria-label={`Edit ${sfx.name || sfx.id}`}
-                      title="Edit"
-                    >
-                      <IconPencil className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => setDeleteTarget(sfx)}
-                      aria-label={`Delete ${sfx.name || sfx.id}`}
-                      title="Delete"
-                    >
-                      <IconTrash className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
-                  <Badge variant="secondary">
-                    Volume {sfx.volume ?? 1}
-                  </Badge>
-                  <Badge variant="secondary">
-                    Pitch {sfx.pitch ?? 0}
-                  </Badge>
-                  <Badge variant="secondary">
-                    {groupCount} group{groupCount === 1 ? "" : "s"}
-                  </Badge>
-                  <Badge variant="secondary">
-                    {requiredCount} requirement
-                    {requiredCount === 1 ? "" : "s"}
-                  </Badge>
-                  {sfx.audio ? (
-                    <Badge variant="outline">
-                      {dataUrlSizeKb(sfx.audio) ?? "?"} KB
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                    <Badge variant="secondary">Volume {sfx.volume ?? 1}</Badge>
+                    <Badge variant="secondary">Pitch {sfx.pitch ?? 0}</Badge>
+                    <Badge variant="secondary">
+                      {groupCount} group{groupCount === 1 ? "" : "s"}
                     </Badge>
-                  ) : (
-                    <Badge variant="outline">No audio</Badge>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })
+                    <Badge variant="secondary">
+                      {requiredCount} requirement
+                      {requiredCount === 1 ? "" : "s"}
+                    </Badge>
+                    {sfx.audio ? (
+                      <Badge variant="outline">{dataUrlSizeKb(sfx.audio) ?? "?"} KB</Badge>
+                    ) : (
+                      <Badge variant="outline">No audio</Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }}
+        />
       )}
 
-      <SoundEffectDialog
-        key={editing?.id ?? "new-sound-effect"}
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditing(null);
-        }}
-        soundEffect={editing}
-        choices={choiceOptions}
-        pointTypes={pointTypeOptions}
-        globalRequirements={globalReqOptions}
-        busy={updateSettings.isPending}
-        onSave={handleSave}
-      />
+    </div>
+  );
 
+  return (
+    <>
+      <MasterDetail master={master} detail={detail} />
       <ConfirmDeleteDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
@@ -373,54 +371,44 @@ export function SoundEffectsPanel({ project }: SoundEffectsPanelProps) {
         busy={updateSettings.isPending}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
 interface SoundEffectDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  soundEffect: SoundEffect | null;
+  item: SoundEffect | null;
   choices: { id: string; label: string }[];
   pointTypes: { id: string; name: string }[];
   globalRequirements: { id: string; name: string }[];
   busy?: boolean;
+  onCancel: () => void;
   onSave: (form: SoundEffectForm) => void;
 }
 
 function SoundEffectDialog({
-  open,
-  onOpenChange,
-  soundEffect,
+  item,
   choices,
   pointTypes,
   globalRequirements,
   busy = false,
+  onCancel,
   onSave,
 }: SoundEffectDialogProps) {
-  const isEdit = Boolean(soundEffect);
-  const [id, setId] = useState(soundEffect?.id ?? "");
-  const [name, setName] = useState(soundEffect?.name ?? "");
-  const [audio, setAudio] = useState(soundEffect?.audio ?? "");
+  const isEdit = Boolean(item);
+  const [id, setId] = useState(item?.id ?? "");
+  const [name, setName] = useState(item?.name ?? "");
+  const [audio, setAudio] = useState(item?.audio ?? "");
   const [volume, setVolume] = useState(
-    soundEffect?.volume != null ? String(soundEffect.volume) : "1",
+    item?.volume != null ? String(item.volume) : "1",
   );
-  const [pitch, setPitch] = useState(
-    soundEffect?.pitch != null ? String(soundEffect.pitch) : "0",
-  );
-  const [isDefault, setIsDefault] = useState(soundEffect?.isDefault ?? false);
-  const [onSelected, setOnSelected] = useState(
-    soundEffect?.onSelected ?? false,
-  );
-  const [onDeselected, setOnDeselected] = useState(
-    soundEffect?.onDeselected ?? false,
-  );
-  const [groups, setGroups] = useState((soundEffect?.groups ?? []).join(", "));
-  const [requireds, setRequireds] = useState<Requireds[]>(
-    soundEffect?.requireds ?? [],
-  );
+  const [pitch, setPitch] = useState(item?.pitch != null ? String(item.pitch) : "0");
+  const [isDefault, setIsDefault] = useState(item?.isDefault ?? false);
+  const [onSelected, setOnSelected] = useState(item?.onSelected ?? false);
+  const [onDeselected, setOnDeselected] = useState(item?.onDeselected ?? false);
+  const [groups, setGroups] = useState((item?.groups ?? []).join(", "));
+  const [requireds, setRequireds] = useState<Requireds[]>(item?.requireds ?? []);
 
   const audioSizeKb = dataUrlSizeKb(audio);
 
@@ -453,18 +441,16 @@ function SoundEffectDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {isEdit ? "Edit sound effect" : "Add sound effect"}
-          </DialogTitle>
-          <DialogDescription>
-            Sound effects play when choices are selected or deselected. Mark
-            one as default to play it whenever a matching choice changes.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
+    <EditorPane
+      title={isEdit ? "Edit sound effect" : "Add sound effect"}
+      description="Sound effects play when choices are selected or deselected. Mark one as default to play it whenever a matching choice changes."
+      busy={busy}
+      saveLabel={isEdit ? "Save" : "Add"}
+      canSave={id.trim().length > 0}
+      onCancel={onCancel}
+      onSave={handleSave}
+    >
+      <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="sfx-id">Id</Label>
@@ -488,12 +474,7 @@ function SoundEffectDialog({
 
           <div className="space-y-2">
             <Label htmlFor="sfx-audio">Audio file</Label>
-            <Input
-              id="sfx-audio"
-              type="file"
-              accept="audio/*"
-              onChange={handleAudioFile}
-            />
+            <Input id="sfx-audio" type="file" accept="audio/*" onChange={handleAudioFile} />
             {audioSizeKb !== null ? (
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={audioSizeKb > 100 ? "destructive" : "secondary"}>
@@ -501,8 +482,8 @@ function SoundEffectDialog({
                 </Badge>
                 {audioSizeKb > 100 ? (
                   <p className="text-xs text-destructive">
-                    Large audio files bloat the project and can slow the viewer.
-                    Prefer a short clip under 100 KB.
+                    Large audio files bloat the project and can slow the viewer. Prefer a short clip
+                    under 100 KB.
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
@@ -573,9 +554,7 @@ function SoundEffectDialog({
               <Checkbox
                 id="sfx-on-deselected"
                 checked={onDeselected}
-                onCheckedChange={(checked) =>
-                  setOnDeselected(checked === true)
-                }
+                onCheckedChange={(checked) => setOnDeselected(checked === true)}
               />
               Play on deselect
             </label>
@@ -595,8 +574,8 @@ function SoundEffectDialog({
               placeholder="e.g. ui, combat"
             />
             <p className="text-xs text-muted-foreground">
-              Leave empty to play for every group. When set, only choices in
-              one of these groups trigger the sound.
+              Leave empty to play for every group. When set, only choices in one of these groups
+              trigger the sound.
             </p>
           </div>
 
@@ -610,24 +589,7 @@ function SoundEffectDialog({
               globalRequirements={globalRequirements}
             />
           </div>
-        </div>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={busy || id.trim().length === 0}
-          >
-            {isEdit ? "Save" : "Add"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </EditorPane>
   );
 }

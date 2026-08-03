@@ -64,7 +64,7 @@ function contentItems(app: App): ContentItem[] {
 function estimateKb(image: string): number {
   const trimmed = image.trim();
   if (trimmed.startsWith("data:")) {
-    return Math.round(trimmed.length * 3 / 4) / 1024;
+    return Math.round((trimmed.length * 3) / 4) / 1024;
   }
   return 0;
 }
@@ -119,10 +119,7 @@ export function ProjectStatsPanel({ project }: ProjectStatsPanelProps) {
   const choiceCount = items.filter((item) => item.kind === "choice").length;
   const addonCount = items.filter((item) => item.kind === "addon").length;
 
-  const chars = items.reduce(
-    (sum, item) => sum + item.title.length + item.text.length,
-    0,
-  );
+  const chars = items.reduce((sum, item) => sum + item.title.length + item.text.length, 0);
 
   const images = items.filter((item) => Boolean(item.image?.trim()));
   const { largest, smallest } = rankImages(items);
@@ -152,8 +149,8 @@ export function ProjectStatsPanel({ project }: ProjectStatsPanelProps) {
       <CardHeader>
         <CardTitle className="text-base">Project stats</CardTitle>
         <CardDescription>
-          A quick snapshot of the document — content counts, asset sizes and a
-          rough build-time estimate.
+          A quick snapshot of the document — content counts, asset sizes and a rough build-time
+          estimate.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -164,9 +161,7 @@ export function ProjectStatsPanel({ project }: ProjectStatsPanelProps) {
               className="flex items-baseline justify-between gap-4 border-b border-border/60 pb-1.5"
             >
               <dt className="text-sm text-muted-foreground">{stat.label}</dt>
-              <dd className="font-mono text-sm font-medium tabular-nums">
-                {stat.value}
-              </dd>
+              <dd className="font-mono text-sm font-medium tabular-nums">{stat.value}</dd>
             </div>
           ))}
         </dl>
@@ -175,17 +170,13 @@ export function ProjectStatsPanel({ project }: ProjectStatsPanelProps) {
           <div className="flex items-baseline justify-between gap-4">
             <span className="text-muted-foreground">Largest image</span>
             <span className="text-right font-mono text-xs text-foreground">
-              {largest
-                ? `${formatKb(largest.kb)} · ${largest.label}`
-                : "—"}
+              {largest ? `${formatKb(largest.kb)} · ${largest.label}` : "—"}
             </span>
           </div>
           <div className="flex items-baseline justify-between gap-4">
             <span className="text-muted-foreground">Smallest image</span>
             <span className="text-right font-mono text-xs text-foreground">
-              {smallest
-                ? `${formatKb(smallest.kb)} · ${smallest.label}`
-                : "—"}
+              {smallest ? `${formatKb(smallest.kb)} · ${smallest.label}` : "—"}
             </span>
           </div>
         </div>

@@ -2,13 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,10 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  useUpdateProjectSettings,
-  type ProjectDetail,
-} from "@/hooks/use-projects";
+import { useUpdateProjectSettings, type ProjectDetail } from "@/hooks/use-projects";
 import { defaultViewerConfig } from "@shared/cyoa";
 import type { ViewerConfig } from "@shared/types";
 
@@ -75,33 +66,18 @@ export function ViewerConfigPanel({ project }: ViewerConfigPanelProps) {
   );
   const [loadingBgImage, setLoadingBgImage] = useState(initial.loadingBgImage);
   const [loadingCircleColor, setLoadingCircleColor] = useState(
-    normalizeHexColor(
-      initial.loadingCircleColor,
-      defaultViewerConfig.loadingCircleColor,
-    ),
+    normalizeHexColor(initial.loadingCircleColor, defaultViewerConfig.loadingCircleColor),
   );
   const [loadingTrackColor, setLoadingTrackColor] = useState(
-    normalizeHexColor(
-      initial.loadingTrackColor,
-      defaultViewerConfig.loadingTrackColor,
-    ),
+    normalizeHexColor(initial.loadingTrackColor, defaultViewerConfig.loadingTrackColor),
   );
   const [loadingText, setLoadingText] = useState(initial.loadingText);
   const [loadingTextColor, setLoadingTextColor] = useState(
-    normalizeHexColor(
-      initial.loadingTextColor,
-      defaultViewerConfig.loadingTextColor,
-    ),
+    normalizeHexColor(initial.loadingTextColor, defaultViewerConfig.loadingTextColor),
   );
-  const [loadingTextFont, setLoadingTextFont] = useState(
-    initial.loadingTextFont,
-  );
-  const [loadingTextShadow, setLoadingTextShadow] = useState(
-    initial.loadingTextShadow,
-  );
-  const [useSeparateImages, setUseSeparateImages] = useState(
-    initial.useSeparateImages,
-  );
+  const [loadingTextFont, setLoadingTextFont] = useState(initial.loadingTextFont);
+  const [loadingTextShadow, setLoadingTextShadow] = useState(initial.loadingTextShadow);
+  const [useSeparateImages, setUseSeparateImages] = useState(initial.useSeparateImages);
   const [useLocalViewer, setUseLocalViewer] = useState(initial.useLocalViewer);
 
   function handleSave() {
@@ -125,9 +101,7 @@ export function ViewerConfigPanel({ project }: ViewerConfigPanelProps) {
       {
         onSuccess: () => toast.success("Viewer config saved"),
         onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to save viewer config",
-          ),
+          toast.error(err instanceof Error ? err.message : "Failed to save viewer config"),
       },
     );
   }
@@ -200,9 +174,7 @@ export function ViewerConfigPanel({ project }: ViewerConfigPanelProps) {
                 value={loadingBgColor}
                 onChange={(event) => setLoadingBgColor(event.target.value)}
               />
-              <span className="font-mono text-xs text-muted-foreground">
-                {loadingBgColor}
-              </span>
+              <span className="font-mono text-xs text-muted-foreground">{loadingBgColor}</span>
             </div>
           </div>
           <div className="space-y-2">
@@ -215,9 +187,7 @@ export function ViewerConfigPanel({ project }: ViewerConfigPanelProps) {
                 value={loadingCircleColor}
                 onChange={(event) => setLoadingCircleColor(event.target.value)}
               />
-              <span className="font-mono text-xs text-muted-foreground">
-                {loadingCircleColor}
-              </span>
+              <span className="font-mono text-xs text-muted-foreground">{loadingCircleColor}</span>
             </div>
           </div>
           <div className="space-y-2">
@@ -230,9 +200,7 @@ export function ViewerConfigPanel({ project }: ViewerConfigPanelProps) {
                 value={loadingTrackColor}
                 onChange={(event) => setLoadingTrackColor(event.target.value)}
               />
-              <span className="font-mono text-xs text-muted-foreground">
-                {loadingTrackColor}
-              </span>
+              <span className="font-mono text-xs text-muted-foreground">{loadingTrackColor}</span>
             </div>
           </div>
           <div className="space-y-2">
@@ -245,9 +213,7 @@ export function ViewerConfigPanel({ project }: ViewerConfigPanelProps) {
                 value={loadingTextColor}
                 onChange={(event) => setLoadingTextColor(event.target.value)}
               />
-              <span className="font-mono text-xs text-muted-foreground">
-                {loadingTextColor}
-              </span>
+              <span className="font-mono text-xs text-muted-foreground">{loadingTextColor}</span>
             </div>
           </div>
         </div>
@@ -290,9 +256,7 @@ export function ViewerConfigPanel({ project }: ViewerConfigPanelProps) {
             <Checkbox
               id="viewer-use-separate-images"
               checked={useSeparateImages}
-              onCheckedChange={(checked) =>
-                setUseSeparateImages(checked === true)
-              }
+              onCheckedChange={(checked) => setUseSeparateImages(checked === true)}
             />
             Use separate images
           </label>
@@ -310,12 +274,7 @@ export function ViewerConfigPanel({ project }: ViewerConfigPanelProps) {
         </div>
 
         <div className="flex justify-end">
-          <Button
-            type="button"
-            size="sm"
-            disabled={updateSettings.isPending}
-            onClick={handleSave}
-          >
+          <Button type="button" size="sm" disabled={updateSettings.isPending} onClick={handleSave}>
             {updateSettings.isPending ? "Saving…" : "Save"}
           </Button>
         </div>

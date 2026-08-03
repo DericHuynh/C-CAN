@@ -37,10 +37,7 @@ function parseDocument(raw: string): unknown {
  * bundles `project.json` + `images/…` which are inlined as data URLs, exactly
  * like the original `loadFromDisk`).
  */
-export function ImportJsonDialog({
-  open,
-  onOpenChange,
-}: ImportJsonDialogProps) {
+export function ImportJsonDialog({ open, onOpenChange }: ImportJsonDialogProps) {
   const [jsonText, setJsonText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,9 +59,7 @@ export function ImportJsonDialog({
           }
         },
         onError: (err) => {
-          setError(
-            err instanceof Error ? err.message : "Import failed. Please try again.",
-          );
+          setError(err instanceof Error ? err.message : "Import failed. Please try again.");
         },
       },
     );
@@ -126,8 +121,8 @@ export function ImportJsonDialog({
         <DialogHeader>
           <DialogTitle>Import CYOA JSON</DialogTitle>
           <DialogDescription>
-            Upload a project.json or .zip exported from the ICCPlus editor, or
-            paste a CYOA document to create a new project from it.
+            Upload a project.json or .zip exported from the ICCPlus editor, or paste a CYOA document
+            to create a new project from it.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
@@ -165,11 +160,7 @@ export function ImportJsonDialog({
           ) : null}
         </div>
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button

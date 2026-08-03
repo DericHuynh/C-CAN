@@ -1,0 +1,34 @@
+diff --git a/dist/agent/model-config.js b/dist/agent/model-config.js
+index de70f9f01fd0ad2c46261a92792b43fd39923583..bf82c83e74df79bb5cf68d6c30fad46afa6a8479 100644
+--- a/dist/agent/model-config.js
++++ b/dist/agent/model-config.js
+@@ -18,7 +18,8 @@
+ //  claude-*        → 200_000  (Haiku 4.5 and earlier models)
+ //  gpt-5*          → 1_050_000 (GPT-5.6 Sol/Terra flagship context)
+ //  gemini-2* / gemini-3* → 1_048_576
+-//  everything else → 128_000  (safe conservative floor)
++//  deepseek-*          → 1_000_000 (app-catalog extension)
++//  everything else     → 128_000  (safe conservative floor)
+ //
+ // Note: Fable 5, Sonnet 5, Sonnet 4.6, and Opus 4.6/4.7/4.8 support 1M via the API
+ // at standard prices.
+@@ -60,6 +61,9 @@ const MODEL_CONTEXT_WINDOWS = {
+     "gemini-3.1-pro-preview": 1_048_576,
+     "gemini-2.5-flash": 1_048_576,
+     "gemini-2.5-pro": 1_048_576,
++    // ── DeepSeek (custom engine registered by ICCPlus CYOA Studio) ──────────
++    "deepseek-v4-flash": 1_000_000,
++    "deepseek-reasoner": 1_000_000,
+ };
+ /** Conservative safe default when a model is not in the table. */
+ const DEFAULT_CONTEXT_WINDOW = 128_000;
+@@ -101,6 +105,9 @@ export function getContextWindowForModel(modelId) {
+     // Z.ai GLM 5.x on OpenRouter — 1M context.
+     if (id.startsWith("glm-5") || id.includes("/glm-5"))
+         return 1_048_576;
++    // DeepSeek v4 (chat + reasoner) — 1M context (app-catalog extension).
++    if (id.startsWith("deepseek-"))
++        return 1_000_000;
+     return DEFAULT_CONTEXT_WINDOW;
+ }
+ // ---------------------------------------------------------------------------

@@ -1,24 +1,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -28,14 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  useUpdateProjectSettings,
-  type ProjectDetail,
-} from "@/hooks/use-projects";
+import { cn } from "@/lib/utils";
+import { useUpdateProjectSettings, type ProjectDetail } from "@/hooks/use-projects";
 import type { Category } from "@shared/types";
 import { createDefaultCategory } from "@shared/cyoa";
 
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { EditorPane } from "./EditorPane";
+import { MasterDetail } from "./MasterDetail";
 
 /** Types offered when creating a category; existing types are added too. */
 const DEFAULT_CATEGORY_TYPES = [
@@ -66,7 +52,7 @@ interface CategoriesPanelProps {
   project: ProjectDetail;
 }
 
-interface CategoryForm {
+interface CategoryFormValues {
   name: string;
   type: string;
 }
@@ -77,9 +63,8 @@ export function CategoriesPanel({ project }: CategoriesPanelProps) {
 
   const updateSettings = useUpdateProjectSettings();
 
-  const [editing, setEditing] = useState<Category | null>(null);
+  const [selected, setSelected] = useState<Category | "new" | null>(null);
   const [pendingType, setPendingType] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
 
   const groupsByType = new Map<string, Category[]>();
@@ -88,20 +73,33 @@ export function CategoriesPanel({ project }: CategoriesPanelProps) {
     list.push(category);
     groupsByType.set(category.type, list);
   }
-  const typeOptions = Array.from(
-    new Set([...DEFAULT_CATEGORY_TYPES, ...groupsByType.keys()]),
-  );
+  const typeOptions = Array.from(new Set([...DEFAULT_CATEGORY_TYPES, ...groupsByType.keys()]));
 
   function openAddDialog(type?: string) {
-    setEditing(null);
     setPendingType(type ?? null);
-    setDialogOpen(true);
+    setSelected("new");
   }
 
-  function handleSave(form: CategoryForm) {
-    if (editing) {
+  function handleSave(form: CategoryFormValues) {
+    if (selected === "new") {
+      const sameType = categories.filter((category) => category.type === form.type);
+      const idx = sameType.reduce((max, category) => Math.max(max, category.idx), -1) + 1;
+      const next = [...categories, { ...createDefaultCategory(form.name), idx, type: form.type }];
+      updateSettings.mutate(
+        { projectId, patch: { categories: next } },
+        {
+          onSuccess: () => {
+            toast.success("Category added");
+            setSelected(null);
+            setPendingType(null);
+          },
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to add category"),
+        },
+      );
+    } else if (selected) {
       const next = categories.map((category) =>
-        category.idx === editing.idx && category.type === editing.type
+        category.idx === selected.idx && category.type === selected.type
           ? { ...category, name: form.name, type: form.type }
           : category,
       );
@@ -110,35 +108,11 @@ export function CategoriesPanel({ project }: CategoriesPanelProps) {
         {
           onSuccess: () => {
             toast.success("Category updated");
-            setDialogOpen(false);
+            setSelected(null);
+            setPendingType(null);
           },
           onError: (err) =>
-            toast.error(
-              err instanceof Error ? err.message : "Failed to update category",
-            ),
-        },
-      );
-    } else {
-      const sameType = categories.filter(
-        (category) => category.type === form.type,
-      );
-      const idx =
-        sameType.reduce((max, category) => Math.max(max, category.idx), -1) + 1;
-      const next = [
-        ...categories,
-        { ...createDefaultCategory(form.name), idx, type: form.type },
-      ];
-      updateSettings.mutate(
-        { projectId, patch: { categories: next } },
-        {
-          onSuccess: () => {
-            toast.success("Category added");
-            setDialogOpen(false);
-          },
-          onError: (err) =>
-            toast.error(
-              err instanceof Error ? err.message : "Failed to add category",
-            ),
+            toast.error(err instanceof Error ? err.message : "Failed to update category"),
         },
       );
     }
@@ -148,8 +122,7 @@ export function CategoriesPanel({ project }: CategoriesPanelProps) {
     if (!deleteTarget) return;
     const target = deleteTarget;
     const next = categories.filter(
-      (category) =>
-        !(category.idx === target.idx && category.type === target.type),
+      (category) => !(category.idx === target.idx && category.type === target.type),
     );
     updateSettings.mutate(
       { projectId, patch: { categories: next } },
@@ -159,9 +132,7 @@ export function CategoriesPanel({ project }: CategoriesPanelProps) {
           setDeleteTarget(null);
         },
         onError: (err) => {
-          toast.error(
-            err instanceof Error ? err.message : "Failed to delete category",
-          );
+          toast.error(err instanceof Error ? err.message : "Failed to delete category");
           setDeleteTarget(null);
         },
       },
@@ -169,122 +140,124 @@ export function CategoriesPanel({ project }: CategoriesPanelProps) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {categories.length} categor
-          {categories.length === 1 ? "y" : "ies"} — group items into named
-          slots per type
-        </p>
-        <Button type="button" size="sm" onClick={() => openAddDialog()}>
-          <IconPlus className="mr-1.5 size-4" />
-          New category
-        </Button>
-      </div>
-
-      {categories.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <p className="text-sm text-muted-foreground">
-              No categories yet. Categories let you filter point types,
-              variables, words, groups, design groups, and more into named
-              slots.
-            </p>
-            <Button type="button" onClick={() => openAddDialog()}>
-              <IconPlus className="mr-1.5 size-4" />
-              New category
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        Array.from(groupsByType.entries()).map(([type, typeCategories]) => (
-          <div key={type} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">
-                {typeLabel(type)}{" "}
-                <span className="text-muted-foreground">
-                  ({typeCategories.length})
-                </span>
+    <>
+      <MasterDetail
+        master={
+          <div className="space-y-3">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-background/95 py-2 backdrop-blur">
+              <p className="text-sm text-muted-foreground">
+                {categories.length} categor
+                {categories.length === 1 ? "y" : "ies"} — group items into named slots per type
               </p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => openAddDialog(type)}
-              >
+              <Button type="button" size="sm" onClick={() => openAddDialog()}>
                 <IconPlus className="mr-1.5 size-4" />
-                Add
+                New category
               </Button>
             </div>
-            {typeCategories.map((category) => (
-              <Card key={`${category.type}-${category.idx}-${category.name}`}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <CardTitle className="text-base">
-                          {category.name || "Untitled category"}
-                        </CardTitle>
-                        <Badge variant="secondary">Slot {category.idx}</Badge>
-                      </div>
-                      <CardDescription className="mt-1">
-                        Type: {category.type}
-                      </CardDescription>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-muted-foreground"
-                        onClick={() => {
-                          setEditing(category);
-                          setDialogOpen(true);
-                        }}
-                        aria-label={`Edit ${category.name}`}
-                        title="Edit"
-                      >
-                        <IconPencil className="size-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => setDeleteTarget(category)}
-                        aria-label={`Delete ${category.name}`}
-                        title="Delete"
-                      >
-                        <IconTrash className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        ))
-      )}
 
-      <CategoryDialog
-        key={
-          editing
-            ? `edit-${editing.type}-${editing.idx}`
-            : `new-${pendingType ?? "default"}`
+            {categories.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No categories yet. Categories let you filter point types, variables, words,
+                    groups, design groups, and more into named slots.
+                  </p>
+                  <Button type="button" onClick={() => openAddDialog()}>
+                    <IconPlus className="mr-1.5 size-4" />
+                    New category
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              Array.from(groupsByType.entries()).map(([type, typeCategories]) => (
+                <div key={type} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">
+                      {typeLabel(type)}{" "}
+                      <span className="text-muted-foreground">({typeCategories.length})</span>
+                    </p>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => openAddDialog(type)}>
+                      <IconPlus className="mr-1.5 size-4" />
+                      Add
+                    </Button>
+                  </div>
+                  {typeCategories.map((category) => (
+                    <Card
+                      key={`${category.type}-${category.idx}-${category.name}`}
+                      className={cn(
+                        "cursor-pointer transition-colors",
+                        selected === category && "border-primary bg-primary/5",
+                      )}
+                      onClick={() => setSelected(category)}
+                    >
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <CardTitle className="text-base">{category.name}</CardTitle>
+                              <Badge variant="secondary">Slot {category.idx}</Badge>
+                            </div>
+                            <CardDescription className="mt-1">Type: {category.type}</CardDescription>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-0.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-muted-foreground hover:text-destructive"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setDeleteTarget(category);
+                              }}
+                              aria-label={`Delete ${category.name}`}
+                              title="Delete"
+                            >
+                              <IconTrash className="size-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
         }
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) {
-            setEditing(null);
-            setPendingType(null);
-          }
-        }}
-        category={editing}
-        defaultType={pendingType ?? undefined}
-        typeOptions={typeOptions}
-        busy={updateSettings.isPending}
-        onSave={handleSave}
+        detail={
+          selected === "new" ? (
+            <CategoryForm
+              key={`new-${pendingType ?? "default"}`}
+              category={null}
+              defaultType={pendingType ?? undefined}
+              typeOptions={typeOptions}
+              busy={updateSettings.isPending}
+              onCancel={() => {
+                setSelected(null);
+                setPendingType(null);
+              }}
+              onSave={handleSave}
+            />
+          ) : selected ? (
+            <CategoryForm
+              key={`edit-${selected.type}-${selected.idx}`}
+              category={selected}
+              typeOptions={typeOptions}
+              busy={updateSettings.isPending}
+              onCancel={() => setSelected(null)}
+              onSave={handleSave}
+            />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Select a category to edit it here. Categories group items of the same type into
+                  named slots so the editor can filter by them.
+                </p>
+              </CardContent>
+            </Card>
+          )
+        }
       />
 
       <ConfirmDeleteDialog
@@ -297,31 +270,29 @@ export function CategoriesPanel({ project }: CategoriesPanelProps) {
         busy={updateSettings.isPending}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-interface CategoryDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+interface CategoryFormProps {
   category: Category | null;
   defaultType?: string;
   typeOptions: string[];
   busy?: boolean;
-  onSave: (form: CategoryForm) => void;
+  onCancel: () => void;
+  onSave: (form: CategoryFormValues) => void;
 }
 
-function CategoryDialog({
-  open,
-  onOpenChange,
+function CategoryForm({
   category,
   defaultType,
   typeOptions,
   busy = false,
+  onCancel,
   onSave,
-}: CategoryDialogProps) {
+}: CategoryFormProps) {
   const isEdit = Boolean(category);
   const [name, setName] = useState(category?.name ?? "");
   const [type, setType] = useState(category?.type ?? defaultType ?? typeOptions[0] ?? "");
@@ -331,60 +302,41 @@ function CategoryDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {isEdit ? "Edit category" : "New category"}
-          </DialogTitle>
-          <DialogDescription>
-            Categories group items of the same type into named slots so the
-            editor can filter by them.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="category-name">Name</Label>
-            <Input
-              id="category-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="e.g. Main story"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="category-type">Type</Label>
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger id="category-type" className="w-full">
-                <SelectValue placeholder="Select a type" />
-              </SelectTrigger>
-              <SelectContent>
-                {typeOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {typeLabel(option)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+    <EditorPane
+      title={isEdit ? "Edit category" : "New category"}
+      description="Categories group items of the same type into named slots so the editor can filter by them."
+      busy={busy}
+      saveLabel={isEdit ? "Save" : "Add"}
+      canSave={name.trim().length > 0 && type.length > 0}
+      onCancel={onCancel}
+      onSave={handleSave}
+    >
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="category-name">Name</Label>
+          <Input
+            id="category-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="e.g. Main story"
+          />
         </div>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={busy || name.trim().length === 0 || type.length === 0}
-          >
-            {isEdit ? "Save" : "Add"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="space-y-2">
+          <Label htmlFor="category-type">Type</Label>
+          <Select value={type} onValueChange={setType}>
+            <SelectTrigger id="category-type" className="w-full">
+              <SelectValue placeholder="Select a type" />
+            </SelectTrigger>
+            <SelectContent>
+              {typeOptions.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {typeLabel(option)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </EditorPane>
   );
 }

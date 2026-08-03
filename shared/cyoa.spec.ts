@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { createDefaultApp, normalizeApp, appVersion } from "./cyoa.js";
 import {
-  buildCyoaIndex,
-  checkRequirements,
-  createCyoaState,
-  selectChoice,
-} from "./cyoa-engine.js";
+  aclImportImages,
+  createDefaultApp,
+  normalizeApp,
+  resolveImageRef,
+  appVersion,
+} from "./cyoa.js";
+import { buildCyoaIndex, checkRequirements, createCyoaState, selectChoice } from "./cyoa-engine.js";
 import type { App, Choice, Requireds, Row } from "./types.js";
 
 /**
@@ -292,7 +293,18 @@ describe("export stays loadable by the original ICCPlus", () => {
               selectedThisManyTimesProp: 0,
               requireds: [],
               addons: [],
-              scores: [{ idx: "s-00000", id: "pt-cccc", value: -5, type: "pt-cccc", beforeText: "", afterText: "", requireds: [], showScore: true }],
+              scores: [
+                {
+                  idx: "s-00000",
+                  id: "pt-cccc",
+                  value: -5,
+                  type: "pt-cccc",
+                  beforeText: "",
+                  afterText: "",
+                  requireds: [],
+                  showScore: true,
+                },
+              ],
               groups: [],
             },
           ],
@@ -355,5 +367,209 @@ describe("export stays loadable by the original ICCPlus", () => {
     // Modern docs must not be mutated by the migrations (radius stays, no drops).
     expect(app.styling!.objectBorderRadiusTopLeft).toBe(4);
     expect(app.rows![0].objects[0].scores[0].value).toBe(-5);
+  });
+});
+
+describe("ACL import translation (images as resources)", () => {
+  const legacyChoice = (image: string): Choice =>
+    ({
+      id: "choice_x",
+      index: 0,
+      title: "C",
+      text: "",
+      image,
+      template: 1,
+      objectWidth: "",
+      isActive: false,
+      multipleUseVariable: 99,
+      selectedThisManyTimesProp: 0,
+      requireds: [],
+      addons: [],
+      scores: [],
+      groups: [],
+    }) as unknown as Choice;
+
+  it("translates legacy inline images into image resources referenced by id", () => {
+    const app = normalizeApp({
+      rows: [
+        {
+          id: "row_1",
+          objects: [
+            legacyChoice("data:image/webp;base64,AAAA"),
+            legacyChoice("data:image/webp;base64,BBBB"),
+            {
+              ...legacyChoice("https://example.com/img.png"),
+              id: "choice_y",
+            },
+            legacyChoice(""),
+          ],
+        },
+      ],
+      backpack: [{ id: "bp", image: "data:image/webp;base64,CCCC", objects: [] }],
+    });
+    aclImportImages(app);
+
+    expect(app.images).toHaveLength(4);
+    const payloads = app.images.map((img) => img.image);
+    expect(payloads).toContain("data:image/webp;base64,AAAA");
+    expect(payloads).toContain("https://example.com/img.png");
+    // References are rewritten to resource ids.
+    for (const choice of app.rows![0].objects) {
+      if (choice.image) {
+        expect(app.images.some((img) => img.id === choice.image)).toBe(true);
+      } else {
+        expect(choice.image).toBe("");
+      }
+    }
+    // Empty strings stay empty.
+    expect(app.rows![0].objects[3].image).toBe("");
+    // Backpack rows are translated too.
+    expect(app.backpack![0].image).toMatch(/^image-/);
+    // Resolution round-trips the payload.
+    expect(resolveImageRef(app, app.rows![0].objects[0].image)).toBe("data:image/webp;base64,AAAA");
+    // Legacy inline strings pass through resolution untouched.
+    expect(resolveImageRef(app, "data:image/webp;base64,ZZZZ")).toBe("data:image/webp;base64,ZZZZ");
+  });
+
+  it("deduplicates identical images into one resource", () => {
+    const app = normalizeApp({
+      rows: [
+        {
+          id: "row_1",
+          objects: [
+            legacyChoice("data:image/webp;base64,SAME"),
+            { ...legacyChoice("data:image/webp;base64,SAME"), id: "choice_y" },
+            {
+              ...legacyChoice("data:image/webp;base64,SAME"),
+              id: "choice_z",
+              addons: [
+                {
+                  id: "addon_1",
+                  title: "A",
+                  text: "",
+                  image: "data:image/webp;base64,SAME",
+                  requireds: [],
+                  isSelectable: false,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    aclImportImages(app);
+
+    expect(app.images).toHaveLength(1);
+    const id = app.images[0].id;
+    const objects = app.rows![0].objects;
+    expect(objects[0].image).toBe(id);
+    expect(objects[1].image).toBe(id);
+    expect((objects[2].addons ?? [])[0].image).toBe(id);
+  });
+
+  it("is idempotent — re-importing a translated document adds no resources", () => {
+    const app = normalizeApp({
+      rows: [{ id: "row_1", objects: [legacyChoice("data:image/webp;base64,AAAA")] }],
+    });
+    aclImportImages(app);
+    const before = JSON.stringify(app);
+    const again = JSON.parse(before) as App;
+    aclImportImages(again);
+    expect(JSON.stringify(again)).toBe(before);
+  });
+
+  it("does not touch image values that are already resource ids", () => {
+    const app = normalizeApp({
+      images: [{ id: "image_1", name: "Icon", image: "data:image/webp;base64,AAAA" }],
+      rows: [
+        {
+          id: "row_1",
+          objects: [{ ...legacyChoice("image_1"), id: "choice_y" }],
+        },
+      ],
+    });
+    aclImportImages(app);
+    expect(app.images).toHaveLength(1);
+    expect(app.rows![0].objects[0].image).toBe("image_1");
+    expect(resolveImageRef(app, "image_1")).toBe("data:image/webp;base64,AAAA");
+  });
+
+  it("translates point-type icons and image variants too", () => {
+    const app = normalizeApp({
+      pointTypes: [
+        {
+          id: "pt_1",
+          name: "Gold",
+          startingSum: 10,
+          initValue: 10,
+          activatedId: "",
+          beforeText: "",
+          afterText: "",
+          image: "data:image/png;base64,ICON",
+          negativeImage: "https://example.com/neg.png",
+        },
+      ],
+      rows: [
+        {
+          id: "row_1",
+          objects: [
+            {
+              ...legacyChoice(""),
+              id: "choice_y",
+              imageSwitchingIsOn: true,
+              imageVariants: [
+                {
+                  id: "v1",
+                  image: "data:image/webp;base64,VAR",
+                  requireds: [],
+                  priority: 1,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    aclImportImages(app);
+    expect(app.images).toHaveLength(3);
+    expect(app.pointTypes![0].image).toMatch(/^image-/);
+    expect(app.pointTypes![0].negativeImage).toMatch(/^image-/);
+    expect(app.rows![0].objects[0].imageVariants![0].image).toMatch(/^image-/);
+  });
+
+  it("translates styling background images (design tab) into resources", () => {
+    const app = normalizeApp({
+      styling: {
+        backgroundImage: "data:image/webp;base64,PAGE",
+        rowBackgroundImage: "https://example.com/row.png",
+        objectBackgroundImage: "data:image/webp;base64,PAGE", // dedupes with page bg
+        addonBackgroundImage: "https://example.com/addon.png",
+        backpackBgImage: "data:image/webp;base64,BACKPACK",
+        backgroundColor: "#000000", // not an image — untouched
+      },
+      rows: [],
+    });
+    aclImportImages(app);
+
+    const styling = app.styling as Record<string, unknown>;
+    for (const key of [
+      "backgroundImage",
+      "rowBackgroundImage",
+      "objectBackgroundImage",
+      "addonBackgroundImage",
+      "backpackBgImage",
+    ]) {
+      expect(String(styling[key])).toMatch(/^image-/);
+      expect(resolveImageRef(app, String(styling[key]))).toBeTruthy();
+    }
+    // Same payload dedupes to one resource; total = page/row/addon/backpack.
+    expect(app.images).toHaveLength(4);
+    expect(styling.backgroundImage).toBe(styling.objectBackgroundImage);
+    expect(styling.backgroundColor).toBe("#000000");
+
+    // Idempotent: translating again changes nothing.
+    const again = JSON.parse(JSON.stringify(app)) as App;
+    aclImportImages(again);
+    expect(JSON.stringify(again)).toBe(JSON.stringify(app));
   });
 });

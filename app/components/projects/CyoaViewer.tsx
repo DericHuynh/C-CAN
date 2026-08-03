@@ -1,9 +1,16 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import {
+  Fragment,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type Ref,
+} from "react";
 import {
   IconBackpack,
-  IconCircleCheck,
   IconDownload,
-  IconLock,
   IconMenu2,
   IconPlayerPause,
   IconPlayerPlay,
@@ -28,11 +35,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  BUILD_SLOT_NAMES,
-  useCyoa,
-  type UseCyoaResult,
-} from "@/hooks/use-cyoa";
+import { BUILD_SLOT_NAMES, useCyoa, type UseCyoaResult } from "@/hooks/use-cyoa";
 import { cn } from "@/lib/utils";
 import {
   backgroundOverrides,
@@ -41,7 +44,7 @@ import {
   computeScoreNet,
   effectiveWidth,
   encodeBuildCode,
-  getSearchables,
+  getProjectSearchEntries,
   groupRowChoices,
   hiddenContentsFor,
   isEnabled,
@@ -50,7 +53,10 @@ import {
   replaceText,
   resultRowChoices,
   scoreDiscountDisplay,
+  type CyoaIndex,
   type CyoaState,
+  type ProjectSearchEntry,
+  type ProjectSearchType,
 } from "@shared/cyoa-engine";
 import type {
   Addon,
@@ -58,18 +64,23 @@ import type {
   Choice,
   NonSelectableAddon,
   PointType,
+  Requireds,
   Row,
+  Score,
   SelectableAddon,
 } from "@shared/types";
 import { getStyling } from "@shared/cyoa-styling";
+import { resolveImageRef } from "@shared/cyoa";
 
 import {
+  choiceMargin,
   choiceSurfaceStyle,
   choiceWidthClass,
   formatPointValue,
   imageStyle,
   isChoiceShown,
   renderHtml,
+  resolveChoiceImage,
   rowButtonStyle,
   rowSurfaceStyle,
   rowWidthClass,
@@ -107,24 +118,40 @@ interface CyoaViewerProps {
  */
 export function CyoaViewer({ app, className }: CyoaViewerProps) {
   const cyoa = useCyoa({ app });
-  const [dialog, setDialog] = useState<"backpack" | "build" | "save" | "search" | null>(null);
+  const [dialog, setDialog] = useState<"backpack" | "build" | "save" | null>(null);
   const [fade, setFade] = useState<{ color: string; time: number } | null>(null);
+  const searchBarRef = useRef<ViewerSearchBarHandle>(null);
+
+  // The original ICCPlus viewer is full-page, so its breakpoints key off the
+  // window width. This viewer can be embedded in narrower containers, so we
+  // track the *container* width instead — the columns must collapse to fit
+  // the space the viewer actually has (4-col -> 3/2/1 as the box narrows).
+  const viewerRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<number>(() =>
     typeof window === "undefined" ? 1280 : window.innerWidth,
   );
 
   useEffect(() => {
-    const onResize = () => setViewport(window.innerWidth);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const el = viewerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") {
+      // SSR or very old browser: fall back to window width.
+      const onResize = () => setViewport(window.innerWidth);
+      window.addEventListener("resize", onResize);
+      return () => window.removeEventListener("resize", onResize);
+    }
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setViewport(Math.round(entry.contentRect.width));
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   // Loading overlay: shown on mount (and whenever viewerConfig changes),
   // faded out after a short delay. Simple timeout is fine (parity with the
   // original viewer's fixed loading screen).
-  const [loadingStage, setLoadingStage] = useState<"hidden" | "shown" | "fading">(
-    "hidden",
-  );
+  const [loadingStage, setLoadingStage] = useState<"hidden" | "shown" | "fading">("hidden");
   useEffect(() => {
     if (typeof window === "undefined") return;
     // Re-run (and re-show) whenever the author's loading config changes.
@@ -158,7 +185,13 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
     for (const [id] of cyoa.state.activated) {
       if (lastSelection.current && lastSelection.current.id === id) continue;
       const cMap = cyoa.idx.choiceMap.get(id);
-      const choice = cMap?.choice as (Choice & { isFadeTransition?: boolean; fadeTransitionColor?: string; fadeTransitionTime?: number }) | undefined;
+      const choice = cMap?.choice as
+        | (Choice & {
+            isFadeTransition?: boolean;
+            fadeTransitionColor?: string;
+            fadeTransitionTime?: number;
+          })
+        | undefined;
       if (choice?.isFadeTransition) {
         lastSelection.current = choice as Choice;
         setFade({
@@ -318,7 +351,7 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
     stopBgmAudio();
   }
 
-  function startYoutubeBgm(videoId: string, meta: (typeof currentBgmRef.current) & object) {
+  function startYoutubeBgm(videoId: string, meta: typeof currentBgmRef.current & object) {
     void loadYtApi()
       .then((YT) => {
         const current = ytPlayerRef.current;
@@ -596,9 +629,7 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
     checkPointEnable(pt, cyoa.idx, cyoa.state),
   );
   const pointBarIsOn =
-    visiblePoints.length > 0 ||
-    (app.backpack?.length ?? 0) > 0 ||
-    app.importedChoicesIsOpen;
+    visiblePoints.length > 0 || (app.backpack?.length ?? 0) > 0 || app.importedChoicesIsOpen;
 
   const showBackpackBtn =
     (app.backpack?.length ?? 0) > 0 &&
@@ -608,8 +639,10 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
   const bgOverrides = backgroundOverrides(cyoa.idx, cyoa.state);
   const viewerBackgroundColor =
     bgOverrides.color ?? ((app.styling?.backgroundColor as string) || undefined);
-  const viewerBackgroundImage =
-    bgOverrides.image ?? ((app.styling?.backgroundImage as string) || undefined);
+  const viewerBackgroundImage = resolveImageRef(
+    app,
+    bgOverrides.image ?? ((app.styling?.backgroundImage as string) || undefined),
+  );
 
   // Scroll to a row/choice when a `scrollToRow`/`scrollToObject` choice is
   // freshly selected (mirrors the original `selectScroll`).
@@ -619,14 +652,24 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
       if (lastScrollChoice.current === id) continue;
       const cMap = cyoa.idx.choiceMap.get(id);
       const choice = cMap?.choice as
-        | (Choice & { scrollToRow?: boolean; scrollToObject?: boolean; scrollRowId?: string; scrollObjectId?: string })
+        | (Choice & {
+            scrollToRow?: boolean;
+            scrollToObject?: boolean;
+            scrollRowId?: string;
+            scrollObjectId?: string;
+          })
         | undefined;
       if (choice?.scrollToRow) {
         lastScrollChoice.current = id;
-        const targetId = choice.scrollToObject && choice.scrollObjectId ? choice.scrollObjectId : choice.scrollRowId;
+        const targetId =
+          choice.scrollToObject && choice.scrollObjectId
+            ? choice.scrollObjectId
+            : choice.scrollRowId;
         if (targetId) {
           window.setTimeout(() => {
-            const el = document.querySelector(`[data-cyoa-row="${CSS.escape(targetId)}"], [data-cyoa-choice="${CSS.escape(targetId)}"]`);
+            const el = document.querySelector(
+              `[data-cyoa-row="${CSS.escape(targetId)}"], [data-cyoa-choice="${CSS.escape(targetId)}"]`,
+            );
             el?.scrollIntoView({ behavior: "smooth", block: "start" });
           }, 50);
         }
@@ -637,7 +680,8 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
 
   return (
     <div
-      className={cn("cyoa-viewer space-y-8", className)}
+      ref={viewerRef}
+      className={cn("cyoa-viewer", className)}
       style={{
         ...(app.useVW ? { fontSize: "0.835vw" } : undefined),
         backgroundColor: viewerBackgroundColor,
@@ -651,7 +695,13 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
       <div
         id="bgm-player"
         aria-hidden="true"
-        style={{ position: "fixed", width: 0, height: 0, overflow: "hidden", pointerEvents: "none" }}
+        style={{
+          position: "fixed",
+          width: 0,
+          height: 0,
+          overflow: "hidden",
+          pointerEvents: "none",
+        }}
       />
       {/* Loading overlay (original ICCPlus loading screen) */}
       {loadingStage !== "hidden" ? (
@@ -710,18 +760,7 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
         />
       ) : null}
 
-      {pointBarIsOn ? (
-        <PointBar
-          app={app}
-          cyoa={cyoa}
-          showBackpackBtn={showBackpackBtn}
-          onOpenBackpack={() => setDialog("backpack")}
-          onOpenSearch={() => setDialog("search")}
-          onOpenBuild={() => setDialog("build")}
-          onOpenSave={() => setDialog("save")}
-          onClean={cyoa.clean}
-        />
-      ) : null}
+      {app.enableSearch ? <ViewerSearchBar ref={searchBarRef} cyoa={cyoa} /> : null}
 
       {app.rows?.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
@@ -731,20 +770,38 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
         </div>
       ) : (
         <div className="row-gap-6 -mx-4 flex flex-wrap gap-6 px-4 lg:-mx-6 lg:px-6">
-          {(cyoa.idx.rows ?? app.rows ?? []).map((row) => (
-            <div
-              key={row.id}
-              data-cyoa-row={row.id}
-              className={cn(
-                rowWidthClass(row, app, viewport),
-                "min-w-0",
-              )}
-            >
-              <RowView cyoa={cyoa} row={row} viewport={viewport} />
-            </div>
-          ))}
+          {/* Rows whose requirements are unmet are hidden entirely (the
+              original viewer uses `display:none`). Filter them out here so
+              their wrappers don't create flex gaps between visible rows. */}
+          {(cyoa.idx.rows ?? app.rows ?? [])
+            .filter((row) => isEnabled(row.requireds, cyoa.idx, cyoa.state))
+            .map((row) => (
+              <div
+                key={row.id}
+                data-cyoa-row={row.id}
+                className={cn(rowWidthClass(row, app, viewport), "min-w-0")}
+              >
+                <RowView cyoa={cyoa} row={row} viewport={viewport} />
+              </div>
+            ))}
         </div>
       )}
+
+      {/* Action/point bar docks to the bottom of the scrollport (original
+          viewer's bottom bar). It is the LAST child so `sticky bottom-0`
+          pins it to the bottom edge from the start of the scroll. */}
+      {pointBarIsOn ? (
+        <PointBar
+          app={app}
+          cyoa={cyoa}
+          showBackpackBtn={showBackpackBtn}
+          onOpenBackpack={() => setDialog("backpack")}
+          onOpenSearch={() => searchBarRef.current?.focus()}
+          onOpenBuild={() => setDialog("build")}
+          onOpenSave={() => setDialog("save")}
+          onClean={cyoa.clean}
+        />
+      ) : null}
 
       <BackpackDialog
         open={dialog === "backpack"}
@@ -761,12 +818,6 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
         open={dialog === "save"}
         onOpenChange={(open) => setDialog(open ? "save" : null)}
         cyoa={cyoa}
-      />
-      <SearchDialog
-        open={dialog === "search"}
-        onOpenChange={(open) => setDialog(open ? "search" : null)}
-        cyoa={cyoa}
-        viewport={viewport}
       />
 
       {/* Music player bar (fixed bottom, above the point bar) */}
@@ -818,11 +869,7 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
               title={isMuted ? "Unmute" : "Mute"}
               aria-label={isMuted ? "Unmute" : "Mute"}
             >
-              {isMuted ? (
-                <IconVolumeOff className="size-4" />
-              ) : (
-                <IconVolume className="size-4" />
-              )}
+              {isMuted ? <IconVolumeOff className="size-4" /> : <IconVolume className="size-4" />}
             </Button>
             <input
               type="range"
@@ -848,6 +895,212 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
 /** Serialize a state back into a build code (for the missing-req cascade). */
 function encodeForState(state: CyoaState, cyoa: UseCyoaResult): string {
   return encodeBuildCode(cyoa.app, cyoa.idx, state);
+}
+
+/* ------------------------------------------------------------------ */
+/* Project-wide search bar                                            */
+/* ------------------------------------------------------------------ */
+
+export interface ViewerSearchBarHandle {
+  focus: () => void;
+}
+
+const SEARCH_FILTERS: { value: ProjectSearchType | "all"; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "choice", label: "Choices" },
+  { value: "addon", label: "Addons" },
+  { value: "row", label: "Rows" },
+  { value: "point", label: "Points" },
+  { value: "group", label: "Groups" },
+  { value: "globalRequirement", label: "Reqs" },
+  { value: "word", label: "Words" },
+];
+
+/**
+ * Project-wide search bar: filters the whole document (choices, addons,
+ * rows, point types, groups, global requirements, words) by kind and query,
+ * then jumps to the match — selecting choices/addons and scrolling to the
+ * first choice that references non-visual entities.
+ */
+function ViewerSearchBar({
+  cyoa,
+  ref,
+}: {
+  cyoa: UseCyoaResult;
+  ref?: Ref<ViewerSearchBarHandle>;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<ProjectSearchType | "all">("all");
+  const [open, setOpen] = useState(false);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => inputRef.current?.focus(),
+    }),
+    [],
+  );
+
+  const entries = useMemo(() => getProjectSearchEntries(cyoa.app), [cyoa.app]);
+
+  // First choice that references each point/group/global-requirement/word, so
+  // those results can still "jump" somewhere useful in the rendered viewer.
+  const referenceTargets = useMemo(() => {
+    const map = new Map<string, { choice: Choice; row: Row }>();
+    const setFirst = (id: string | undefined, target: { choice: Choice; row: Row }) => {
+      if (!id || map.has(id)) return;
+      map.set(id, target);
+    };
+    for (const row of cyoa.app.rows ?? []) {
+      for (const choice of row.objects ?? []) {
+        const target = { choice, row };
+        const walk = (requireds: Requireds[] | undefined) => {
+          for (const req of requireds ?? []) {
+            if (req.type === "or") walk(req.orRequireds);
+            else if (req.type === "points" || req.type === "gid" || req.type === "word") {
+              setFirst(req.reqId, target);
+            }
+          }
+        };
+        walk(choice.requireds);
+        for (const groupId of choice.groups ?? []) setFirst(groupId, target);
+        for (const score of choice.scores ?? []) setFirst(score.id, target);
+      }
+    }
+    return map;
+  }, [cyoa.app]);
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return entries
+      .filter((entry) => (filter === "all" ? true : entry.type === filter))
+      .filter((entry) => {
+        // Only list jumpable entities: choices/addons/rows live in rows that
+        // are currently enabled — hidden rows aren't in the DOM, so "jump"
+        // couldn't reach them. The list refreshes live as rows unlock.
+        if (entry.type === "choice" || entry.type === "addon") {
+          return entry.row ? isEnabled(entry.row.requireds, cyoa.idx, cyoa.state) : true;
+        }
+        if (entry.type === "row") {
+          return entry.row ? isEnabled(entry.row.requireds, cyoa.idx, cyoa.state) : true;
+        }
+        return true;
+      })
+      .filter(
+        (entry) =>
+          entry.id.toLowerCase().includes(q) ||
+          entry.label.toLowerCase().includes(q) ||
+          entry.kindLabel.toLowerCase().includes(q),
+      )
+      .slice(0, 12);
+  }, [entries, query, filter, cyoa.idx, cyoa.state]);
+
+  function jumpTo(entry: ProjectSearchEntry) {
+    if (entry.type === "row") {
+      document
+        .querySelector(`[data-cyoa-row="${CSS.escape(entry.id)}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (entry.type === "choice" && entry.choice && entry.row) {
+      document
+        .querySelector(`[data-cyoa-choice="${CSS.escape(entry.id)}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      cyoa.toggleChoice(entry.choice, entry.row);
+    } else if (entry.type === "addon" && entry.choice && entry.row && entry.parentId) {
+      const parent = cyoa.idx.choiceMap.get(entry.parentId)?.choice;
+      document
+        .querySelector(`[data-cyoa-choice="${CSS.escape(entry.parentId)}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (parent) cyoa.toggleAddon(entry.choice as unknown as SelectableAddon, parent, entry.row);
+    } else {
+      // Non-visual entity (point/group/global requirement/word): jump to the
+      // first choice that references it.
+      const target = referenceTargets.get(entry.id);
+      if (target) {
+        document
+          .querySelector(`[data-cyoa-choice="${CSS.escape(target.choice.id)}"]`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+    setQuery("");
+    setOpen(false);
+    inputRef.current?.blur();
+  }
+
+  return (
+    <div className="sticky top-0 z-30 border-b border-border/60 bg-background/90 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/75 lg:px-6">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
+        <div className="relative min-w-56 flex-1">
+          <IconSearch className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            ref={inputRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setOpen(false);
+                inputRef.current?.blur();
+              } else if (event.key === "Enter" && results.length > 0) {
+                jumpTo(results[0]);
+              }
+            }}
+            placeholder="Search choices, rows, addons…"
+            aria-label="Search project"
+            className="pl-8"
+          />
+          {open && query.trim() ? (
+            <div
+              className="absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md"
+              onMouseDown={(event) => event.preventDefault()}
+            >
+              {results.length === 0 ? (
+                <p className="px-2 py-1.5 text-sm text-muted-foreground">No matches.</p>
+              ) : (
+                results.map((entry) => (
+                  <button
+                    key={`${entry.type}:${entry.id}`}
+                    type="button"
+                    onClick={() => jumpTo(entry)}
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                  >
+                    <Badge variant="secondary" className="shrink-0 font-normal">
+                      {entry.kindLabel}
+                    </Badge>
+                    <span className="min-w-0 flex-1 truncate font-medium">{entry.label}</span>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                      {entry.id}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Search filters">
+          {SEARCH_FILTERS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setFilter(option.value)}
+              className={cn(
+                "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+                filter === option.value
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-accent",
+              )}
+              aria-pressed={filter === option.value}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -877,21 +1130,18 @@ function PointBar({
 }: PointBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const styling = (cyoa.idx.app.styling ?? {}) as Record<string, unknown>;
-  // Point bar at the bottom of the viewport when topPointBar is false
-  // (parity with the original viewer's bottom bar).
-  const pointBarAtBottom = app.topPointBar === false;
+  // Action/point bar always docks to the bottom of the viewport (the original
+  // ICCPlus viewer's bottom bar).
   const barOverrides = pointBarOverrides(cyoa.idx, cyoa.state);
 
   return (
     <div
       className={cn(
-        "z-20 -mx-4 border-border px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/75 lg:-mx-6 lg:px-6",
-        pointBarAtBottom
-          ? "sticky bottom-0 border-t"
-          : "sticky top-0 border-b",
+        "sticky bottom-0 z-20 -mx-4 border-t border-border px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/75 lg:-mx-6 lg:px-6",
       )}
       style={{
-        backgroundColor: barOverrides.bgColor ?? ((styling.barBackgroundColor as string) || undefined),
+        backgroundColor:
+          barOverrides.bgColor ?? ((styling.barBackgroundColor as string) || undefined),
         color: barOverrides.textColor ?? ((styling.barTextColor as string) || undefined),
       }}
     >
@@ -900,7 +1150,8 @@ function PointBar({
           {(app.pointTypes ?? [])
             .filter((pt) => checkPointEnable(pt, cyoa.idx, cyoa.state))
             .map((pointType) => {
-              const total = cyoa.totals.get(pointType.id)?.total ?? Number(pointType.startingSum ?? 0);
+              const total =
+                cyoa.totals.get(pointType.id)?.total ?? Number(pointType.startingSum ?? 0);
               const starting = Number(pointType.startingSum ?? 0);
               const isLow = total < starting;
               const isHigh = total > starting;
@@ -910,23 +1161,24 @@ function PointBar({
                   ? (barOverrides.iconColor ?? (styling.barPointPos as string))
                   : undefined;
               return (
-                <div
-                  key={pointType.id}
-                  className="flex items-baseline gap-1.5 text-sm"
-                >
+                <div key={pointType.id} className="flex items-baseline gap-1.5 text-sm">
                   {pointType.iconIsOn && pointType.image ? (
                     <img
-                      src={pointType.image}
+                      src={resolveImageRef(app, pointType.image)}
                       alt=""
                       className="h-4 w-4 object-contain"
                     />
                   ) : null}
-                  <span className="font-medium text-foreground">
-                    {pointType.name}
-                  </span>
+                  {/* The original viewer renders `beforeText + value + afterText`
+                      (never the bare name); `beforeText` usually repeats the
+                      name ("Dream:"), so showing both duplicates the label
+                      ("Dream Dream: 0"). Only fall back to the name when the
+                      author left `beforeText` empty. */}
                   {pointType.beforeText ? (
-                    <span className="text-muted-foreground">{pointType.beforeText}</span>
-                  ) : null}
+                    <span className="font-medium text-foreground">{pointType.beforeText}</span>
+                  ) : (
+                    <span className="font-medium text-foreground">{pointType.name}</span>
+                  )}
                   <span
                     className="font-semibold tabular-nums"
                     style={{ color: color ?? undefined }}
@@ -967,7 +1219,7 @@ function PointBar({
             <IconMenu2 className="size-4" />
           </Button>
           {menuOpen ? (
-            <div className="absolute right-0 top-9 z-30 w-48 rounded-md border border-border bg-popover p-1 shadow-md">
+            <div className="absolute bottom-full right-0 z-30 mb-1 w-48 rounded-md border border-border bg-popover p-1 shadow-md">
               <MenuButton
                 label="Clear selected choices"
                 onClick={() => {
@@ -1006,13 +1258,7 @@ function PointBar({
   );
 }
 
-function MenuButton({
-  label,
-  onClick,
-}: {
-  label: string;
-  onClick: () => void;
-}) {
+function MenuButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -1028,15 +1274,7 @@ function MenuButton({
 /* Row                                                                */
 /* ------------------------------------------------------------------ */
 
-function RowView({
-  cyoa,
-  row,
-  viewport,
-}: {
-  cyoa: UseCyoaResult;
-  row: Row;
-  viewport: number;
-}) {
+function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewport: number }) {
   const enabled = isEnabled(row.requireds, cyoa.idx, cyoa.state);
 
   // Hidden entirely when requirements are unmet (original behavior).
@@ -1055,7 +1293,8 @@ function RowView({
 
   // Row card surface (original `AppRow.rowBackground`): the header box that
   // wraps the image/button, title and text carries the row's background,
-  // border, radius and shadow; the outer section holds the body margins.
+  // border, radius, shadow and `rowMargin` side insets; the outer section
+  // holds only the `rowBody` margins (top / sides% / bottom).
   const headerStyle = {
     backgroundColor: rowSurface.backgroundColor || undefined,
     backgroundImage: rowSurface.gradient
@@ -1073,6 +1312,8 @@ function RowView({
     boxShadow: rowSurface.boxShadow || undefined,
     filter: rowSurface.filter || undefined,
     marginBottom: rowSurface.marginBottom || undefined,
+    marginLeft: rowSurface.marginLeft || undefined,
+    marginRight: rowSurface.marginRight || undefined,
     ...(rowSurface.borderImage
       ? {
           borderImage: `url('${rowSurface.borderImage}') 0 0 0 0 / ${rowSurface.borderWidth} stretch`,
@@ -1082,18 +1323,19 @@ function RowView({
 
   const titleEl = row.title ? (
     <h2
-      className="text-lg font-semibold tracking-tight"
+      className="font-semibold"
       style={titleStyle}
       dangerouslySetInnerHTML={renderHtml(row.title, cyoa.idx, cyoa.state)}
     />
   ) : null;
-  const textEl = row.titleText && !rowTextRemoved ? (
-    <p
-      className="text-sm leading-6 text-muted-foreground"
-      style={textStyleObj}
-      dangerouslySetInnerHTML={renderHtml(row.titleText, cyoa.idx, cyoa.state)}
-    />
-  ) : null;
+  const textEl =
+    row.titleText && !rowTextRemoved ? (
+      <p
+        className="leading-6"
+        style={textStyleObj}
+        dangerouslySetInnerHTML={renderHtml(row.titleText, cyoa.idx, cyoa.state)}
+      />
+    ) : null;
   // Row buttons render in the image slot (original `isButtonRow` replaces the
   // row image); otherwise the row image spans the full width at its natural
   // height, only constrained when the document opts into a fixed object-fit.
@@ -1101,7 +1343,7 @@ function RowView({
     <RowButton cyoa={cyoa} row={row} />
   ) : row.image ? (
     <img
-      src={row.image}
+      src={resolveImageRef(cyoa.app, row.image)}
       alt=""
       className="w-full"
       style={rowImageStyle}
@@ -1115,8 +1357,7 @@ function RowView({
         string,
         unknown
       >;
-      const imageBox =
-        typeof styling.rowImageBoxWidth === "number" ? styling.rowImageBoxWidth : 50;
+      const imageBox = typeof styling.rowImageBoxWidth === "number" ? styling.rowImageBoxWidth : 50;
       const textBox = 100 - imageBox;
       const imageCol = (
         <div className="min-w-0" style={{ width: `${imageBox}%` }}>
@@ -1124,14 +1365,14 @@ function RowView({
         </div>
       );
       const textCol = (
-        <div className="min-w-0 space-y-1" style={{ width: `${textBox}%` }}>
+        <div className="min-w-0" style={{ width: `${textBox}%` }}>
           {titleEl}
           {textEl}
         </div>
       );
       return (
-        <section className="space-y-3" style={{ margin: rowSurface.margin, marginLeft: rowSurface.marginLeft, marginRight: rowSurface.marginRight }}>
-          <header className="flex items-start gap-3" style={headerStyle}>
+        <section style={{ margin: rowSurface.margin }}>
+          <header className="flex items-start" style={headerStyle}>
             {tpl === 2 ? (
               <>
                 {textCol}
@@ -1159,20 +1400,14 @@ function RowView({
       .filter((el) => el !== null)
       .map((el, i) => <Fragment key={i}>{el}</Fragment>);
     return (
-      <section className="space-y-3" style={{ margin: rowSurface.margin, marginLeft: rowSurface.marginLeft, marginRight: rowSurface.marginRight }}>
-        <header className="space-y-1" style={headerStyle}>
-          {orderedWithKeys}
-        </header>
+      <section style={{ margin: rowSurface.margin }}>
+        <header style={headerStyle}>{orderedWithKeys}</header>
         {rowContent(cyoa, row, viewport)}
       </section>
     );
   }
 
-  return (
-    <section className="space-y-3" style={{ margin: rowSurface.margin }}>
-      {rowContent(cyoa, row, viewport)}
-    </section>
-  );
+  return <section style={{ margin: rowSurface.margin }}>{rowContent(cyoa, row, viewport)}</section>;
 }
 
 /** Row body: button row, result/group rows, or the choice grid. */
@@ -1184,17 +1419,34 @@ function rowContent(cyoa: UseCyoaResult, row: Row, viewport: number) {
     return <GroupRowContent cyoa={cyoa} row={row} viewport={viewport} />;
   }
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className={cn("flex flex-wrap", rowJustifyClass(row))}>
       {sortedChoices(row).map((choice) => (
         <div
           key={choice.id}
           className={cn("min-w-0", effectiveChoiceWidth(row, choice, cyoa, viewport))}
+          style={{ padding: choiceMargin(choice, row, cyoa.idx, cyoa.state) }}
         >
           <ChoiceView cyoa={cyoa} choice={choice} row={row} viewport={viewport} />
         </div>
       ))}
     </div>
   );
+}
+
+/** Row content justification (original `rowJustify` -> `justify-*` class). */
+function rowJustifyClass(row: Row): string {
+  switch (row.rowJustify) {
+    case "center":
+      return "justify-center";
+    case "end":
+      return "justify-end";
+    case "space-around":
+      return "justify-around";
+    case "space-between":
+      return "justify-between";
+    default:
+      return "justify-start";
+  }
 }
 
 function RowButton({ cyoa, row }: { cyoa: UseCyoaResult; row: Row }) {
@@ -1238,9 +1490,13 @@ function ResultRowContent({
   const allowDeselect = cyoa.app.viewerSettings?.allowDeselect === true;
   if (entries.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className={cn("flex flex-wrap", rowJustifyClass(row))}>
       {entries.map(({ choice, row: origin }) => (
-        <div key={choice.id} className="min-w-0 flex-1 basis-64">
+        <div
+          key={choice.id}
+          className={cn("min-w-0", effectiveChoiceWidth(origin, choice, cyoa, viewport))}
+          style={{ padding: choiceMargin(choice, origin, cyoa.idx, cyoa.state) }}
+        >
           <ChoiceView
             cyoa={cyoa}
             choice={choice}
@@ -1266,9 +1522,13 @@ function GroupRowContent({
   const entries = groupRowChoices(row, cyoa.idx);
   if (entries.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className={cn("flex flex-wrap", rowJustifyClass(row))}>
       {entries.map(({ choice, row: origin }) => (
-        <div key={choice.id} className="min-w-0 flex-1 basis-64">
+        <div
+          key={choice.id}
+          className={cn("min-w-0", effectiveChoiceWidth(origin, choice, cyoa, viewport))}
+          style={{ padding: choiceMargin(choice, origin, cyoa.idx, cyoa.state) }}
+        >
           <ChoiceView cyoa={cyoa} choice={choice} row={origin} viewport={viewport} info />
         </div>
       ))}
@@ -1291,7 +1551,6 @@ interface ChoiceViewProps {
 
 function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceViewProps) {
   const enabled = isEnabled(choice.requireds, cyoa.idx, cyoa.state);
-  const entry = cyoa.state.activated.get(choice.id);
   // A single-select choice is stored as `{ multiple: 0 }` — presence in the
   // activated map (not the count) means it is selected (matches the original
   // viewer's `isActive` flag semantics).
@@ -1299,7 +1558,7 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
   const isMulti = choice.isSelectableMultiple === true;
   const surface = choiceSurfaceStyle(choice, row, cyoa.idx, cyoa.state);
   const shown = isChoiceShown(choice, row, cyoa.idx, cyoa.state);
-  const text = (choice as Choice & { title?: string; text?: string });
+  const text = choice as Choice & { title?: string; text?: string };
   const titleStyle = textStyle("objectTitle", cyoa.idx, cyoa.state, row, choice);
   const textStyleObj = textStyle("objectText", cyoa.idx, cyoa.state, row, choice);
   const objectImageStyle = imageStyle("objectImage", cyoa.idx, cyoa.state, row, choice);
@@ -1307,23 +1566,48 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
   const isClickable = !info && !isCounterOnlyMulti && !choice.isNotSelectable;
 
   const hidden = hiddenContentsFor(row, cyoa.idx, cyoa.state);
-  const nAddons = (choice.addons ?? []).filter(
-    (a): a is NonSelectableAddon => !a.isSelectable,
-  );
+  const nAddons = (choice.addons ?? []).filter((a): a is NonSelectableAddon => !a.isSelectable);
   const sAddons = (choice.addons ?? []).filter(
     (a): a is SelectableAddon => a.isSelectable === true,
   );
 
   if (!shown) return null;
 
-  const counter = isMulti ? (
-    <MultiChoice cyoa={cyoa} choice={choice} row={row} />
-  ) : null;
+  const counter = isMulti ? <MultiChoice cyoa={cyoa} choice={choice} row={row} /> : null;
 
   // Scores/requirements move into the first addon when the choice opts into
   // `showScoreInAddon` / `showReqInAddon` (original viewer behavior).
   const showScores = !hidden.has("4") && !choice.showScoreInAddon;
   const showReqs = !hidden.has("5") && !choice.showReqInAddon;
+
+  const effTpl = viewerTemplate(choice, false, cyoa.app, viewport, cyoa.idx, cyoa.state);
+  const tpl = templateClasses(effTpl);
+  // Stacked templates (1/4/5) size the image from the styling cascade; the
+  // side templates let their flex box handle sizing. The image always fills
+  // the card width (the doc's objectImageWidth is ignored for the stacked
+  // layouts so images align edge-to-edge with the card).
+  const imgStyle =
+    effTpl === 1 || effTpl === 4 || effTpl === 5
+      ? { ...objectImageStyle, width: "100%", borderColor: surface.imageBorderColor || undefined }
+      : { borderColor: surface.imageBorderColor || undefined };
+
+  // Template 5 flows the image inline (after requirements, before the text);
+  // all other templates render it as the first/last flex child of the card.
+  const choiceImage = resolveChoiceImage(choice, cyoa.idx, cyoa.state);
+  const tplImageEl =
+    choiceImage && !hidden.has("2") ? (
+      <div className={tpl.image}>
+        <img
+          src={choiceImage}
+          alt=""
+          className={cn(
+            "rounded-md border border-border",
+            effTpl === 2 || effTpl === 3 ? "h-full w-full object-contain" : "w-full",
+          )}
+          style={imgStyle}
+        />
+      </div>
+    ) : null;
 
   const addonsEl = (
     <>
@@ -1337,7 +1621,11 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
               choice={choice}
               row={row}
               hidden={hidden}
-              isFirst={!addon.skipIndex && sAddons.length === 0 && i === nAddons.findIndex((a) => !a.skipIndex)}
+              isFirst={
+                !addon.skipIndex &&
+                sAddons.length === 0 &&
+                i === nAddons.findIndex((a) => !a.skipIndex)
+              }
             />
           ))}
         </div>
@@ -1369,51 +1657,37 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
       {text.title && !hidden.has("1") ? (
         <>
           <h3
-            className="font-medium"
+            className="font-semibold"
             style={titleStyle}
             dangerouslySetInnerHTML={renderHtml(text.title, cyoa.idx, cyoa.state)}
           />
-          {isMulti && entry ? (
-            <span className="text-xs">(x{entry.multiple})</span>
-          ) : null}
         </>
       ) : null}
       {counter}
-      {text.text && !hidden.has("3") ? (
-        <p
-          className="text-sm leading-5 text-muted-foreground"
-          style={textStyleObj}
-          dangerouslySetInnerHTML={renderHtml(text.text, cyoa.idx, cyoa.state)}
-        />
-      ) : null}
+      {/* Original viewer order: title, scores, requirements, then text. */}
       {showScores ? (
-        <Scores
-          cyoa={cyoa}
-          choice={choice}
-          row={row}
-          scoreColor={surface.scoreColor}
-        />
+        <Scores cyoa={cyoa} choice={choice} row={row} scoreColor={surface.scoreColor} />
       ) : null}
       {showReqs ? (
-        <Requirements
-          cyoa={cyoa}
-          choice={choice}
-          row={row}
-          textColor={surface.scoreColor}
+        <Requirements cyoa={cyoa} choice={choice} row={row} textColor={surface.scoreColor} />
+      ) : null}
+      {effTpl === 5 ? tplImageEl : null}
+      {text.text && !hidden.has("3") ? (
+        <p
+          className="leading-5"
+          style={{
+            ...textStyleObj,
+            // Gap after the scores/requirements badges (the global
+            // `.cyoa-viewer p` margin rule beats a margin utility class,
+            // so set it inline).
+            ...((showScores || showReqs) && { marginTop: 8 }),
+          }}
+          dangerouslySetInnerHTML={renderHtml(text.text, cyoa.idx, cyoa.state)}
         />
       ) : null}
       {!choice.useSeperateAddon ? addonsEl : null}
     </>
   );
-
-  const effTpl = viewerTemplate(choice, false, cyoa.app, viewport, cyoa.idx, cyoa.state);
-  const tpl = templateClasses(effTpl);
-  // Stacked templates (1/4) size the image from the styling cascade; the
-  // side/background templates let their flex/absolute box handle sizing.
-  const imgStyle =
-    effTpl === 1 || effTpl === 4
-      ? { ...objectImageStyle, borderColor: surface.imageBorderColor || undefined }
-      : { borderColor: surface.imageBorderColor || undefined };
 
   // The document's `objectBgColor` (or the state filter color) wins here.
   // We intentionally do NOT use the `bg-card` utility: the agent-native shell
@@ -1421,17 +1695,14 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
   // mode, which would silently override the CYOA's background color. The theme
   // card surface is still applied inline as the fallback when the document
   // doesn't specify a background.
-  const docBackground =
-    surface.backgroundColor || "var(--agent-native-card-surface)";
+  const docBackground = surface.backgroundColor || "var(--agent-native-card-surface)";
 
   return (
     <div
       data-cyoa-choice={choice.id}
       className={cn(
-        "relative flex h-full flex-col gap-2 rounded-lg border p-4 text-start transition-colors",
-        isSelected
-          ? "border-primary bg-primary/5 ring-1 ring-primary"
-          : "border-border",
+        "relative flex h-full flex-col rounded-lg border p-4 text-start transition-colors",
+        isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border",
         !enabled && "cursor-not-allowed",
         cyoa.app.isPointerCursor && isClickable && "cursor-pointer",
       )}
@@ -1450,7 +1721,6 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
         borderWidth: surface.borderWidth || undefined,
         borderRadius: surface.borderRadius || undefined,
         boxShadow: surface.boxShadow || undefined,
-        margin: surface.margin || undefined,
         overflow: surface.overflow || undefined,
         ...(surface.borderImage
           ? {
@@ -1463,34 +1733,9 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
         cyoa.toggleChoice(choice, row);
       }}
     >
-      {choice.image && !hidden.has("2") ? (
-        <div className={tpl.image}>
-          <img
-            src={choice.image}
-            alt=""
-            className={cn(
-              "rounded-md border border-border",
-              effTpl === 5
-                ? "h-full w-full object-cover"
-                : effTpl === 2 || effTpl === 3
-                  ? "h-full w-full object-contain"
-                  : "w-full",
-            )}
-            style={imgStyle}
-          />
-        </div>
-      ) : null}
+      {effTpl !== 5 ? tplImageEl : null}
       <div className={tpl.body}>{body}</div>
       {choice.useSeperateAddon ? <div className="mt-2 w-full">{addonsEl}</div> : null}
-      {!enabled && !isSelected ? (
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <IconLock className="size-3" />
-          Locked by requirements
-        </span>
-      ) : null}
-      {isSelected ? (
-        <IconCircleCheck className="absolute right-2 top-2 size-5 text-primary" />
-      ) : null}
     </div>
   );
 }
@@ -1499,15 +1744,7 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
 /* Multi-choice counter                                               */
 /* ------------------------------------------------------------------ */
 
-function MultiChoice({
-  cyoa,
-  choice,
-  row,
-}: {
-  cyoa: UseCyoaResult;
-  choice: Choice;
-  row: Row;
-}) {
+function MultiChoice({ cyoa, choice, row }: { cyoa: UseCyoaResult; choice: Choice; row: Row }) {
   const entry = cyoa.state.activated.get(choice.id);
   const count = entry?.multiple ?? 0;
   const min = Number(choice.numMultipleTimesMinus ?? 0);
@@ -1519,8 +1756,7 @@ function MultiChoice({
     linkedPoint && choice.isMultipleUseVariable === false
       ? formatPointValue(linkedPoint, cyoa.totals.get(linkedPoint.id)?.total ?? 0)
       : String(count);
-  const hideCounterUntilSelect =
-    choice.hideCounterUntilSelect && count === 0;
+  const hideCounterUntilSelect = choice.hideCounterUntilSelect && count === 0;
 
   if (choice.isNotSelectable || hideCounterUntilSelect) return null;
 
@@ -1551,12 +1787,12 @@ function MultiChoice({
   }
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center justify-center gap-1.5">
       <Button
         type="button"
         variant="outline"
         size="icon"
-        className="size-6 rounded-full"
+        className="size-9 rounded-full text-xl"
         disabled={count <= min || choice.selectOnce}
         onClick={(event) => {
           event.stopPropagation();
@@ -1590,7 +1826,7 @@ function MultiChoice({
         type="button"
         variant="outline"
         size="icon"
-        className="size-6 rounded-full"
+        className="size-9 rounded-full text-xl"
         disabled={max > 0 && count >= max}
         onClick={(event) => {
           event.stopPropagation();
@@ -1607,6 +1843,45 @@ function MultiChoice({
 /* ------------------------------------------------------------------ */
 /* Scores & requirements (inline)                                     */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Score badge value, mirroring the original ObjectScore `scoreValueText`:
+ * absolute value with a +/- prefix when the point type has
+ * `plussOrMinusAdded` (sign inverted when `plussOrMinusInverted`). The JSON
+ * value is the negated change (positive = cost, negative = gain), so e.g. a
+ * stored -5 renders as "+5".
+ */
+function formatScoreValue(point: PointType | undefined, value: number): string {
+  const abs = Math.abs(value);
+  if (point?.plussOrMinusAdded) {
+    const negative = value < 0;
+    const prefix = point.plussOrMinusInverted ? (negative ? "-" : "+") : (negative ? "+" : "-");
+    return `${prefix}${formatPointValue(point, abs)}`;
+  }
+  return formatPointValue(point ?? ({} as PointType), abs);
+}
+
+/**
+ * Badge display value (original ObjectScore `scoreValueText`): the base net
+ * with discounts, scaled by the count ONLY when `multiplyByTimes` +
+ * `displayMulScore` — a plain multi-select badge shows the per-copy value,
+ * not the cumulative total.
+ */
+function scoreDisplayValue(
+  choice: Choice | SelectableAddon,
+  scoreIndex: number,
+  score: Score,
+  idx: CyoaIndex,
+  state: CyoaState,
+  multiple: number,
+): number {
+  const base = computeScoreNet(choice, scoreIndex, score, idx, state, 0);
+  const count = Math.abs(multiple);
+  if (score.multiplyByTimes && score.displayMulScore && count > 0) {
+    return base * (count + 1);
+  }
+  return base;
+}
 
 function Scores({
   cyoa,
@@ -1630,12 +1905,12 @@ function Scores({
   if (activeScores.length === 0) return null;
   const scoreStyle = textStyle("scoreText", cyoa.idx, cyoa.state, row, choice);
   return (
-    <div className="flex flex-wrap gap-1.5 pt-1">
+    <div className="flex flex-wrap justify-center gap-1.5 pt-1">
       {activeScores.map((score, scoreIndex) => {
         const entry = cyoa.state.activated.get(choice.id);
         const multiple = entry?.multiple ?? 0;
         const point = cyoa.idx.pointTypeMap.get(score.id ?? score.type);
-        const value = computeScoreNet(choice, scoreIndex, score, cyoa.idx, cyoa.state, multiple);
+        const value = scoreDisplayValue(choice, scoreIndex, score, cyoa.idx, cyoa.state, multiple);
         const display = scoreDiscountDisplay(choice, score, cyoa.idx, cyoa.state);
         // Discount display mirrors the original ObjectScore: when a discount
         // is active with `discountShow`, its custom text replaces the normal
@@ -1662,19 +1937,15 @@ function Scores({
             variant="secondary"
             style={{ ...scoreStyle, color: scoreColor || color }}
           >
-            {before ? (
-              <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(before) }} />
-            ) : null}
+            {before ? <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(before) }} /> : null}
             {hideValue ? null : (
-              <span dangerouslySetInnerHTML={{
-                __html: sanitizeHtml(
-                  `${value > 0 ? "+" : ""}${formatPointValue(point ?? ({} as PointType), value)}`,
-                ),
-              }} />
+              <span
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeHtml(formatScoreValue(point, value)),
+                }}
+              />
             )}
-            {after ? (
-              <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(after) }} />
-            ) : null}
+            {after ? <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(after) }} /> : null}
           </Badge>
         );
       })}
@@ -1695,61 +1966,151 @@ function Requirements({
 }) {
   const reqs = choice.requireds ?? [];
   if (reqs.length === 0) return null;
-  const labels = reqs
+  const items = reqs
     .filter((r) => isEnabled([r], cyoa.idx, cyoa.state) || !r.hideRequired)
-    .map((r) => sanitizeHtml(requirementLabel(r, cyoa)))
-    .filter(Boolean);
+    .map((r) => ({
+      req: r,
+      text: requirementLabel(r, cyoa),
+      // Exclusive requirements (`required: false`) gate on the target being
+      // NOT active — give them a distinct look so they aren't mistaken for
+      // normal requirements.
+      negated: r.required === false,
+    }))
+    .filter((item) => item.text);
+  // Requirements chained with a leading "and " beforeText belong to the
+  // previous badge (e.g. "Requires: X" + "and Y" condenses to ONE bubble
+  // "Requires: X and Y").
+  const merged: { text: string; negated: boolean }[] = [];
+  for (const item of items) {
+    const joinsPrevious = /^\s*and\b/i.test(item.req.beforeText ?? "");
+    if (joinsPrevious && merged.length > 0) {
+      const prev = merged[merged.length - 1];
+      prev.text = `${prev.text} ${item.text}`;
+    } else {
+      merged.push({ text: item.text, negated: item.negated });
+    }
+  }
+  const labels = merged
+    .map((label) => ({ text: sanitizeHtml(label.text), negated: label.negated }))
+    .filter((label) => label.text);
   if (labels.length === 0) return null;
   const style = textStyle("scoreText", cyoa.idx, cyoa.state, row, choice);
   return (
-    <div className="flex flex-wrap gap-1.5 pt-1 text-xs text-muted-foreground">
+    <div className="flex flex-wrap justify-center gap-1.5 pt-1 text-xs text-muted-foreground">
       {labels.map((label, i) => (
-        <Badge key={i} variant="outline" style={{ ...style, color: textColor || undefined }}>
-          <span dangerouslySetInnerHTML={{ __html: label }} />
+        <Badge
+          key={i}
+          variant="outline"
+          className={
+            label.negated ? "border-destructive/40 text-destructive" : undefined
+          }
+          style={{ ...style, color: textColor || undefined }}
+        >
+          <span dangerouslySetInnerHTML={{ __html: label.text }} />
         </Badge>
       ))}
     </div>
   );
 }
 
-/** Human-readable label for a requirement entry (getReqText equivalent). */
-function requirementLabel(req: import("@shared/types").Requireds, cyoa: UseCyoaResult): string {
+/**
+ * Core requirement text (before/after/custom excluded): the target choice,
+ * the point comparison, or — for `or`/`selFrom*` — the listed targets, so a
+ * requirement reads "1 of A, B, C" instead of the count-only "1 of 7".
+ */
+function requirementCoreText(req: import("@shared/types").Requireds, cyoa: UseCyoaResult): string {
   const { idx } = cyoa;
-  const before = req.beforeText ?? "";
-  const after = req.afterText ?? "";
-  let text = "";
   switch (req.type) {
     case "id": {
-      const cMap = idx.choiceMap.get(req.reqId);
-      text = cMap?.choice.title || req.reqId;
-      break;
+      // Old docs may encode an activation target as `choiceId/ON#suffix`.
+      const [targetId, suffix] = req.reqId.split("/ON#");
+      const cMap = idx.choiceMap.get(targetId);
+      return cMap
+        ? `${suffix ? `${suffix} ` : ""}${cMap.choice.title}`
+        : `${stripEntityPrefix(targetId)}${suffix ? ` ${suffix}` : ""}`;
     }
     case "points": {
       const point = idx.pointTypeMap.get(req.reqId);
       const op = { "1": ">", "2": "≥", "3": "=", "4": "≤", "5": "<", "6": "≠" }[
         req.operator ?? "1"
       ];
-      text = `${point?.name || req.reqId} ${op ?? ">"} ${req.reqPoints}`;
-      break;
+      return `${point?.name || stripEntityPrefix(req.reqId)} ${op ?? ">"} ${req.reqPoints}`;
     }
     case "gid": {
       const reqs = idx.globalReqMap.get(req.reqId);
-      text = reqs ? requirementLabel(reqs[0], cyoa) : req.reqId;
-      break;
+      return reqs ? requirementCoreText(reqs[0], cyoa) : stripEntityPrefix(req.reqId);
     }
     case "or": {
-      text = `${req.orNum ?? 1} of ${req.orRequireds?.length ?? 0}`;
-      break;
+      const subs = (req.orRequireds ?? [])
+        .map((sub) => requirementCoreText(sub, cyoa))
+        .filter(Boolean);
+      const orNum = req.orNum ?? 1;
+      const word = cyoa.app.defaultOrReq ?? "of";
+      if ((cyoa.app.orderOrReqText ?? "0") === "1") {
+        return `${subs.join(", ")} ${word} ${orNum}`;
+      }
+      return `${orNum} ${word} ${subs.join(", ")}`;
+    }
+    case "selFromGroups": {
+      const names = (req.selGroups ?? []).map(
+        (gid) => idx.groupMap.get(gid)?.name || stripEntityPrefix(gid),
+      );
+      const num = req.selNum ?? 1;
+      const word = cyoa.app.defaultOrReq ?? "of";
+      if ((cyoa.app.orderSelReqText ?? "0") === "1") {
+        return `${names.join(", ")} ${word} ${num}`;
+      }
+      return `${num} ${word} ${names.join(", ")}`;
+    }
+    case "selFromRows": {
+      const names = (req.selRows ?? []).map(
+        (rid) => idx.rowById.get(rid)?.title || stripEntityPrefix(rid),
+      );
+      const num = req.selNum ?? 1;
+      const word = cyoa.app.defaultOrReq ?? "of";
+      if ((cyoa.app.orderSelReqText ?? "0") === "1") {
+        return `${names.join(", ")} ${word} ${num}`;
+      }
+      return `${num} ${word} ${names.join(", ")}`;
+    }
+    case "selFromWhole": {
+      const num = req.selNum ?? 1;
+      const word = cyoa.app.defaultOrReq ?? "of";
+      return (cyoa.app.orderSelReqText ?? "0") === "1" ? `${word} ${num}` : `${num} ${word}`;
     }
     default:
-      text = req.reqId || req.type;
+      return stripEntityPrefix(req.reqId || req.type);
   }
+}
+
+/** Human-readable label for a requirement entry (getReqText equivalent). */
+function requirementLabel(req: import("@shared/types").Requireds, cyoa: UseCyoaResult): string {
+  const { idx } = cyoa;
+  const before = req.beforeText ?? "";
+  // The legacy editor's default after-requirement text is the placeholder
+  // "choice" (e.g. "Required: Some Choice choice") — drop it from display.
+  const after = (req.afterText ?? "") === "choice" ? "" : (req.afterText ?? "");
+  const text = requirementCoreText(req, cyoa);
   const custom = req.customTextIsOn ? req.customText : "";
+  if (custom !== undefined && custom !== "") {
+    return replaceText(custom, idx, cyoa.state);
+  }
+  // Exclusive requirements (`required: false`) gate on the target being NOT
+  // active — read as "Not: X" instead of the author's positive before/after
+  // text (e.g. "Required:") so they aren't mistaken for normal requirements.
+  if (req.required === false) {
+    return replaceText(`Not: ${text}`.trim(), idx, cyoa.state);
+  }
   return replaceText(
-    (custom !== undefined && custom !== "" ? custom : `${before} ${text} ${after}`.trim()),
+    `${before} ${text} ${after}`.trim(),
     idx,
     cyoa.state,
   );
+}
+
+/** Strip known entity-type prefixes (choice-/row-/addon-/point-…) from ids. */
+function stripEntityPrefix(id: string): string {
+  return id.replace(/^(choice|row|addon|point|group|variable|word|image|sfx)-/, "");
 }
 
 /* ------------------------------------------------------------------ */
@@ -1776,8 +2137,7 @@ function AddonView({
   const selected = isSelectable && cyoa.state.activated.has(addon.id);
   // Choice-level `showAllAddons` force-shows every addon of that choice
   // (mirrors the original bumping the global `app.showAllAddons` counter).
-  const parentForceShows =
-    choice.showAllAddons === true && cyoa.state.activated.has(choice.id);
+  const parentForceShows = choice.showAllAddons === true && cyoa.state.activated.has(choice.id);
   const visible =
     (addon.showAddon || enabled || cyoa.app.showAllAddons > 0 || parentForceShows) &&
     (!addon.hideAddon || choice.isActive || selected) &&
@@ -1800,7 +2160,7 @@ function AddonView({
     <>
       {addon.image && !hidden?.has("7") ? (
         <img
-          src={addon.image}
+          src={resolveImageRef(cyoa.app, addon.image)}
           alt=""
           className="w-full"
           style={imageStyle("addonImage", cyoa.idx, cyoa.state, row, choice)}
@@ -1864,9 +2224,7 @@ function AddonView({
       aria-pressed={selected}
       className={cn(
         "min-w-32 flex-1 basis-40 rounded-md border p-2 text-start",
-        selected
-          ? "border-primary bg-primary/5 ring-1 ring-primary"
-          : "border-border bg-muted/30",
+        selected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border bg-muted/30",
         !enabled && "cursor-not-allowed opacity-50",
         cyoa.app.isPointerCursor && (enabled || selected) && "cursor-pointer",
       )}
@@ -1946,8 +2304,13 @@ function BackpackDialog({
   const app = cyoa.app;
   const styling = (app.styling ?? {}) as Record<string, unknown>;
   const useBackpackDesign = styling.useBackpackDesign === true;
-  const bgColor = (useBackpackDesign ? styling.backpackBgColor : styling.backgroundColor) as string | undefined;
-  const bgImage = (useBackpackDesign ? styling.backpackBgImage : styling.backgroundImage) as string | undefined;
+  const bgColor = (useBackpackDesign ? styling.backpackBgColor : styling.backgroundColor) as
+    | string
+    | undefined;
+  const rawBgImage = (useBackpackDesign ? styling.backpackBgImage : styling.backgroundImage) as
+    | string
+    | undefined;
+  const bgImage = resolveImageRef(app, rawBgImage);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -1963,11 +2326,13 @@ function BackpackDialog({
           <DialogTitle>{app.backpack?.[0]?.title || "Backpack"}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-wrap gap-3">
-          {(app.backpack ?? []).map((row) => (
-            <div key={row.id} className={cn(rowWidthClass(row, app, viewport), "min-w-0")}>
-              <RowView cyoa={cyoa} row={row} viewport={viewport} />
-            </div>
-          ))}
+          {(app.backpack ?? [])
+            .filter((row) => isEnabled(row.requireds, cyoa.idx, cyoa.state))
+            .map((row) => (
+              <div key={row.id} className={cn(rowWidthClass(row, app, viewport), "min-w-0")}>
+                <RowView cyoa={cyoa} row={row} viewport={viewport} />
+              </div>
+            ))}
         </div>
       </DialogContent>
     </Dialog>
@@ -2012,8 +2377,7 @@ function BuildFormDialog({
         <DialogHeader>
           <DialogTitle>Build form</DialogTitle>
           <DialogDescription>
-            Selected choices and their build code. Import a code to restore a
-            build.
+            Selected choices and their build code. Import a code to restore a build.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -2087,7 +2451,9 @@ function SaveLoadDialog({
 }) {
   const [page, setPage] = useState(0);
   const [name, setName] = useState("");
-  const [slots, setSlots] = useState<Array<{ slot: string } & import("@/hooks/use-cyoa").BuildSlot>>([]);
+  const [slots, setSlots] = useState<
+    Array<{ slot: string } & import("@/hooks/use-cyoa").BuildSlot>
+  >([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -2142,12 +2508,7 @@ function SaveLoadDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={downloadBuild}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={downloadBuild}>
               <IconDownload className="mr-1.5 size-4" />
               Download build (.txt)
             </Button>
@@ -2178,19 +2539,14 @@ function SaveLoadDialog({
                 placeholder="My build"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Name applies to the next Save.
-            </p>
+            <p className="text-xs text-muted-foreground">Name applies to the next Save.</p>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
             {pageSlots.map((slot, index) => {
               const data = slots.find((s) => s.slot === slot);
               return (
-                <div
-                  key={slot}
-                  className="flex flex-col gap-1 rounded-md border border-border p-2"
-                >
+                <div key={slot} className="flex flex-col gap-1 rounded-md border border-border p-2">
                   <span className="truncate text-xs font-medium">
                     {data?.name || `Slot ${page * 9 + index + 1}`}
                   </span>
@@ -2258,9 +2614,7 @@ function SaveLoadDialog({
             >
               ← Prev
             </Button>
-            <span className="text-xs text-muted-foreground">
-              Page {page + 1} of 11
-            </span>
+            <span className="text-xs text-muted-foreground">Page {page + 1} of 11</span>
             <Button
               type="button"
               variant="outline"
@@ -2272,85 +2626,6 @@ function SaveLoadDialog({
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Search                                                             */
-/* ------------------------------------------------------------------ */
-
-function SearchDialog({
-  open,
-  onOpenChange,
-  cyoa,
-  viewport,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  cyoa: UseCyoaResult;
-  viewport: number;
-}) {
-  const [query, setQuery] = useState("");
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return getSearchables(cyoa.app)
-      .filter(
-        (entry) =>
-          entry.id.toLowerCase().includes(q) ||
-          entry.label.toLowerCase().includes(q),
-      )
-      .slice(0, 12);
-  }, [query, cyoa.app]);
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        onOpenChange(v);
-        if (!v) setQuery("");
-      }}
-    >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Search choice</DialogTitle>
-          <DialogDescription>
-            Find a choice by id or title and select it directly.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="relative">
-            <IconSearch className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              autoFocus
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Type an id or title…"
-              className="pl-8"
-            />
-          </div>
-          {query && matches.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No matches.</p>
-          ) : null}
-          <div className="flex flex-wrap gap-3">
-            {matches.map((entry) => (
-              <div
-                key={entry.id}
-                className="min-w-0 flex-1 basis-64"
-                onClick={() => cyoa.toggleChoice(entry.choice, entry.row)}
-              >
-                <ChoiceView cyoa={cyoa} choice={entry.choice} row={entry.row} viewport={viewport} />
-              </div>
-            ))}
-          </div>
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

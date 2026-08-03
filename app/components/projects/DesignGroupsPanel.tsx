@@ -1,34 +1,22 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  useUpdateProjectSettings,
-  type ProjectDetail,
-} from "@/hooks/use-projects";
+import { cn } from "@/lib/utils";
+import { useUpdateProjectSettings, type ProjectDetail } from "@/hooks/use-projects";
 import type { ObjectDesignGroup, RowDesignGroup } from "@shared/types";
 import { newGenericId } from "@shared/cyoa";
 
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { CopyId } from "./CopyId";
+import { EditorPane } from "./EditorPane";
+import { MasterDetail } from "./MasterDetail";
+import { PaginatedList } from "./PaginatedList";
 
 type DesignGroup = RowDesignGroup | ObjectDesignGroup;
 type DesignGroupMode = "row" | "choice";
@@ -45,7 +33,7 @@ interface DesignGroupsPanelProps {
   project: ProjectDetail;
 }
 
-interface DesignGroupForm {
+interface DesignGroupFormData {
   id: string;
   name: string;
   activatedId: string;
@@ -57,16 +45,12 @@ export function DesignGroupsPanel({ project }: DesignGroupsPanelProps) {
   const [mode, setMode] = useState<DesignGroupMode>("row");
 
   const groups: DesignGroup[] =
-    mode === "row"
-      ? (project.app.rowDesignGroups ?? [])
-      : (project.app.objectDesignGroups ?? []);
-  const collectionKey =
-    mode === "row" ? "rowDesignGroups" : "objectDesignGroups";
+    mode === "row" ? (project.app.rowDesignGroups ?? []) : (project.app.objectDesignGroups ?? []);
+  const collectionKey = mode === "row" ? "rowDesignGroups" : "objectDesignGroups";
 
   const updateSettings = useUpdateProjectSettings();
 
-  const [editing, setEditing] = useState<DesignGroup | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selected, setSelected] = useState<DesignGroup | "new" | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DesignGroup | null>(null);
 
   function createGroup(): DesignGroup {
@@ -81,45 +65,53 @@ export function DesignGroupsPanel({ project }: DesignGroupsPanelProps) {
     };
   }
 
-  function handleAdd() {
-    updateSettings.mutate(
-      { projectId, patch: { [collectionKey]: [...groups, createGroup()] } },
-      {
-        onSuccess: () => toast.success("Design group added"),
-        onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to add design group",
-          ),
-      },
-    );
-  }
-
-  function handleSave(form: DesignGroupForm) {
-    if (!editing) return;
-    const next = groups.map((group) =>
-      group.id === editing.id
-        ? {
-            ...group,
-            id: form.id,
-            name: form.name,
-            activatedId: form.activatedId,
-            elements: parseIds(form.members),
-          }
-        : group,
-    );
-    updateSettings.mutate(
-      { projectId, patch: { [collectionKey]: next } },
-      {
-        onSuccess: () => {
-          toast.success("Design group updated");
-          setDialogOpen(false);
+  function handleSave(form: DesignGroupFormData) {
+    if (selected === "new") {
+      const next = [
+        ...groups,
+        {
+          ...createGroup(),
+          id: form.id,
+          name: form.name,
+          activatedId: form.activatedId,
+          elements: parseIds(form.members),
         },
-        onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to update design group",
-          ),
-      },
-    );
+      ];
+      updateSettings.mutate(
+        { projectId, patch: { [collectionKey]: next } },
+        {
+          onSuccess: () => {
+            toast.success("Design group added");
+            setSelected(null);
+          },
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to add design group"),
+        },
+      );
+    } else if (selected) {
+      const next = groups.map((group) =>
+        group.id === selected.id
+          ? {
+              ...group,
+              id: form.id,
+              name: form.name,
+              activatedId: form.activatedId,
+              elements: parseIds(form.members),
+            }
+          : group,
+      );
+      updateSettings.mutate(
+        { projectId, patch: { [collectionKey]: next } },
+        {
+          onSuccess: () => {
+            toast.success("Design group updated");
+            setSelected(null);
+          },
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to update design group"),
+        },
+      );
+    }
   }
 
   function handleDelete() {
@@ -131,21 +123,51 @@ export function DesignGroupsPanel({ project }: DesignGroupsPanelProps) {
       {
         onSuccess: () => {
           toast.success("Design group deleted");
+          if (selected !== null && selected !== "new" && selected.id === target.id) {
+            setSelected(null);
+          }
           setDeleteTarget(null);
         },
         onError: (err) => {
-          toast.error(
-            err instanceof Error ? err.message : "Failed to delete design group",
-          );
+          toast.error(err instanceof Error ? err.message : "Failed to delete design group");
           setDeleteTarget(null);
         },
       },
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+  const detail =
+    selected === "new" ? (
+      <DesignGroupForm
+        key={`${mode}-new`}
+        item={null}
+        mode={mode}
+        busy={updateSettings.isPending}
+        onCancel={() => setSelected(null)}
+        onSave={handleSave}
+      />
+    ) : selected ? (
+      <DesignGroupForm
+        key={`${mode}-${selected.id}`}
+        item={selected}
+        mode={mode}
+        busy={updateSettings.isPending}
+        onCancel={() => setSelected(null)}
+        onSave={handleSave}
+      />
+    ) : (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Select a design group to edit it here, or add a new one — no more dialogs.
+          </p>
+        </CardContent>
+      </Card>
+    );
+
+  const master = (
+    <div className="space-y-3">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 bg-background/95 py-2 backdrop-blur">
         <p className="text-sm text-muted-foreground">
           {groups.length} {mode} design group
           {groups.length === 1 ? "" : "s"} — private styling applied to{" "}
@@ -172,7 +194,7 @@ export function DesignGroupsPanel({ project }: DesignGroupsPanelProps) {
               Choice
             </Button>
           </div>
-          <Button type="button" size="sm" onClick={handleAdd}>
+          <Button type="button" size="sm" onClick={() => setSelected("new")}>
             <IconPlus className="mr-1.5 size-4" />
             New design group
           </Button>
@@ -183,93 +205,84 @@ export function DesignGroupsPanel({ project }: DesignGroupsPanelProps) {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <p className="text-sm text-muted-foreground">
-              No {mode} design groups yet. Design groups bundle private styling
-              that applies to every {mode === "row" ? "row" : "choice"} listed
-              in their members.
+              No {mode} design groups yet. Design groups bundle private styling that applies to
+              every {mode === "row" ? "row" : "choice"} listed in their members.
             </p>
-            <Button type="button" onClick={handleAdd}>
+            <Button type="button" onClick={() => setSelected("new")}>
               <IconPlus className="mr-1.5 size-4" />
               New design group
             </Button>
           </CardContent>
         </Card>
       ) : (
-        groups.map((group) => {
-          const memberCount = group.elements?.length ?? 0;
-          return (
-            <Card key={group.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <CardTitle className="text-base">
-                      {group.name || "Untitled design group"}
-                    </CardTitle>
-                    <CardDescription className="mt-1 flex flex-wrap items-center gap-1.5">
-                      <span className="font-mono text-xs">{group.id}</span>
-                      <span>
-                        · {memberCount} member
-                        {memberCount === 1 ? "" : "s"}
-                      </span>
-                    </CardDescription>
+        <PaginatedList
+          items={groups}
+          getItemKey={(group) => group.id}
+          pageSize={25}
+          renderItem={(group) => {
+            const memberCount = group.elements?.length ?? 0;
+            return (
+              <Card
+                key={group.id}
+                className={cn(
+                  "cursor-pointer transition-colors",
+                  selected !== null &&
+                    selected !== "new" &&
+                    selected.id === group.id &&
+                    "border-primary bg-primary/5",
+                )}
+                onClick={() => setSelected(group)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <CardTitle className="text-base">{group.name}</CardTitle>
+                      <CardDescription className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <CopyId id={group.id} />
+                        <span>
+                          · {memberCount} member
+                          {memberCount === 1 ? "" : "s"}
+                        </span>
+                      </CardDescription>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground hover:text-destructive"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setDeleteTarget(group);
+                        }}
+                        aria-label={`Delete ${group.name}`}
+                        title="Delete"
+                      >
+                        <IconTrash className="size-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-0.5">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-muted-foreground"
-                      onClick={() => {
-                        setEditing(group);
-                        setDialogOpen(true);
-                      }}
-                      aria-label={`Edit ${group.name}`}
-                      title="Edit"
-                    >
-                      <IconPencil className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => setDeleteTarget(group)}
-                      aria-label={`Delete ${group.name}`}
-                      title="Delete"
-                    >
-                      <IconTrash className="size-4" />
-                    </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                    {group.activatedId ? (
+                      <Badge variant="secondary">Gated by {group.activatedId}</Badge>
+                    ) : (
+                      <Badge variant="outline">Always active</Badge>
+                    )}
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
-                  {group.activatedId ? (
-                    <Badge variant="secondary">
-                      Gated by {group.activatedId}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">Always active</Badge>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })
+                </CardContent>
+              </Card>
+            );
+          }}
+        />
       )}
+    </div>
+  );
 
-      <DesignGroupDialog
-        key={`${mode}-${editing?.id ?? "new"}`}
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditing(null);
-        }}
-        group={editing}
-        mode={mode}
-        busy={updateSettings.isPending}
-        onSave={handleSave}
-      />
-
+  return (
+    <>
+      <MasterDetail master={master} detail={detail} />
       <ConfirmDeleteDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
@@ -280,110 +293,93 @@ export function DesignGroupsPanel({ project }: DesignGroupsPanelProps) {
         busy={updateSettings.isPending}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-interface DesignGroupDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  group: DesignGroup | null;
+interface DesignGroupFormProps {
+  item: DesignGroup | null;
   mode: DesignGroupMode;
   busy?: boolean;
-  onSave: (form: DesignGroupForm) => void;
+  onCancel: () => void;
+  onSave: (form: DesignGroupFormData) => void;
 }
 
-function DesignGroupDialog({
-  open,
-  onOpenChange,
-  group,
+function DesignGroupForm({
+  item,
   mode,
   busy = false,
+  onCancel,
   onSave,
-}: DesignGroupDialogProps) {
-  const [id, setId] = useState(group?.id ?? "");
-  const [name, setName] = useState(group?.name ?? "");
-  const [activatedId, setActivatedId] = useState(group?.activatedId ?? "");
-  const [members, setMembers] = useState((group?.elements ?? []).join(", "));
+}: DesignGroupFormProps) {
+  const [id, setId] = useState(item?.id ?? "");
+  const [name, setName] = useState(item?.name ?? "");
+  const [activatedId, setActivatedId] = useState(item?.activatedId ?? "");
+  const [members, setMembers] = useState((item?.elements ?? []).join(", "));
+  const isEdit = Boolean(item);
 
   function handleSave() {
     onSave({ id, name, activatedId, members });
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit design group</DialogTitle>
-          <DialogDescription>
-            Design groups apply private styling to every{" "}
-            {mode === "row" ? "row" : "choice"} listed as a member.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="design-group-id">Id</Label>
-              <Input
-                id="design-group-id"
-                value={id}
-                onChange={(event) => setId(event.target.value)}
-                placeholder="e.g. design-a1b2"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="design-group-name">Name</Label>
-              <Input
-                id="design-group-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="e.g. Dark mode"
-              />
-            </div>
-          </div>
+    <EditorPane
+      title={isEdit ? "Edit design group" : "Add design group"}
+      description={`Design groups apply private styling to every ${
+        mode === "row" ? "row" : "choice"
+      } listed as a member.`}
+      busy={busy}
+      saveLabel={isEdit ? "Save" : "Add"}
+      canSave={id.trim().length > 0}
+      onCancel={onCancel}
+      onSave={handleSave}
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="design-group-activated">
-              Activated by (choice/global requirement id)
-            </Label>
+            <Label htmlFor="design-group-id">Id</Label>
             <Input
-              id="design-group-activated"
-              value={activatedId}
-              onChange={(event) => setActivatedId(event.target.value)}
-              placeholder="e.g. choice-x9k2 — leave empty for always active"
+              id="design-group-id"
+              value={id}
+              onChange={(event) => setId(event.target.value)}
+              placeholder="e.g. design-a1b2"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="design-group-members">
-              Members ({mode === "row" ? "row" : "choice"} ids,
-              comma-separated)
-            </Label>
+            <Label htmlFor="design-group-name">Name</Label>
             <Input
-              id="design-group-members"
-              value={members}
-              onChange={(event) => setMembers(event.target.value)}
-              placeholder={mode === "row" ? "row-a1b2, row-c3d4" : "choice-x9k2, choice-m7n8"}
+              id="design-group-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. Dark mode"
             />
           </div>
         </div>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={busy || id.trim().length === 0}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="space-y-2">
+          <Label htmlFor="design-group-activated">
+            Activated by (choice/global requirement id)
+          </Label>
+          <Input
+            id="design-group-activated"
+            value={activatedId}
+            onChange={(event) => setActivatedId(event.target.value)}
+            placeholder="e.g. choice-x9k2 — leave empty for always active"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="design-group-members">
+            Members ({mode === "row" ? "row" : "choice"} ids, comma-separated)
+          </Label>
+          <Input
+            id="design-group-members"
+            value={members}
+            onChange={(event) => setMembers(event.target.value)}
+            placeholder={mode === "row" ? "row-a1b2, row-c3d4" : "choice-x9k2, choice-m7n8"}
+          />
+        </div>
+      </div>
+    </EditorPane>
   );
 }

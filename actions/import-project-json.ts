@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { getDb } from "../server/db/index.js";
 import { projects } from "../server/db/schema.js";
-import { normalizeApp } from "../shared/cyoa.js";
+import { aclImportImages, normalizeApp } from "../shared/cyoa.js";
 import { newProjectRow, toProjectDetail } from "./_project-store.js";
 
 export default defineAction({
@@ -20,7 +20,7 @@ export default defineAction({
   }),
   run: async ({ title, description, json }) => {
     const parsed: unknown = typeof json === "string" ? parseJson(json) : json;
-    const app = normalizeApp(parsed);
+    const app = aclImportImages(normalizeApp(parsed));
     const row = newProjectRow({
       id: randomUUID(),
       title,

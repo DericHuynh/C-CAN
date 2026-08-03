@@ -26,6 +26,57 @@ export default async function e2eImportCheck(args: Record<string, unknown>) {
   const exported = await exportAction.run({ id: created.id });
   const out = JSON.parse(JSON.stringify(exported.json)) as Record<string, unknown>;
 
+  // ACL image-resource translation: every legacy inline image on choices,
+  // rows and addons must have been rewritten to an image-resource id, and the
+  // `images` collection must hold the same payloads.
+  const images = Array.isArray(out.images) ? (out.images as Array<Record<string, unknown>>) : [];
+  const imageIds = new Set(images.map((img) => img.id));
+  let inlineImages = 0;
+  let danglingRefs = 0;
+  const walkRefs = (ref: unknown): void => {
+    if (typeof ref === "string" && ref !== "" && !imageIds.has(ref)) inlineImages++;
+  };
+  const rows = Array.isArray(out.rows) ? (out.rows as Array<Record<string, unknown>>) : [];
+  const backpack = Array.isArray(out.backpack)
+    ? (out.backpack as Array<Record<string, unknown>>)
+    : [];
+  for (const row of [...rows, ...backpack]) {
+    walkRefs(row.image);
+    for (const choice of Array.isArray(row.objects)
+      ? (row.objects as Array<Record<string, unknown>>)
+      : []) {
+      walkRefs(choice.image);
+      if (typeof choice.image === "string" && choice.image !== "" && !imageIds.has(choice.image))
+        danglingRefs++;
+      for (const addon of Array.isArray(choice.addons)
+        ? (choice.addons as Array<Record<string, unknown>>)
+        : []) {
+        walkRefs(addon.image);
+      }
+    }
+  }
+  console.log(
+    `[acl images] resources: ${images.length}, inline refs remaining: ${inlineImages}, dangling refs: ${danglingRefs}`,
+  );
+  // Styling background images (design tab) must be resource ids too.
+  const styling = (out.styling ?? {}) as Record<string, unknown>;
+  const stylingBgKeys = [
+    "backgroundImage",
+    "rowBackgroundImage",
+    "objectBackgroundImage",
+    "addonBackgroundImage",
+    "backpackBgImage",
+  ];
+  const stylingRefs = stylingBgKeys.filter(
+    (k) => typeof styling[k] === "string" && styling[k] !== "",
+  );
+  const stylingInline = stylingRefs.filter((k) => !imageIds.has(String(styling[k]))).length;
+  console.log(
+    `[acl styling] background keys with values: ${stylingRefs.length}, inline refs remaining: ${stylingInline}`,
+  );
+  const aclOk =
+    images.length > 0 && inlineImages === 0 && danglingRefs === 0 && stylingInline === 0;
+
   function walk(obj: unknown, fn: (path: string, value: unknown) => void, path = "$"): void {
     if (Array.isArray(obj)) {
       fn(`${path}.length`, obj.length);
@@ -83,6 +134,8 @@ export default async function e2eImportCheck(args: Record<string, unknown>) {
 
   const ok = mismatches === 0 && lostIds.length === 0 && listedOk;
   console.log(`\nproject appears in list-projects: ${listedOk}`);
-  console.log(`\nresult: ${ok ? "PASS" : `FAIL (${mismatches} mismatches)`}`);
-  return { ok, mismatches, lostIds: lostIds.length, listedOk };
+  console.log(
+    `\nresult: ${ok && aclOk ? "PASS" : `FAIL (${mismatches} mismatches${aclOk ? "" : ", acl"})`}`,
+  );
+  return { ok: ok && aclOk, mismatches, lostIds: lostIds.length, listedOk, aclOk };
 }
