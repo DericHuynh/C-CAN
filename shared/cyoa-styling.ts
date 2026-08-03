@@ -110,9 +110,16 @@ export function buildFilterString(
 ): string {
   const parts: string[] = [];
   const get = (key: string): unknown => styling[key];
+  // ICCPlus stores some numeric styling fields as strings (the editor's input
+  // fields write `"50"`); the original viewer interpolates them directly, so
+  // coerce numeric strings here to match.
   const value = (key: string): number | undefined => {
     const v = get(key);
-    return typeof v === "number" ? v : undefined;
+    if (typeof v === "number") return v;
+    if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) {
+      return Number(v);
+    }
+    return undefined;
   };
   const isOn = (key: string): boolean => get(key) === true;
   const prefix = state;

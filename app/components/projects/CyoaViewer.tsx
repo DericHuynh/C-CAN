@@ -41,6 +41,8 @@ import {
   backgroundOverrides,
   checkActivated,
   checkPointEnable,
+  checkReq,
+  checkRequirements,
   computeScoreNet,
   effectiveWidth,
   encodeBuildCode,
@@ -79,6 +81,7 @@ import {
   formatPointValue,
   imageStyle,
   isChoiceShown,
+  numValue,
   renderHtml,
   resolveChoiceImage,
   rowButtonStyle,
@@ -625,11 +628,14 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cyoa.state]);
 
-  const visiblePoints = (app.pointTypes ?? []).filter((pt) =>
-    checkPointEnable(pt, cyoa.idx, cyoa.state),
-  );
+  // The bar docks whenever the document has point types, a backpack, or
+  // imported choices open — the original viewer shows the bar when point types
+  // EXIST (hidden points are simply not rendered inside it), not only when one
+  // is currently enabled.
   const pointBarIsOn =
-    visiblePoints.length > 0 || (app.backpack?.length ?? 0) > 0 || app.importedChoicesIsOpen;
+    (app.pointTypes?.length ?? 0) > 0 ||
+    (app.backpack?.length ?? 0) > 0 ||
+    app.importedChoicesIsOpen;
 
   const showBackpackBtn =
     (app.backpack?.length ?? 0) > 0 &&
@@ -1133,16 +1139,19 @@ function PointBar({
   // Action/point bar always docks to the bottom of the viewport (the original
   // ICCPlus viewer's bottom bar).
   const barOverrides = pointBarOverrides(cyoa.idx, cyoa.state);
+  const str = (key: string): string =>
+    typeof styling[key] === "string" ? (styling[key] as string) : "";
+  const num = (key: string, fallback = 0): number => numValue(styling[key], fallback);
 
   return (
     <div
       className={cn(
-        "sticky bottom-0 z-20 -mx-4 border-t border-border px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/75 lg:-mx-6 lg:px-6",
+        "sticky bottom-0 z-20 -mx-4 px-4 py-2.5 lg:-mx-6 lg:px-6",
       )}
       style={{
         backgroundColor:
-          barOverrides.bgColor ?? ((styling.barBackgroundColor as string) || undefined),
-        color: barOverrides.textColor ?? ((styling.barTextColor as string) || undefined),
+          barOverrides.bgColor ?? (str("barBackgroundColor") || undefined),
+        color: barOverrides.textColor ?? (str("barTextColor") || undefined),
       }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1152,41 +1161,89 @@ function PointBar({
             .map((pointType) => {
               const total =
                 cyoa.totals.get(pointType.id)?.total ?? Number(pointType.startingSum ?? 0);
-              const starting = Number(pointType.startingSum ?? 0);
-              const isLow = total < starting;
-              const isHigh = total > starting;
-              const color = isLow
-                ? (barOverrides.iconColor ?? (styling.barPointNeg as string))
-                : isHigh
-                  ? (barOverrides.iconColor ?? (styling.barPointPos as string))
+              const isNegative = total < 0;
+              // The original colors the sum by the SIGN of the current total
+              // (barPointPos for >= 0, barPointNeg otherwise), not by a
+              // comparison to the starting value.
+              const valueColor =
+                (isNegative ? str("barPointNeg") : str("barPointPos")) || undefined;
+              const privateColor =
+                pointType.pointPrivateColorIsOn &&
+                (isNegative ? pointType.privateNegativeColor : pointType.privateColor)
+                  ? (isNegative ? pointType.privateNegativeColor : pointType.privateColor)
                   : undefined;
+              const icon = pointType.iconIsOn
+                ? isNegative && pointType.negativeIconIsOn
+                  ? {
+                      src: resolveImageRef(app, pointType.negativeImage),
+                      w: numValue(pointType.negativeIconWidth, 0),
+                      h: numValue(pointType.negativeIconHeight, 0),
+                      onSide: pointType.negativeImageOnSide === true,
+                      sidePlacement: pointType.negativeImageSidePlacement === true,
+                    }
+                  : {
+                      src: resolveImageRef(app, pointType.image),
+                      w: numValue(pointType.iconWidth, 0),
+                      h: numValue(pointType.iconHeight, 0),
+                      onSide: pointType.imageOnSide === true,
+                      sidePlacement: pointType.imageSidePlacement === true,
+                    }
+                : null;
               return (
-                <div key={pointType.id} className="flex items-baseline gap-1.5 text-sm">
-                  {pointType.iconIsOn && pointType.image ? (
+                <div
+                  key={pointType.id}
+                  className="flex items-baseline gap-1.5 text-sm"
+                  style={{
+                    margin: num("barTextMargin", 0),
+                    padding: num("barTextPadding", 0),
+                    fontFamily: str("barTextFont") || undefined,
+                    fontSize: num("barTextSize", 0) || undefined,
+                    color: privateColor || undefined,
+                  }}
+                >
+                  {icon && !icon.onSide && !icon.sidePlacement && icon.src ? (
                     <img
-                      src={resolveImageRef(app, pointType.image)}
+                      src={icon.src}
                       alt=""
-                      className="h-4 w-4 object-contain"
+                      className="self-center"
+                      style={{ width: icon.w, height: icon.h }}
                     />
                   ) : null}
-                  {/* The original viewer renders `beforeText + value + afterText`
-                      (never the bare name); `beforeText` usually repeats the
-                      name ("Dream:"), so showing both duplicates the label
-                      ("Dream Dream: 0"). Only fall back to the name when the
-                      author left `beforeText` empty. */}
                   {pointType.beforeText ? (
                     <span className="font-medium text-foreground">{pointType.beforeText}</span>
-                  ) : (
-                    <span className="font-medium text-foreground">{pointType.name}</span>
-                  )}
+                  ) : null}
+                  {icon && icon.onSide && !icon.sidePlacement && icon.src ? (
+                    <img
+                      src={icon.src}
+                      alt=""
+                      className="self-center"
+                      style={{ width: icon.w, height: icon.h }}
+                    />
+                  ) : null}
                   <span
                     className="font-semibold tabular-nums"
-                    style={{ color: color ?? undefined }}
+                    style={{ color: barOverrides.iconColor ?? valueColor }}
                   >
                     {formatPointValue(pointType, total)}
                   </span>
+                  {icon && !icon.onSide && icon.sidePlacement && icon.src ? (
+                    <img
+                      src={icon.src}
+                      alt=""
+                      className="self-center"
+                      style={{ width: icon.w, height: icon.h }}
+                    />
+                  ) : null}
                   {pointType.afterText ? (
                     <span className="text-muted-foreground">{pointType.afterText}</span>
+                  ) : null}
+                  {icon && icon.onSide && icon.sidePlacement && icon.src ? (
+                    <img
+                      src={icon.src}
+                      alt=""
+                      className="self-center"
+                      style={{ width: icon.w, height: icon.h }}
+                    />
                   ) : null}
                 </div>
               );
@@ -1290,6 +1347,22 @@ function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewp
   const tpl = viewerTemplate(row, true, cyoa.app, viewport, cyoa.idx, cyoa.state);
   const rowImageStyle = imageStyle("rowImage", cyoa.idx, cyoa.state, row);
   const rowSurface = rowSurfaceStyle(row, cyoa.idx, cyoa.state);
+  // The row body (section) carries the row-body margins plus the private /
+  // design-group body background (original `AppRow.rowBody`); the header box
+  // below holds the header background/border/shadow (`rowBackground`).
+  const sectionStyle: React.CSSProperties = {
+    margin: rowSurface.margin,
+    ...(rowSurface.bodyBackgroundImage
+      ? {
+          backgroundImage: `url(${rowSurface.bodyBackgroundImage})`,
+          backgroundRepeat: rowSurface.bodyBackgroundRepeat || undefined,
+          backgroundSize: rowSurface.bodyBackgroundSize || undefined,
+        }
+      : {}),
+    ...(rowSurface.bodyBackgroundColor
+      ? { backgroundColor: rowSurface.bodyBackgroundColor }
+      : {}),
+  };
 
   // Row card surface (original `AppRow.rowBackground`): the header box that
   // wraps the image/button, title and text carries the row's background,
@@ -1314,11 +1387,7 @@ function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewp
     marginBottom: rowSurface.marginBottom || undefined,
     marginLeft: rowSurface.marginLeft || undefined,
     marginRight: rowSurface.marginRight || undefined,
-    ...(rowSurface.borderImage
-      ? {
-          borderImage: `url('${rowSurface.borderImage}') 0 0 0 0 / ${rowSurface.borderWidth} stretch`,
-        }
-      : {}),
+    ...(rowSurface.borderImage ? { borderImage: rowSurface.borderImage } : {}),
   } as React.CSSProperties;
 
   const titleEl = row.title ? (
@@ -1357,7 +1426,7 @@ function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewp
         string,
         unknown
       >;
-      const imageBox = typeof styling.rowImageBoxWidth === "number" ? styling.rowImageBoxWidth : 50;
+      const imageBox = numValue(styling.rowImageBoxWidth, 50);
       const textBox = 100 - imageBox;
       const imageCol = (
         <div className="min-w-0" style={{ width: `${imageBox}%` }}>
@@ -1371,7 +1440,7 @@ function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewp
         </div>
       );
       return (
-        <section style={{ margin: rowSurface.margin }}>
+        <section style={sectionStyle}>
           <header className="flex items-start" style={headerStyle}>
             {tpl === 2 ? (
               <>
@@ -1400,14 +1469,14 @@ function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewp
       .filter((el) => el !== null)
       .map((el, i) => <Fragment key={i}>{el}</Fragment>);
     return (
-      <section style={{ margin: rowSurface.margin }}>
+      <section style={sectionStyle}>
         <header style={headerStyle}>{orderedWithKeys}</header>
         {rowContent(cyoa, row, viewport)}
       </section>
     );
   }
 
-  return <section style={{ margin: rowSurface.margin }}>{rowContent(cyoa, row, viewport)}</section>;
+  return <section style={sectionStyle}>{rowContent(cyoa, row, viewport)}</section>;
 }
 
 /** Row body: button row, result/group rows, or the choice grid. */
@@ -1570,6 +1639,13 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
   const sAddons = (choice.addons ?? []).filter(
     (a): a is SelectableAddon => a.isSelectable === true,
   );
+  // Content-hiding choices toggle the row's removal flags; the row JSON may
+  // also set them directly (original `objectTitleRemoved` etc.).
+  const titleRemoved = hidden.has("1") || row.objectTitleRemoved === true;
+  const imageRemoved = hidden.has("2") || row.objectImageRemoved === true;
+  const textRemoved = hidden.has("3") || row.objectTextRemoved === true;
+  const scoreRemoved = hidden.has("4") || row.objectScoreRemoved === true;
+  const reqRemoved = hidden.has("5") || row.objectRequirementRemoved === true;
 
   if (!shown) return null;
 
@@ -1577,8 +1653,8 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
 
   // Scores/requirements move into the first addon when the choice opts into
   // `showScoreInAddon` / `showReqInAddon` (original viewer behavior).
-  const showScores = !hidden.has("4") && !choice.showScoreInAddon;
-  const showReqs = !hidden.has("5") && !choice.showReqInAddon;
+  const showScores = !scoreRemoved && !choice.showScoreInAddon;
+  const showReqs = !reqRemoved && !choice.showReqInAddon;
 
   const effTpl = viewerTemplate(choice, false, cyoa.app, viewport, cyoa.idx, cyoa.state);
   const tpl = templateClasses(effTpl);
@@ -1595,7 +1671,7 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
   // all other templates render it as the first/last flex child of the card.
   const choiceImage = resolveChoiceImage(choice, cyoa.idx, cyoa.state);
   const tplImageEl =
-    choiceImage && !hidden.has("2") ? (
+    choiceImage && !imageRemoved ? (
       <div className={tpl.image}>
         <img
           src={choiceImage}
@@ -1654,7 +1730,7 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
 
   const body = (
     <>
-      {text.title && !hidden.has("1") ? (
+      {text.title && !titleRemoved ? (
         <>
           <h3
             className="font-semibold"
@@ -1665,14 +1741,12 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
       ) : null}
       {counter}
       {/* Original viewer order: title, scores, requirements, then text. */}
-      {showScores ? (
-        <Scores cyoa={cyoa} choice={choice} row={row} scoreColor={surface.scoreColor} />
-      ) : null}
+      {showScores ? <Scores cyoa={cyoa} choice={choice} row={row} /> : null}
       {showReqs ? (
         <Requirements cyoa={cyoa} choice={choice} row={row} textColor={surface.scoreColor} />
       ) : null}
       {effTpl === 5 ? tplImageEl : null}
-      {text.text && !hidden.has("3") ? (
+      {text.text && !textRemoved ? (
         <p
           className="leading-5"
           style={{
@@ -1722,11 +1796,7 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
         borderRadius: surface.borderRadius || undefined,
         boxShadow: surface.boxShadow || undefined,
         overflow: surface.overflow || undefined,
-        ...(surface.borderImage
-          ? {
-              borderImage: `url('${surface.borderImage}') 0 0 0 0 / ${surface.borderWidth} stretch`,
-            }
-          : {}),
+        ...(surface.borderImage ? { borderImage: surface.borderImage } : {}),
       }}
       onClick={() => {
         if (info || isCounterOnlyMulti) return;
@@ -1846,19 +1916,20 @@ function MultiChoice({ cyoa, choice, row }: { cyoa: UseCyoaResult; choice: Choic
 
 /**
  * Score badge value, mirroring the original ObjectScore `scoreValueText`:
- * absolute value with a +/- prefix when the point type has
- * `plussOrMinusAdded` (sign inverted when `plussOrMinusInverted`). The JSON
- * value is the negated change (positive = cost, negative = gain), so e.g. a
- * stored -5 renders as "+5".
+ * absolute value (floored when the point type disallows floats) with a +/-
+ * prefix when the point type has `plussOrMinusAdded` (sign inverted when
+ * `plussOrMinusInverted`). The JSON value is the negated change (positive =
+ * cost, negative = gain), so e.g. a stored -5 renders as "+5".
  */
 function formatScoreValue(point: PointType | undefined, value: number): string {
   const abs = Math.abs(value);
+  const display = point?.allowFloat ? abs : Math.floor(abs);
   if (point?.plussOrMinusAdded) {
     const negative = value < 0;
     const prefix = point.plussOrMinusInverted ? (negative ? "-" : "+") : (negative ? "+" : "-");
-    return `${prefix}${formatPointValue(point, abs)}`;
+    return `${prefix}${formatPointValue(point, display)}`;
   }
-  return formatPointValue(point ?? ({} as PointType), abs);
+  return formatPointValue(point ?? ({} as PointType), display);
 }
 
 /**
@@ -1883,27 +1954,99 @@ function scoreDisplayValue(
   return base;
 }
 
+/**
+ * Score visibility gate (original ObjectScore `isPointtypeActivated`): the
+ * score renders only when `showScore` is on AND the point type is not hidden
+ * from objects — or, when hidden, only while its `activatedId` target is met
+ * (a global requirement, a true variable, or an activated choice).
+ */
+function isScoreShown(
+  score: Score,
+  choice: Choice | SelectableAddon,
+  idx: CyoaIndex,
+  state: CyoaState,
+): boolean {
+  if (!score.showScore) return false;
+  const point = idx.pointTypeMap.get(score.id ?? score.type);
+  if (!point) return true;
+  if (!point.isNotShownObjects) return true;
+  if (point.activatedId !== undefined && point.activatedId !== "") {
+    const globalReq = idx.globalReqMap.get(point.activatedId);
+    const variable = idx.variableMap.get(point.activatedId);
+    if (globalReq) return checkRequirements(globalReq, idx, state);
+    if (variable) return state.variables.get(variable.id) === true;
+    return checkActivated(point.activatedId, state);
+  }
+  return false;
+}
+
+/**
+ * Point-type icon renderer (original ObjectScore): the icon image with the
+ * point type's width/height, placed around the text per `imageOnSide` /
+ * `imageSidePlacement` (and the negative variant when the score is a gain and
+ * `negativeIconIsOn`).
+ */
+function ScoreIcon({
+  app,
+  point,
+  isNegative,
+}: {
+  app: App;
+  point: PointType;
+  isNegative: boolean;
+}) {
+  const useNeg = point.negativeIconIsOn === true && isNegative;
+  const image = resolveImageRef(app, useNeg ? point.negativeImage : point.image);
+  if (!image) return null;
+  const width = numValue(useNeg ? point.negativeIconWidth : point.iconWidth, 0);
+  const height = numValue(useNeg ? point.negativeIconHeight : point.iconHeight, 0);
+  const inChoice = point.useSeperatePosition === true;
+  const onSide = useNeg
+    ? inChoice
+      ? point.negativeImageOnSideInChoice === true
+      : point.negativeImageOnSide === true
+    : inChoice
+      ? point.imageOnSideInChoice === true
+      : point.imageOnSide === true;
+  const sidePlacement = useNeg
+    ? inChoice
+      ? point.negativeImageSidePlacementInChoice === true
+      : point.negativeImageSidePlacement === true
+    : inChoice
+      ? point.imageSidePlacementInChoice === true
+      : point.imageSidePlacement === true;
+  const afterText = sidePlacement && !onSide;
+  const afterBeforeText = !sidePlacement && onSide;
+  const beforeText = !sidePlacement && !onSide;
+  const afterAfterText = sidePlacement && onSide;
+  return { image, width, height, beforeText, afterBeforeText, afterText, afterAfterText };
+}
+
 function Scores({
   cyoa,
   choice,
   row,
-  scoreColor,
 }: {
   cyoa: UseCyoaResult;
   choice: Choice;
   row: Row;
-  scoreColor?: string;
 }) {
   const scores = choice.scores ?? [];
   const activeScores = scores.filter((score) => {
-    if (score.showScore === false) return false;
-    const point = cyoa.idx.pointTypeMap.get(score.id ?? score.type);
-    if (point?.isNotShownObjects) return false;
-    if (point?.activatedId && !checkActivated(point.activatedId, cyoa.state)) return false;
+    if (!isScoreShown(score, choice, cyoa.idx, cyoa.state)) return false;
     return isEnabled(score.requireds, cyoa.idx, cyoa.state);
   });
   if (activeScores.length === 0) return null;
   const scoreStyle = textStyle("scoreText", cyoa.idx, cyoa.state, row, choice);
+  const filterStyling = getStyling("privateFilterIsOn", cyoa.idx, cyoa.state, row, choice) as Record<
+    string,
+    unknown
+  >;
+  const fStr = (key: string): string =>
+    typeof filterStyling[key] === "string" ? (filterStyling[key] as string) : "";
+  const fOn = (key: string): boolean => filterStyling[key] === true;
+  const enabled = isEnabled(choice.requireds, cyoa.idx, cyoa.state);
+  const isActive = cyoa.state.activated.has(choice.id);
   return (
     <div className="flex flex-wrap justify-center gap-1.5 pt-1">
       {activeScores.map((score, scoreIndex) => {
@@ -1926,18 +2069,43 @@ function Scores({
               .join(" ")
           : (score.afterText ?? point?.afterText ?? "");
         const hideValue = score.hideValue || display.hideValue;
-        const color =
-          value < 0
-            ? (cyoa.idx.app.styling?.objectGradientOnReq as string) || undefined
-            : undefined;
-        void row;
+        // Color cascade (original ObjectScore `scoreText`): the scoreText
+        // color, overridden by the point type's positive/negative colors when
+        // `pointColorsIsOn` (note the original's inverted mapping: a negative
+        // change uses `positiveColor`), then by the req/sel state filter
+        // colors when those are enabled.
+        const checkNegative = value < 0;
+        let color = scoreStyle.color;
+        if (point?.pointColorsIsOn) {
+          color = checkNegative ? point.positiveColor : point.negativeColor;
+        }
+        if (!enabled && fOn("reqScoreTextColorIsOn") && fStr("reqFilterSTextColor")) {
+          color = fStr("reqFilterSTextColor");
+        } else if (isActive && fOn("selScoreTextColorIsOn") && fStr("selFilterSTextColor")) {
+          color = fStr("selFilterSTextColor");
+        }
+        const icon = point?.iconIsOn
+          ? ScoreIcon({ app: cyoa.idx.app, point, isNegative: !checkNegative })
+          : null;
         return (
-          <Badge
-            key={`${score.id ?? score.type}-${scoreIndex}`}
-            variant="secondary"
-            style={{ ...scoreStyle, color: scoreColor || color }}
-          >
+          <Badge key={`${score.id ?? score.type}-${scoreIndex}`} variant="secondary" style={{ ...scoreStyle, color }}>
+            {icon && icon.beforeText ? (
+              <img
+                src={icon.image}
+                alt=""
+                className="mx-0.5 self-center"
+                style={{ width: icon.width, height: icon.height }}
+              />
+            ) : null}
             {before ? <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(before) }} /> : null}
+            {icon && icon.afterBeforeText ? (
+              <img
+                src={icon.image}
+                alt=""
+                className="mx-0.5 self-center"
+                style={{ width: icon.width, height: icon.height }}
+              />
+            ) : null}
             {hideValue ? null : (
               <span
                 dangerouslySetInnerHTML={{
@@ -1945,12 +2113,50 @@ function Scores({
                 }}
               />
             )}
+            {icon && icon.afterText ? (
+              <img
+                src={icon.image}
+                alt=""
+                className="mx-0.5 self-center"
+                style={{ width: icon.width, height: icon.height }}
+              />
+            ) : null}
             {after ? <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(after) }} /> : null}
+            {icon && icon.afterAfterText ? (
+              <img
+                src={icon.image}
+                alt=""
+                className="mx-0.5 self-center"
+                style={{ width: icon.width, height: icon.height }}
+              />
+            ) : null}
           </Badge>
         );
       })}
     </div>
   );
+}
+
+/**
+ * Requirement visibility gate (original ObjectRequired `isShowReq`):
+ * `showRequired` must be on; `hideRequired2` hides while the requirement's
+ * own sub-requireds are unmet; `hideRequired` shows only while the
+ * requirement itself is NOT yet met (a hint that it is missing).
+ */
+function isReqShown(req: Requireds, idx: CyoaIndex, state: CyoaState): boolean {
+  if (!req.showRequired) return false;
+  let result = true;
+  if (req.hideRequired2) {
+    result = checkRequirements(req.requireds, idx, state);
+  }
+  if (req.hideRequired) {
+    if ((req.requireds ?? []).length > 0) {
+      result = checkRequirements(req.requireds, idx, state) && !checkReq(req, idx, state);
+    } else {
+      result = !checkReq(req, idx, state);
+    }
+  }
+  return result;
 }
 
 function Requirements({
@@ -1966,8 +2172,23 @@ function Requirements({
 }) {
   const reqs = choice.requireds ?? [];
   if (reqs.length === 0) return null;
-  const items = reqs
-    .filter((r) => isEnabled([r], cyoa.idx, cyoa.state) || !r.hideRequired)
+  // `gid` requirements expand into their global requirement's entries, each
+  // gated by its own `showRequired` (the original renders them separately).
+  const expanded: Requireds[] = [];
+  for (const r of reqs) {
+    if (r.type === "gid") {
+      const subs = cyoa.idx.globalReqMap.get(r.reqId);
+      if (subs && subs.length > 0) {
+        for (const sub of subs) {
+          if (sub.showRequired !== false) expanded.push(sub);
+        }
+        continue;
+      }
+    }
+    expanded.push(r);
+  }
+  const items = expanded
+    .filter((r) => isReqShown(r, cyoa.idx, cyoa.state))
     .map((r) => ({
       req: r,
       text: requirementLabel(r, cyoa),
@@ -2030,11 +2251,10 @@ function requirementCoreText(req: import("@shared/types").Requireds, cyoa: UseCy
         : `${stripEntityPrefix(targetId)}${suffix ? ` ${suffix}` : ""}`;
     }
     case "points": {
+      // The original `getReqText` renders the points value first with the
+      // point name ("5 Dream") — no operator is shown.
       const point = idx.pointTypeMap.get(req.reqId);
-      const op = { "1": ">", "2": "≥", "3": "=", "4": "≤", "5": "<", "6": "≠" }[
-        req.operator ?? "1"
-      ];
-      return `${point?.name || stripEntityPrefix(req.reqId)} ${op ?? ">"} ${req.reqPoints}`;
+      return `${req.reqPoints} ${point?.name || stripEntityPrefix(req.reqId)}`;
     }
     case "gid": {
       const reqs = idx.globalReqMap.get(req.reqId);
@@ -2135,15 +2355,25 @@ function AddonView({
   const enabled = isEnabled(addon.requireds, cyoa.idx, cyoa.state);
   const isSelectable = addon.isSelectable === true;
   const selected = isSelectable && cyoa.state.activated.has(addon.id);
+  const choiceActive = cyoa.state.activated.has(choice.id);
   // Choice-level `showAllAddons` force-shows every addon of that choice
   // (mirrors the original bumping the global `app.showAllAddons` counter).
-  const parentForceShows = choice.showAllAddons === true && cyoa.state.activated.has(choice.id);
-  const visible =
-    (addon.showAddon || enabled || cyoa.app.showAllAddons > 0 || parentForceShows) &&
-    (!addon.hideAddon || choice.isActive || selected) &&
-    !(hidden?.has("9") && isSelectable && !selected) &&
-    !(hidden?.has("9") && !isSelectable) &&
-    !(hidden?.has("10") && !enabled && !selected);
+  const parentForceShows = choice.showAllAddons === true && choiceActive;
+  const forceShow = cyoa.app.showAllAddons > 0 || parentForceShows;
+  // Content-hiding choices can toggle the row's `unselAddonRemoved` (9) and
+  // `unmetAddonRemoved` (10) flags; the row JSON may also set them directly.
+  const unselAddonRemoved = row.unselAddonRemoved === true || hidden?.has("9");
+  const unmetAddonRemoved = row.unmetAddonRemoved === true || hidden?.has("10");
+  // Visibility mirrors the original AppObject nAddons/sAddons filters:
+  // non-selectable addons hide when unmet if `unmetAddonRemoved`; selectable
+  // addons hide when unselected if `unselAddonRemoved`, and only selected
+  // addons appear in result rows.
+  const visible = isSelectable
+    ? (!unselAddonRemoved || selected) &&
+      (!row.isResultRow || selected) &&
+      (forceShow || (!addon.hideAddon || choiceActive) && (addon.showAddon || enabled))
+    : (!unmetAddonRemoved || enabled) &&
+      (forceShow || (!addon.hideAddon || choiceActive) && (addon.showAddon || enabled));
 
   if (!visible) return null;
   const titleStyle = textStyle("addonTitle", cyoa.idx, cyoa.state, row, choice);
@@ -2158,7 +2388,7 @@ function AddonView({
 
   const inner = (
     <>
-      {addon.image && !hidden?.has("7") ? (
+      {addon.image && !hidden?.has("7") && row.addonImageRemoved !== true ? (
         <img
           src={resolveImageRef(cyoa.app, addon.image)}
           alt=""
@@ -2166,14 +2396,14 @@ function AddonView({
           style={imageStyle("addonImage", cyoa.idx, cyoa.state, row, choice)}
         />
       ) : null}
-      {addon.title && !hidden?.has("6") ? (
+      {addon.title && !hidden?.has("6") && row.addonTitleRemoved !== true ? (
         <p
           className="text-sm font-medium"
           style={titleStyle}
           dangerouslySetInnerHTML={renderHtml(addon.title, cyoa.idx, cyoa.state)}
         />
       ) : null}
-      {addon.text && !hidden?.has("8") ? (
+      {addon.text && !hidden?.has("8") && row.addonTextRemoved !== true ? (
         <p
           className="text-xs leading-4 text-muted-foreground"
           style={textStyleObj}
@@ -2185,7 +2415,6 @@ function AddonView({
           cyoa={cyoa}
           choice={(showParentScores ? choice : addon) as Choice}
           row={row}
-          scoreColor={undefined}
         />
       ) : null}
       {!hidden?.has("5") && (showParentReqs || addonReqs.length > 0) ? (

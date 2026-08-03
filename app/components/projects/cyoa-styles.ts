@@ -1,6 +1,8 @@
 import DOMPurify from "isomorphic-dompurify";
 
 import {
+  checkActivated,
+  checkRequirements,
   effectiveTemplate,
   isEnabled,
   replaceText,
@@ -133,10 +135,26 @@ const FILTER_PREFIX: Record<ChoiceVisualState, "sel" | "req" | "unsel"> = {
 /* Shared helpers for the style resolvers                              */
 /* ------------------------------------------------------------------ */
 
-/** Number value with fallback (only accepts actual numbers). */
+/**
+ * Coerce an ICCPlus numeric value (number or numeric string — the editor
+ * stores some fields as strings) to a number, with a fallback. Mirrors the
+ * original viewer, which interpolates these values without type checks.
+ */
+export function numValue(v: unknown, fallback = 0): number {
+  if (typeof v === "number") return v;
+  if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) {
+    return Number(v);
+  }
+  return fallback;
+}
+
+/**
+ * Number value with fallback. ICCPlus stores some numeric styling fields as
+ * strings (the editor writes `"50"`), so accept numeric strings too — the
+ * original viewer interpolates them directly without type checks.
+ */
 function num(style: Record<string, unknown>, key: string, fallback = 0): number {
-  const v = style[key];
-  return typeof v === "number" ? v : fallback;
+  return numValue(style[key], fallback);
 }
 
 /** String value with fallback. */
@@ -261,16 +279,20 @@ export function choiceSurfaceStyle(
     gradient = gradientToCss(value);
   }
 
-  // Border: filter color overrides the object border color when enabled.
+  // Border: filter color overrides the object border color when enabled. The
+  // original viewer renders the border whenever the object border OR a state
+  // filter border color is on (width/style still come from the object
+  // styling), so a state border color alone must produce a border.
+  const stateBorderColor = fOn(`${prefix}BorderColorIsOn`) && fStr(`${prefix}FilterBorderColor`);
   let borderColor = "";
-  if (fOn(`${prefix}BorderColorIsOn`) && fStr(`${prefix}FilterBorderColor`)) {
+  if (stateBorderColor) {
     borderColor = fStr(`${prefix}FilterBorderColor`);
   } else if (isOn(objectStyle, "objectBorderIsOn")) {
     borderColor = str(objectStyle, "objectBorderColor");
   }
   let borderStyle = "";
   let borderWidth = "";
-  if (isOn(objectStyle, "objectBorderIsOn")) {
+  if (isOn(objectStyle, "objectBorderIsOn") || stateBorderColor) {
     borderStyle = str(objectStyle, "objectBorderStyle");
     borderWidth = `${num(objectStyle, "objectBorderWidth")}px`;
   }
@@ -317,7 +339,13 @@ export function choiceSurfaceStyle(
     borderStyle,
     borderWidth,
     borderRadius,
-    borderImage: str(objectStyle, "objectBorderImage"),
+    // Full `border-image` shorthand with the doc's slice/width/repeat values
+    // (the original viewer: `url() slices / width repeat`). Empty when the doc
+    // has no border image.
+    borderImage:
+      str(objectStyle, "objectBorderImage") && isOn(objectStyle, "objectBorderIsOn")
+        ? `url('${str(objectStyle, "objectBorderImage")}') ${num(objectStyle, "objectBorderImageSliceTop")} ${num(objectStyle, "objectBorderImageSliceRight")} ${num(objectStyle, "objectBorderImageSliceBottom")} ${num(objectStyle, "objectBorderImageSliceLeft")} / ${num(objectStyle, "objectBorderImageWidth")}px ${str(objectStyle, "objectBorderImageRepeat") || "stretch"}`
+        : "",
     margin: `${num(objectStyle, "objectMargin")}px`,
     overflow: isOn(objectStyle, "objectOverflowIsOn") ? "hidden" : "",
     boxShadow,
@@ -555,7 +583,7 @@ export function imageStyle(
     kind === "rowImage" ? "rowImg" : kind === "objectImage" ? "objectImg" : "addonImg";
   const radiusIsPixelsKey = `${imgPrefix}BorderRadiusIsPixels`;
 
-  const width = typeof styling[widthKey] === "number" ? styling[widthKey] : 100;
+  const width = num(styling, widthKey, 100);
   const style: React.CSSProperties = {
     width: `${width}%`,
     maxWidth: "100%",
@@ -618,6 +646,11 @@ export interface RowSurfaceStyle {
   backgroundImage: string;
   backgroundRepeat: string;
   backgroundSize: string;
+  /** Row-body background image/color (original rowBodyBgImage/rowBodyBgColor). */
+  bodyBackgroundImage: string;
+  bodyBackgroundRepeat: string;
+  bodyBackgroundSize: string;
+  bodyBackgroundColor: string;
   /** rowGradient when enabled, already wrapped in linear-gradient(). */
   gradient: string;
   borderColor: string;
@@ -629,6 +662,65 @@ export interface RowSurfaceStyle {
   /** drop-shadow filter when the doc uses the filter variant. */
   filter: string;
   overflow: string;
+}
+
+/**
+ * Row-body background from the row's private styling or an active row design
+ * group (original `rowBodyBgImage`/`rowBodyBgColor`): the plain `backgroundImage`
+ * / `backgroundColor` keys — never the app defaults, which only feed the
+ * header's `rowBackgroundImage`/`rowBgColor`.
+ */
+function rowBodyBackground(
+  row: Row,
+  idx: CyoaIndex,
+  state: CyoaState,
+): { backgroundImage: string; backgroundRepeat: string; backgroundSize: string; backgroundColor: string } {
+  const rowData = row as Row & {
+    styling?: Record<string, unknown>;
+    isPrivateStyling?: boolean;
+    privateBackgroundIsOn?: boolean;
+    rowDesignGroups?: string[];
+  };
+  let styling: Record<string, unknown> | undefined;
+  if (
+    rowData.styling !== undefined &&
+    rowData.isPrivateStyling &&
+    rowData.privateBackgroundIsOn &&
+    (str(rowData.styling, "backgroundImage") || isOn(rowData.styling, "bgColorIsOn"))
+  ) {
+    styling = rowData.styling;
+  }
+  if (!styling) {
+    for (const groupId of rowData.rowDesignGroups ?? []) {
+      const group = idx.rowDesignMap.get(groupId);
+      if (!group) continue;
+      if (!group.privateBackgroundIsOn) continue;
+      const s = (group as { styling?: Record<string, unknown> }).styling;
+      if (!s || !(str(s, "backgroundImage") || isOn(s, "bgColorIsOn"))) continue;
+      const id = group.activatedId ?? "";
+      const globalReq = idx.globalReqMap.get(id);
+      if (
+        id === "" ||
+        checkActivated(id, state) ||
+        (globalReq !== undefined && checkRequirements(globalReq, idx, state))
+      ) {
+        styling = s;
+        break;
+      }
+    }
+  }
+  if (!styling) {
+    return { backgroundImage: "", backgroundRepeat: "", backgroundSize: "", backgroundColor: "" };
+  }
+  return {
+    backgroundImage: str(styling, "backgroundImage")
+      ? (resolveImageRef(idx.app, str(styling, "backgroundImage")) ?? "")
+      : "",
+    backgroundRepeat: isOn(styling, "isBackgroundRepeat") ? "repeat" : "",
+    backgroundSize: isOn(styling, "isBackgroundFitIn") ? "100% 100%" : "cover",
+    backgroundColor:
+      isOn(styling, "bgColorIsOn") && str(styling, "backgroundColor") ? str(styling, "backgroundColor") : "",
+  };
 }
 
 /**
@@ -683,6 +775,7 @@ export function rowSurfaceStyle(row: Row, idx: CyoaIndex, state: CyoaState): Row
     }
   }
 
+  const body = rowBodyBackground(row, idx, state);
   return {
     margin: `${num(rowStyle, "rowBodyMarginTop")}px ${num(rowStyle, "rowBodyMarginSides")}% ${num(rowStyle, "rowBodyMarginBottom")}px`,
     marginLeft: `${num(rowStyle, "rowMargin")}%`,
@@ -692,12 +785,19 @@ export function rowSurfaceStyle(row: Row, idx: CyoaIndex, state: CyoaState): Row
     backgroundImage,
     backgroundRepeat,
     backgroundSize,
+    bodyBackgroundImage: body.backgroundImage,
+    bodyBackgroundRepeat: body.backgroundRepeat,
+    bodyBackgroundSize: body.backgroundSize,
+    bodyBackgroundColor: body.backgroundColor,
     gradient,
     borderColor,
     borderStyle,
     borderWidth,
     borderRadius,
-    borderImage: str(rowStyle, "rowBorderImage"),
+    borderImage:
+      str(rowStyle, "rowBorderImage") && isOn(rowStyle, "rowBorderIsOn")
+        ? `url('${str(rowStyle, "rowBorderImage")}') ${num(rowStyle, "rowBorderImageSliceTop")} ${num(rowStyle, "rowBorderImageSliceRight")} ${num(rowStyle, "rowBorderImageSliceBottom")} ${num(rowStyle, "rowBorderImageSliceLeft")} / ${num(rowStyle, "rowBorderImageWidth")}px ${str(rowStyle, "rowBorderImageRepeat") || "stretch"}`
+        : "",
     boxShadow,
     filter,
     overflow: isOn(rowStyle, "rowOverflowIsOn") ? "hidden" : "",
@@ -844,13 +944,16 @@ export function choiceWidthClass(row: Row, choice: Choice, app: App, viewport: n
   return "col-12";
 }
 
-/** Format a point value with the point type's decimal places. */
+/**
+ * Format a point value the way the original viewer renders sums: integers as
+ * plain text, floats rounded to the point type's decimal places with trailing
+ * zeros stripped (the original's `value % 1 === 0 ? value :
+ * parseFloat(value.toFixed(places))`).
+ */
 export function formatPointValue(point: PointType, value: number): string {
-  if (Number.isInteger(value) || !point.allowFloat) {
-    return String(value);
-  }
-  const places = point.decimalPlaces ?? 2;
-  return value.toFixed(places);
+  if (Number.isInteger(value)) return String(value);
+  const places = numValue(point.decimalPlaces, 2);
+  return String(parseFloat(value.toFixed(places)));
 }
 
 /** Row template layout: 1 image-top, 2 image-right, 3 image-left, 4 image-bottom, 5 image-inline. */
