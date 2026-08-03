@@ -25,9 +25,7 @@ const FIXTURES: Record<string, string> = {
 
 function loadApp(name: keyof typeof FIXTURES, activated: string[] = []) {
   try {
-    const raw = JSON.parse(
-      readFileSync(FIXTURES[name], "utf8"),
-    ) as Record<string, unknown>;
+    const raw = JSON.parse(readFileSync(FIXTURES[name], "utf8")) as Record<string, unknown>;
     const app = normalizeApp(raw);
     if (activated.length > 0) app.activated = activated;
     return app;

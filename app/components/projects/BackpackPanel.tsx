@@ -1,12 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-  IconArrowDown,
-  IconArrowUp,
-  IconBackpack,
-  IconPlus,
-  IconTrash,
-} from "@tabler/icons-react";
+import { IconArrowDown, IconArrowUp, IconBackpack, IconPlus, IconTrash } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +15,6 @@ import { MasterDetail } from "./MasterDetail";
 import { PaginatedList } from "./PaginatedList";
 import { RowEditor } from "./RowEditor";
 
-
 interface BackpackPanelProps {
   project: ProjectDetail;
 }
@@ -35,10 +28,7 @@ export function BackpackPanel({ project }: BackpackPanelProps) {
   const rows = project.app.backpack ?? [];
   const updateSettings = useUpdateProjectSettings();
   // Stable sort for the (paginated) master list.
-  const sorted = useMemo(
-    () => [...rows].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)),
-    [rows],
-  );
+  const sorted = useMemo(() => [...rows].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)), [rows]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);

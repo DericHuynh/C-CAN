@@ -18,10 +18,7 @@
  * only supported model.
  */
 import { defineNitroPlugin } from "@agent-native/core/server";
-import {
-  registerAgentEngine,
-  registerBuiltinEngines,
-} from "@agent-native/core/agent/engine";
+import { registerAgentEngine, registerBuiltinEngines } from "@agent-native/core/agent/engine";
 import { registerRequiredSecret } from "@agent-native/core/secrets";
 import {
   createDeepSeekEngine,

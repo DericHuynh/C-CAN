@@ -4,13 +4,25 @@ import { createClient } from "../node_modules/@libsql/client/lib-esm/node.js";
 const BASE = "http://localhost:8080";
 const db = createClient({ url: "file:data/app.db" });
 const COPY_ID = `dbg-${Date.now()}`;
-const real = await db.execute("SELECT * FROM projects WHERE id = ?", ["6b720717-6aa2-4554-a575-463f7f5e97a7"]);
+const real = await db.execute("SELECT * FROM projects WHERE id = ?", [
+  "6b720717-6aa2-4554-a575-463f7f5e97a7",
+]);
 const row = real.rows[0];
 const cols = Object.keys(row);
-await db.execute(`INSERT INTO projects (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, cols.map((c) => (c === "id" ? COPY_ID : row[c])));
+await db.execute(
+  `INSERT INTO projects (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`,
+  cols.map((c) => (c === "id" ? COPY_ID : row[c])),
+);
 
-const browser = await chromium.launch({ executablePath: "/usr/bin/chromium", headless: true, args: ["--no-sandbox"] });
-const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, colorScheme: "dark" });
+const browser = await chromium.launch({
+  executablePath: "/usr/bin/chromium",
+  headless: true,
+  args: ["--no-sandbox"],
+});
+const context = await browser.newContext({
+  viewport: { width: 1600, height: 1000 },
+  colorScheme: "dark",
+});
 const page = await context.newPage();
 
 await page.goto(`${BASE}/_agent-native/sign-in`, { waitUntil: "networkidle" });

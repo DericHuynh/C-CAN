@@ -17,7 +17,7 @@ export default defineAction({
     const requirement = app.globalRequirements.find((g) => g.id === requirementId);
     assertFound(
       requirement,
-      `Global requirement "${requirementId}" not found in project "${projectId}"`
+      `Global requirement "${requirementId}" not found in project "${projectId}"`,
     );
     const merged = { ...requirement, ...patch, id: requirement.id };
     app.globalRequirements[app.globalRequirements.indexOf(requirement)] = merged;

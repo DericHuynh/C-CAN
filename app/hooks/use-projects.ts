@@ -1,7 +1,4 @@
-import {
-  useActionMutation,
-  useActionQuery,
-} from "@agent-native/core/client/hooks";
+import { useActionMutation, useActionQuery } from "@agent-native/core/client/hooks";
 import type { AppSummary } from "@shared/cyoa";
 import type { App, Choice, Row } from "@shared/types";
 
@@ -42,9 +39,7 @@ export interface ProjectRefResult {
 }
 
 /** Extract a project id from a create/duplicate/import mutation result. */
-export function extractProjectId(
-  result: ProjectRefResult | undefined | null,
-): string | undefined {
+export function extractProjectId(result: ProjectRefResult | undefined | null): string | undefined {
   return result?.project?.id ?? result?.id ?? result?.projectId;
 }
 
@@ -57,11 +52,7 @@ export function useProjects() {
 }
 
 export function useProject(id: string | undefined) {
-  return useActionQuery<ProjectDetail>(
-    "get-project",
-    { id: id ?? "" },
-    { enabled: Boolean(id) },
-  );
+  return useActionQuery<ProjectDetail>("get-project", { id: id ?? "" }, { enabled: Boolean(id) });
 }
 
 /* ------------------------------------------------------------------ */
@@ -69,17 +60,15 @@ export function useProject(id: string | undefined) {
 /* ------------------------------------------------------------------ */
 
 export function useCreateProject() {
-  return useActionMutation<
-    ProjectRefResult,
-    { title?: string; description?: string }
-  >("create-project");
+  return useActionMutation<ProjectRefResult, { title?: string; description?: string }>(
+    "create-project",
+  );
 }
 
 export function useUpdateProject() {
-  return useActionMutation<
-    ProjectRefResult,
-    { id: string; title?: string; description?: string }
-  >("update-project");
+  return useActionMutation<ProjectRefResult, { id: string; title?: string; description?: string }>(
+    "update-project",
+  );
 }
 
 export function useDeleteProject() {
@@ -87,9 +76,7 @@ export function useDeleteProject() {
 }
 
 export function useDuplicateProject() {
-  return useActionMutation<ProjectRefResult, { id: string }>(
-    "duplicate-project",
-  );
+  return useActionMutation<ProjectRefResult, { id: string }>("duplicate-project");
 }
 
 export function useImportProjectJson() {
@@ -100,9 +87,7 @@ export function useImportProjectJson() {
 }
 
 export function useExportProjectJson() {
-  return useActionMutation<{ json: string | object }, { id: string }>(
-    "export-project-json",
-  );
+  return useActionMutation<{ json: string | object }, { id: string }>("export-project-json");
 }
 
 /* ------------------------------------------------------------------ */
@@ -110,10 +95,7 @@ export function useExportProjectJson() {
 /* ------------------------------------------------------------------ */
 
 export function useAddRow() {
-  return useActionMutation<
-    { row?: Row },
-    { projectId: string; index?: number }
-  >("add-row");
+  return useActionMutation<{ row?: Row }, { projectId: string; index?: number }>("add-row");
 }
 
 export function useUpdateRow() {
@@ -124,17 +106,13 @@ export function useUpdateRow() {
 }
 
 export function useDeleteRow() {
-  return useActionMutation<
-    ProjectRefResult,
-    { projectId: string; rowId: string }
-  >("delete-row");
+  return useActionMutation<ProjectRefResult, { projectId: string; rowId: string }>("delete-row");
 }
 
 export function useMoveRow() {
-  return useActionMutation<
-    ProjectRefResult,
-    { projectId: string; rowId: string; index: number }
-  >("move-row");
+  return useActionMutation<ProjectRefResult, { projectId: string; rowId: string; index: number }>(
+    "move-row",
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -239,10 +217,9 @@ export function useUpdatePointType() {
 }
 
 export function useDeletePointType() {
-  return useActionMutation<
-    ProjectRefResult,
-    { projectId: string; pointTypeId: string }
-  >("delete-point-type");
+  return useActionMutation<ProjectRefResult, { projectId: string; pointTypeId: string }>(
+    "delete-point-type",
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -250,10 +227,7 @@ export function useDeletePointType() {
 /* ------------------------------------------------------------------ */
 
 export function useAddGroup() {
-  return useActionMutation<
-    ProjectRefResult,
-    { projectId: string; name?: string }
-  >("add-group");
+  return useActionMutation<ProjectRefResult, { projectId: string; name?: string }>("add-group");
 }
 
 export function useUpdateGroup() {
@@ -264,10 +238,9 @@ export function useUpdateGroup() {
 }
 
 export function useDeleteGroup() {
-  return useActionMutation<
-    ProjectRefResult,
-    { projectId: string; groupId: string }
-  >("delete-group");
+  return useActionMutation<ProjectRefResult, { projectId: string; groupId: string }>(
+    "delete-group",
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -289,10 +262,9 @@ export function useUpdateImage() {
 }
 
 export function useDeleteImage() {
-  return useActionMutation<
-    ProjectRefResult,
-    { projectId: string; imageId: string }
-  >("delete-image");
+  return useActionMutation<ProjectRefResult, { projectId: string; imageId: string }>(
+    "delete-image",
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -300,10 +272,9 @@ export function useDeleteImage() {
 /* ------------------------------------------------------------------ */
 
 export function useAddGlobalRequirement() {
-  return useActionMutation<
-    ProjectRefResult,
-    { projectId: string; name?: string }
-  >("add-global-requirement");
+  return useActionMutation<ProjectRefResult, { projectId: string; name?: string }>(
+    "add-global-requirement",
+  );
 }
 
 export function useUpdateGlobalRequirement() {
@@ -318,10 +289,9 @@ export function useUpdateGlobalRequirement() {
 }
 
 export function useDeleteGlobalRequirement() {
-  return useActionMutation<
-    ProjectRefResult,
-    { projectId: string; requirementId: string }
-  >("delete-global-requirement");
+  return useActionMutation<ProjectRefResult, { projectId: string; requirementId: string }>(
+    "delete-global-requirement",
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -329,8 +299,7 @@ export function useDeleteGlobalRequirement() {
 /* ------------------------------------------------------------------ */
 
 export function useUpdateProjectSettings() {
-  return useActionMutation<
-    ProjectRefResult,
-    { projectId: string; patch: Record<string, unknown> }
-  >("update-project-settings");
+  return useActionMutation<ProjectRefResult, { projectId: string; patch: Record<string, unknown> }>(
+    "update-project-settings",
+  );
 }

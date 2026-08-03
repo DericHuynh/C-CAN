@@ -1,861 +1,873 @@
 export type filterStyling = {
-    selFilterBlurIsOn?: boolean,
-    selFilterBlur?: number,
-    selFilterBrightIsOn?: boolean,
-    selFilterBright?: number,
-    selFilterContIsOn?: boolean,
-    selFilterCont?: number,
-    selFilterGrayIsOn?: boolean,
-    selFilterGray?: number,
-    selFilterHueIsOn?: boolean,
-    selFilterHue?: number,
-    selFilterInvertIsOn?: boolean,
-    selFilterInvert?: number,
-    selFilterOpacIsOn?: boolean,
-    selFilterOpac?: number,
-    selFilterSaturIsOn?: boolean,
-    selFilterSatur?: number,
-    selFilterSepiaIsOn?: boolean,
-    selFilterSepia?: number,
-    selBgColorIsOn?: boolean,
-    selOverlayOnImage?: boolean,
-    selFilterBgColor?: string,
-    selBorderColorIsOn?: boolean,
-    selFilterBorderColor?: string,
-    selImgBorderColorIsOn?: boolean,
-    selFilterImgBorderColor?: string,
-    selCTitleColorIsOn?: boolean,
-    selFilterCTitleColor?: string,
-    selCTextColorIsOn?: boolean,
-    selFilterCTextColor?: string,
-    selATitleColorIsOn?: boolean,
-    selFilterATitleColor?: string,
-    selATextColorIsOn?: boolean,
-    selFilterATextColor?: string,
-    selScoreTextColorIsOn?: boolean,
-    selFilterSTextColor?: string,
-    selFilterVisibleIsOn?: boolean,
-    reqFilterBlurIsOn?: boolean,
-    reqFilterBlur?: number,
-    reqFilterBrightIsOn?: boolean,
-    reqFilterBright?: number,
-    reqFilterContIsOn?: boolean,
-    reqFilterCont?: number,
-    reqFilterGrayIsOn?: boolean,
-    reqFilterGray?: number,
-    reqFilterHueIsOn?: boolean,
-    reqFilterHue?: number,
-    reqFilterInvertIsOn?: boolean,
-    reqFilterInvert?: number,
-    reqFilterOpacIsOn?: boolean,
-    reqFilterOpac?: number,
-    reqFilterSaturIsOn?: boolean,
-    reqFilterSatur?: number,
-    reqFilterSepiaIsOn?: boolean,
-    reqFilterSepia?: number,
-    reqBgColorIsOn?: boolean,
-    reqOverlayOnImage?: boolean,
-    reqFilterBgColor?: string,
-    reqBorderColorIsOn?: boolean,
-    reqFilterBorderColor?: string,
-    reqImgBorderColorIsOn?: boolean,
-    reqFilterImgBorderColor?: string,
-    reqCTitleColorIsOn?: boolean,
-    reqFilterCTitleColor?: string,
-    reqCTextColorIsOn?: boolean,
-    reqFilterCTextColor?: string,
-    reqATitleColorIsOn?: boolean,
-    reqFilterATitleColor?: string,
-    reqATextColorIsOn?: boolean,
-    reqFilterATextColor?: string,
-    reqScoreTextColorIsOn?: boolean,
-    reqFilterSTextColor?: string,
-    reqFilterVisibleIsOn?: boolean,
-    unselFilterBlurIsOn?: boolean,
-    unselFilterBlur?: number,
-    unselFilterBrightIsOn?: boolean,
-    unselFilterBright?: number,
-    unselFilterContIsOn?: boolean,
-    unselFilterCont?: number,
-    unselFilterGrayIsOn?: boolean,
-    unselFilterGray?: number,
-    unselFilterHueIsOn?: boolean,
-    unselFilterHue?: number,
-    unselFilterInvertIsOn?: boolean,
-    unselFilterInvert?: number,
-    unselFilterOpacIsOn?: boolean,
-    unselFilterOpac?: number,
-    unselFilterSaturIsOn?: boolean,
-    unselFilterSatur?: number,
-    unselFilterSepiaIsOn?: boolean,
-    unselFilterSepia?: number,
-    unselFilterVisibleIsOn?: boolean
+  selFilterBlurIsOn?: boolean;
+  selFilterBlur?: number;
+  selFilterBrightIsOn?: boolean;
+  selFilterBright?: number;
+  selFilterContIsOn?: boolean;
+  selFilterCont?: number;
+  selFilterGrayIsOn?: boolean;
+  selFilterGray?: number;
+  selFilterHueIsOn?: boolean;
+  selFilterHue?: number;
+  selFilterInvertIsOn?: boolean;
+  selFilterInvert?: number;
+  selFilterOpacIsOn?: boolean;
+  selFilterOpac?: number;
+  selFilterSaturIsOn?: boolean;
+  selFilterSatur?: number;
+  selFilterSepiaIsOn?: boolean;
+  selFilterSepia?: number;
+  selBgColorIsOn?: boolean;
+  selOverlayOnImage?: boolean;
+  selFilterBgColor?: string;
+  selBorderColorIsOn?: boolean;
+  selFilterBorderColor?: string;
+  selImgBorderColorIsOn?: boolean;
+  selFilterImgBorderColor?: string;
+  selCTitleColorIsOn?: boolean;
+  selFilterCTitleColor?: string;
+  selCTextColorIsOn?: boolean;
+  selFilterCTextColor?: string;
+  selATitleColorIsOn?: boolean;
+  selFilterATitleColor?: string;
+  selATextColorIsOn?: boolean;
+  selFilterATextColor?: string;
+  selScoreTextColorIsOn?: boolean;
+  selFilterSTextColor?: string;
+  selFilterVisibleIsOn?: boolean;
+  reqFilterBlurIsOn?: boolean;
+  reqFilterBlur?: number;
+  reqFilterBrightIsOn?: boolean;
+  reqFilterBright?: number;
+  reqFilterContIsOn?: boolean;
+  reqFilterCont?: number;
+  reqFilterGrayIsOn?: boolean;
+  reqFilterGray?: number;
+  reqFilterHueIsOn?: boolean;
+  reqFilterHue?: number;
+  reqFilterInvertIsOn?: boolean;
+  reqFilterInvert?: number;
+  reqFilterOpacIsOn?: boolean;
+  reqFilterOpac?: number;
+  reqFilterSaturIsOn?: boolean;
+  reqFilterSatur?: number;
+  reqFilterSepiaIsOn?: boolean;
+  reqFilterSepia?: number;
+  reqBgColorIsOn?: boolean;
+  reqOverlayOnImage?: boolean;
+  reqFilterBgColor?: string;
+  reqBorderColorIsOn?: boolean;
+  reqFilterBorderColor?: string;
+  reqImgBorderColorIsOn?: boolean;
+  reqFilterImgBorderColor?: string;
+  reqCTitleColorIsOn?: boolean;
+  reqFilterCTitleColor?: string;
+  reqCTextColorIsOn?: boolean;
+  reqFilterCTextColor?: string;
+  reqATitleColorIsOn?: boolean;
+  reqFilterATitleColor?: string;
+  reqATextColorIsOn?: boolean;
+  reqFilterATextColor?: string;
+  reqScoreTextColorIsOn?: boolean;
+  reqFilterSTextColor?: string;
+  reqFilterVisibleIsOn?: boolean;
+  unselFilterBlurIsOn?: boolean;
+  unselFilterBlur?: number;
+  unselFilterBrightIsOn?: boolean;
+  unselFilterBright?: number;
+  unselFilterContIsOn?: boolean;
+  unselFilterCont?: number;
+  unselFilterGrayIsOn?: boolean;
+  unselFilterGray?: number;
+  unselFilterHueIsOn?: boolean;
+  unselFilterHue?: number;
+  unselFilterInvertIsOn?: boolean;
+  unselFilterInvert?: number;
+  unselFilterOpacIsOn?: boolean;
+  unselFilterOpac?: number;
+  unselFilterSaturIsOn?: boolean;
+  unselFilterSatur?: number;
+  unselFilterSepiaIsOn?: boolean;
+  unselFilterSepia?: number;
+  unselFilterVisibleIsOn?: boolean;
 };
 export type textStyling = {
-    customRowTitle?: boolean,
-    rowTitle?: string,
-    customRowText?: boolean,
-    rowText?: string,
-    customObjectTitle?: boolean,
-    objectTitle?: string,
-    customObjectText?: boolean,
-    objectText?: string,
-    customAddonTitle?: boolean,
-    addonTitle?: string,
-    customAddonText?: boolean,
-    addonText?: string,
-    customScoreText?: boolean,
-    scoreText?: string,
-    rowTitleTextSize?: number,
-    rowTextTextSize?: number,
-    objectTitleTextSize?: number,
-    objectTextTextSize?: number,
-    addonTitleTextSize?: number,
-    addonTextTextSize?: number,
-    scoreTextSize?: number,
-    rowTitleColor?: string,
-    rowTextColor?: string,
-    objectTitleColor?: string,
-    objectTextColor?: string,
-    addonTitleColor?: string,
-    addonTextColor?: string,
-    scoreTextColor?: string,
-    rowTitleAlign?: string,
-    rowTextAlign?: string,
-    objectTitleAlign?: string,
-    objectTextAlign?: string,
-    addonTitleAlign?: string,
-    addonTextAlign?: string,
-    scoreTextAlign?: string
+  customRowTitle?: boolean;
+  rowTitle?: string;
+  customRowText?: boolean;
+  rowText?: string;
+  customObjectTitle?: boolean;
+  objectTitle?: string;
+  customObjectText?: boolean;
+  objectText?: string;
+  customAddonTitle?: boolean;
+  addonTitle?: string;
+  customAddonText?: boolean;
+  addonText?: string;
+  customScoreText?: boolean;
+  scoreText?: string;
+  rowTitleTextSize?: number;
+  rowTextTextSize?: number;
+  objectTitleTextSize?: number;
+  objectTextTextSize?: number;
+  addonTitleTextSize?: number;
+  addonTextTextSize?: number;
+  scoreTextSize?: number;
+  rowTitleColor?: string;
+  rowTextColor?: string;
+  objectTitleColor?: string;
+  objectTextColor?: string;
+  addonTitleColor?: string;
+  addonTextColor?: string;
+  scoreTextColor?: string;
+  rowTitleAlign?: string;
+  rowTextAlign?: string;
+  objectTitleAlign?: string;
+  objectTextAlign?: string;
+  addonTitleAlign?: string;
+  addonTextAlign?: string;
+  scoreTextAlign?: string;
 };
 export type objectImageStyling = {
-    objectImgBorderStyle?: string,
-    objectImgBorderWidth?: number,
-    objectImageWidth?: number,
-    objectImageMarginTop?: number,
-    objectImageMarginBottom?: number,
-    objectImgBorderRadiusTopLeft?: number,
-    objectImgBorderRadiusTopRight?: number,
-    objectImgBorderRadiusBottomRight?: number,
-    objectImgBorderRadiusBottomLeft?: number,
-    objectImgBorderRadiusIsPixels?: boolean,
-    objectImgBorderIsOn?: boolean,
-    objectImgOverflowIsOn?: boolean,
-    objectImgBorderColor?: string,
-    objectImgObjectFillStyle?: string,
-    objectImgObjectFillIsOn?: boolean,
-    objectImageBoxWidth?: number,
-    objectImgObjectFillHeight?: number
+  objectImgBorderStyle?: string;
+  objectImgBorderWidth?: number;
+  objectImageWidth?: number;
+  objectImageMarginTop?: number;
+  objectImageMarginBottom?: number;
+  objectImgBorderRadiusTopLeft?: number;
+  objectImgBorderRadiusTopRight?: number;
+  objectImgBorderRadiusBottomRight?: number;
+  objectImgBorderRadiusBottomLeft?: number;
+  objectImgBorderRadiusIsPixels?: boolean;
+  objectImgBorderIsOn?: boolean;
+  objectImgOverflowIsOn?: boolean;
+  objectImgBorderColor?: string;
+  objectImgObjectFillStyle?: string;
+  objectImgObjectFillIsOn?: boolean;
+  objectImageBoxWidth?: number;
+  objectImgObjectFillHeight?: number;
 };
 export type rowImageStyling = {
-    rowImgBorderStyle?: string,
-    rowImgBorderWidth?: number,
-    rowImageWidth?: number,
-    rowImageMarginTop?: number,
-    rowImageMarginBottom?: number,
-    rowImgBorderRadiusTopLeft?: number,
-    rowImgBorderRadiusTopRight?: number,
-    rowImgBorderRadiusBottomRight?: number,
-    rowImgBorderRadiusBottomLeft?: number,
-    rowImgBorderRadiusIsPixels?: boolean,
-    rowImgBorderIsOn?: boolean,
-    rowImgOverflowIsOn?: boolean,
-    rowImgBorderColor?: string,
-    rowImageBoxWidth?: number,
-    rowImgObjectFillStyle?: string,
-    rowImgObjectFillIsOn?: boolean,
-    rowImgObjectFillHeight?: number
+  rowImgBorderStyle?: string;
+  rowImgBorderWidth?: number;
+  rowImageWidth?: number;
+  rowImageMarginTop?: number;
+  rowImageMarginBottom?: number;
+  rowImgBorderRadiusTopLeft?: number;
+  rowImgBorderRadiusTopRight?: number;
+  rowImgBorderRadiusBottomRight?: number;
+  rowImgBorderRadiusBottomLeft?: number;
+  rowImgBorderRadiusIsPixels?: boolean;
+  rowImgBorderIsOn?: boolean;
+  rowImgOverflowIsOn?: boolean;
+  rowImgBorderColor?: string;
+  rowImageBoxWidth?: number;
+  rowImgObjectFillStyle?: string;
+  rowImgObjectFillIsOn?: boolean;
+  rowImgObjectFillHeight?: number;
 };
 export type addonImageStyling = {
-    useAddonImage?: boolean,
-    addonImgBorderStyle?: string,
-    addonImgBorderWidth?: number,
-    addonImageWidth?: number,
-    addonImageMarginTop?: number,
-    addonImageMarginBottom?: number,
-    addonImgBorderRadiusTopLeft?: number,
-    addonImgBorderRadiusTopRight?: number,
-    addonImgBorderRadiusBottomRight?: number,
-    addonImgBorderRadiusBottomLeft?: number,
-    addonImgBorderRadiusIsPixels?: boolean,
-    addonImgBorderIsOn?: boolean,
-    addonImgOverflowIsOn?: boolean,
-    addonImgBorderColor?: string,
-    addonImgObjectFillStyle?: string,
-    addonImgObjectFillIsOn?: boolean,
-    addonImageBoxWidth?: number,
-    addonImgObjectFillHeight?: number
+  useAddonImage?: boolean;
+  addonImgBorderStyle?: string;
+  addonImgBorderWidth?: number;
+  addonImageWidth?: number;
+  addonImageMarginTop?: number;
+  addonImageMarginBottom?: number;
+  addonImgBorderRadiusTopLeft?: number;
+  addonImgBorderRadiusTopRight?: number;
+  addonImgBorderRadiusBottomRight?: number;
+  addonImgBorderRadiusBottomLeft?: number;
+  addonImgBorderRadiusIsPixels?: boolean;
+  addonImgBorderIsOn?: boolean;
+  addonImgOverflowIsOn?: boolean;
+  addonImgBorderColor?: string;
+  addonImgObjectFillStyle?: string;
+  addonImgObjectFillIsOn?: boolean;
+  addonImageBoxWidth?: number;
+  addonImgObjectFillHeight?: number;
 };
 export type backgroundStyling = {
-    bgColorIsOn?: boolean,
-    backgroundColor?: string,
-    rowBgColorIsOn?: boolean,
-    rowBgColor?: string,
-    objectBgColorIsOn?: boolean,
-    objectBgColor?: string,
-    isBackgroundRepeat?: boolean,
-    isBackgroundFitIn?: boolean,
-    isBackgroundOverlay?: boolean,
-    backgroundImage?: string,
-    isRowBackgroundRepeat?: boolean,
-    isRowBackgroundFitIn?: boolean,
-    isRowBackgroundOverlay?: boolean,
-    rowBackgroundImage?: string,
-    isObjectBackgroundRepeat?: boolean,
-    isObjectBackgroundFitIn?: boolean,
-    isObjectBackgroundOverlay?: boolean,
-    objectBackgroundImage?: string
+  bgColorIsOn?: boolean;
+  backgroundColor?: string;
+  rowBgColorIsOn?: boolean;
+  rowBgColor?: string;
+  objectBgColorIsOn?: boolean;
+  objectBgColor?: string;
+  isBackgroundRepeat?: boolean;
+  isBackgroundFitIn?: boolean;
+  isBackgroundOverlay?: boolean;
+  backgroundImage?: string;
+  isRowBackgroundRepeat?: boolean;
+  isRowBackgroundFitIn?: boolean;
+  isRowBackgroundOverlay?: boolean;
+  rowBackgroundImage?: string;
+  isObjectBackgroundRepeat?: boolean;
+  isObjectBackgroundFitIn?: boolean;
+  isObjectBackgroundOverlay?: boolean;
+  objectBackgroundImage?: string;
 };
 export type objectStyling = {
-    objectHeight?: boolean,
-    objectDesignIsAdvanced?: boolean,
-    objectMargin?: number,
-    objectTextPadding?: number,
-    objectBorderStyle?: string,
-    objectBorderWidth?: number,
-    objectBorderIsOn?: boolean,
-    objectDropShadowH?: number,
-    objectDropShadowV?: number,
-    objectDropShadowBlur?: number,
-    objectDropShadowSpread?: number,
-    objectDropShadowIsOn?: boolean,
-    objectUseBoxShadowIsOn?: boolean,
-    objectBorderRadiusTopLeft?: number,
-    objectBorderRadiusTopRight?: number,
-    objectBorderRadiusBottomRight?: number,
-    objectBorderRadiusBottomLeft?: number,
-    objectBorderRadiusIsPixels?: boolean,
-    objectOverflowIsOn?: boolean,
-    objectDropShadowColor?: string,
-    objectGradientIsOn?: boolean,
-    objectGradient?: string,
-    objectGradientOnSelect?: string,
-    objectGradientOnReq?: string,
-    objectBorderColor?: string,
-    objectBorderImage?: string,
-    objectBorderImageRepeat?: string,
-    objectBorderImageWidth?: number,
-    objectBorderImageSliceTop?: number,
-    objectBorderImageSliceBottom?: number,
-    objectBorderImageSliceLeft?: number,
-    objectBorderImageSliceRight?: number,
-    removeSpaceAddonIsOn?: boolean,
-    titlePaddingIsOn?: boolean
+  objectHeight?: boolean;
+  objectDesignIsAdvanced?: boolean;
+  objectMargin?: number;
+  objectTextPadding?: number;
+  objectBorderStyle?: string;
+  objectBorderWidth?: number;
+  objectBorderIsOn?: boolean;
+  objectDropShadowH?: number;
+  objectDropShadowV?: number;
+  objectDropShadowBlur?: number;
+  objectDropShadowSpread?: number;
+  objectDropShadowIsOn?: boolean;
+  objectUseBoxShadowIsOn?: boolean;
+  objectBorderRadiusTopLeft?: number;
+  objectBorderRadiusTopRight?: number;
+  objectBorderRadiusBottomRight?: number;
+  objectBorderRadiusBottomLeft?: number;
+  objectBorderRadiusIsPixels?: boolean;
+  objectOverflowIsOn?: boolean;
+  objectDropShadowColor?: string;
+  objectGradientIsOn?: boolean;
+  objectGradient?: string;
+  objectGradientOnSelect?: string;
+  objectGradientOnReq?: string;
+  objectBorderColor?: string;
+  objectBorderImage?: string;
+  objectBorderImageRepeat?: string;
+  objectBorderImageWidth?: number;
+  objectBorderImageSliceTop?: number;
+  objectBorderImageSliceBottom?: number;
+  objectBorderImageSliceLeft?: number;
+  objectBorderImageSliceRight?: number;
+  removeSpaceAddonIsOn?: boolean;
+  titlePaddingIsOn?: boolean;
 };
 export type rowStyling = {
-    rowDesignIsAdvanced?: boolean,
-    rowMargin?: number,
-    rowBodyMarginSides?: number,
-    rowBodyMarginTop?: number,
-    rowBodyMarginBottom?: number,
-    rowHeaderMarginBottom?: number,
-    rowTextPaddingY?: number,
-    rowTextPaddingX?: number,
-    rowOverflowIsOn?: boolean,
-    rowDropShadowH?: number,
-    rowDropShadowV?: number,
-    rowDropShadowBlur?: number,
-    rowDropShadowSpread?: number,
-    rowDropShadowColor?: string,
-    rowButtonXPadding?: number,
-    rowButtonYPadding?: number,
-    rowDropShadowIsOn?: boolean,
-    rowUseBoxShadowIsOn?: boolean,
-    rowBorderRadiusTopLeft?: number,
-    rowBorderRadiusTopRight?: number,
-    rowBorderRadiusBottomRight?: number,
-    rowBorderRadiusBottomLeft?: number,
-    rowBorderRadiusIsPixels?: boolean,
-    rowBorderStyle?: string,
-    rowBorderWidth?: number,
-    rowBorderIsOn?: boolean,
-    rowBorderColor?: string,
-    rowGradientIsOn?: boolean,
-    rowGradient?: string,
-    rowBorderImage?: string,
-    rowBorderImageRepeat?: string,
-    rowBorderImageWidth?: number,
-    rowBorderImageSliceTop?: number,
-    rowBorderImageSliceBottom?: number,
-    rowBorderImageSliceLeft?: number,
-    rowBorderImageSliceRight?: number,
-    borderRadiusSuffix?: string
+  rowDesignIsAdvanced?: boolean;
+  rowMargin?: number;
+  rowBodyMarginSides?: number;
+  rowBodyMarginTop?: number;
+  rowBodyMarginBottom?: number;
+  rowHeaderMarginBottom?: number;
+  rowTextPaddingY?: number;
+  rowTextPaddingX?: number;
+  rowOverflowIsOn?: boolean;
+  rowDropShadowH?: number;
+  rowDropShadowV?: number;
+  rowDropShadowBlur?: number;
+  rowDropShadowSpread?: number;
+  rowDropShadowColor?: string;
+  rowButtonXPadding?: number;
+  rowButtonYPadding?: number;
+  rowDropShadowIsOn?: boolean;
+  rowUseBoxShadowIsOn?: boolean;
+  rowBorderRadiusTopLeft?: number;
+  rowBorderRadiusTopRight?: number;
+  rowBorderRadiusBottomRight?: number;
+  rowBorderRadiusBottomLeft?: number;
+  rowBorderRadiusIsPixels?: boolean;
+  rowBorderStyle?: string;
+  rowBorderWidth?: number;
+  rowBorderIsOn?: boolean;
+  rowBorderColor?: string;
+  rowGradientIsOn?: boolean;
+  rowGradient?: string;
+  rowBorderImage?: string;
+  rowBorderImageRepeat?: string;
+  rowBorderImageWidth?: number;
+  rowBorderImageSliceTop?: number;
+  rowBorderImageSliceBottom?: number;
+  rowBorderImageSliceLeft?: number;
+  rowBorderImageSliceRight?: number;
+  borderRadiusSuffix?: string;
 };
 export type addonStyling = {
-    useAddonDesign?: boolean,
-    addonDesignIsAdvanced?: boolean,
-    addonMargin?: number,
-    addonTextPadding?: number,
-    addonBorderStyle?: string,
-    addonBorderWidth?: number,
-    addonBorderIsOn?: boolean,
-    addonDropShadowH?: number,
-    addonDropShadowV?: number,
-    addonDropShadowBlur?: number,
-    addonDropShadowSpread?: number,
-    addonDropShadowIsOn?: boolean,
-    addonUseBoxShadowIsOn?: boolean,
-    addonBorderRadiusTopLeft?: number,
-    addonBorderRadiusTopRight?: number,
-    addonBorderRadiusBottomRight?: number,
-    addonBorderRadiusBottomLeft?: number,
-    addonBorderRadiusIsPixels?: boolean,
-    addonOverflowIsOn?: boolean,
-    addonDropShadowColor?: string,
-    addonGradientIsOn?: boolean,
-    addonGradient?: string,
-    addonGradientOnSelect?: string,
-    addonGradientOnReq?: string,
-    addonBorderColor?: string,
-    addonBorderImage?: string,
-    addonBorderImageRepeat?: string,
-    addonBorderImageWidth?: number,
-    addonBorderImageSliceTop?: number,
-    addonBorderImageSliceBottom?: number,
-    addonBorderImageSliceLeft?: number,
-    addonBorderImageSliceRight?: number,
-    useAddonBackgroundImage?: boolean,
-    addonBackgroundImage?: string,
-    isAddonBackgroundFitIn?: boolean,
-    isAddonBackgroundRepeat?: boolean,
-    isAddonBackgroundOverlay?: boolean,
-    addonBgColorIsOn?: boolean,
-    addonBgColor?: string,
-    addonTitlePaddingIsOn?: boolean
+  useAddonDesign?: boolean;
+  addonDesignIsAdvanced?: boolean;
+  addonMargin?: number;
+  addonTextPadding?: number;
+  addonBorderStyle?: string;
+  addonBorderWidth?: number;
+  addonBorderIsOn?: boolean;
+  addonDropShadowH?: number;
+  addonDropShadowV?: number;
+  addonDropShadowBlur?: number;
+  addonDropShadowSpread?: number;
+  addonDropShadowIsOn?: boolean;
+  addonUseBoxShadowIsOn?: boolean;
+  addonBorderRadiusTopLeft?: number;
+  addonBorderRadiusTopRight?: number;
+  addonBorderRadiusBottomRight?: number;
+  addonBorderRadiusBottomLeft?: number;
+  addonBorderRadiusIsPixels?: boolean;
+  addonOverflowIsOn?: boolean;
+  addonDropShadowColor?: string;
+  addonGradientIsOn?: boolean;
+  addonGradient?: string;
+  addonGradientOnSelect?: string;
+  addonGradientOnReq?: string;
+  addonBorderColor?: string;
+  addonBorderImage?: string;
+  addonBorderImageRepeat?: string;
+  addonBorderImageWidth?: number;
+  addonBorderImageSliceTop?: number;
+  addonBorderImageSliceBottom?: number;
+  addonBorderImageSliceLeft?: number;
+  addonBorderImageSliceRight?: number;
+  useAddonBackgroundImage?: boolean;
+  addonBackgroundImage?: string;
+  isAddonBackgroundFitIn?: boolean;
+  isAddonBackgroundRepeat?: boolean;
+  isAddonBackgroundOverlay?: boolean;
+  addonBgColorIsOn?: boolean;
+  addonBgColor?: string;
+  addonTitlePaddingIsOn?: boolean;
 };
 export type multiChoiceStyling = {
-    customMultiTextFont?: boolean,
-    multiChoiceCounterPosition?: number,
-    multiChoiceCounterSize?: number,
-    multiChoiceTextFont?: string,
-    multiChoiceTextSize?: number
+  customMultiTextFont?: boolean;
+  multiChoiceCounterPosition?: number;
+  multiChoiceCounterSize?: number;
+  multiChoiceTextFont?: string;
+  multiChoiceTextSize?: number;
 };
 export type pointBarStyling = {
-    barTextPadding?: number,
-    barTextMargin?: number,
-    customBarTextFont?: boolean,
-    barTextFont?: string,
-    barPadding?: number,
-    barMargin?: number,
-    barTextSize?: number,
-    barTextColor?: string,
-    barPointPos?: string,
-    barPointNeg?: string,
-    barIconColor?: string,
-    barBackgroundColor?: string
+  barTextPadding?: number;
+  barTextMargin?: number;
+  customBarTextFont?: boolean;
+  barTextFont?: string;
+  barPadding?: number;
+  barMargin?: number;
+  barTextSize?: number;
+  barTextColor?: string;
+  barPointPos?: string;
+  barPointNeg?: string;
+  barIconColor?: string;
+  barBackgroundColor?: string;
 };
 export type backpackStyling = {
-    useBackpackDesign?: boolean,
-    backpackBgColor?: string,
-    isBackpackBgRepeat?: boolean,
-    isBackpackBgFitIn?: boolean,
-    backpackBgImage?: string,
-    backPackWidth?: number
+  useBackpackDesign?: boolean;
+  backpackBgColor?: string;
+  isBackpackBgRepeat?: boolean;
+  isBackpackBgFitIn?: boolean;
+  backpackBgImage?: string;
+  backPackWidth?: number;
 };
-export type Styling = {[key: string]: any} & filterStyling & textStyling & objectImageStyling & rowImageStyling & addonImageStyling & backgroundStyling & objectStyling & rowStyling & addonStyling & multiChoiceStyling & pointBarStyling & backpackStyling;
+export type Styling = { [key: string]: any } & filterStyling &
+  textStyling &
+  objectImageStyling &
+  rowImageStyling &
+  addonImageStyling &
+  backgroundStyling &
+  objectStyling &
+  rowStyling &
+  addonStyling &
+  multiChoiceStyling &
+  pointBarStyling &
+  backpackStyling;
 export type MoreReq = {
-    operator?: string,
-    type?: string,
-    id?: string,
-    points?: number,
-    priority?: number
+  operator?: string;
+  type?: string;
+  id?: string;
+  points?: number;
+  priority?: number;
 };
 export type Requireds = {
-    required: boolean,
-    requireds: Requireds[],
-    orRequired: { req?: string }[],
-    orRequireds?: Requireds[],
-    id: string,
-    type: string,
-    reqId: string,
-    reqId1: string,
-    reqId2: string,
-    reqId3: string,
-    reqPoints: number,
-    showRequired: boolean,
-    hideRequired?: boolean,
-    hideRequired2?: boolean,
-    operator?: string,
-    afterText: string,
-    beforeText: string,
-    orNum?: number,
-    selNum?: number,
-    selFromOperators?: string,
-    selGroups?: string[],
-    selRows?: string[],
-    more?: MoreReq[],
-    customTextIsOn?: boolean,
-    customText?: string
+  required: boolean;
+  requireds: Requireds[];
+  orRequired: { req?: string }[];
+  orRequireds?: Requireds[];
+  id: string;
+  type: string;
+  reqId: string;
+  reqId1: string;
+  reqId2: string;
+  reqId3: string;
+  reqPoints: number;
+  showRequired: boolean;
+  hideRequired?: boolean;
+  hideRequired2?: boolean;
+  operator?: string;
+  afterText: string;
+  beforeText: string;
+  orNum?: number;
+  selNum?: number;
+  selFromOperators?: string;
+  selGroups?: string[];
+  selRows?: string[];
+  more?: MoreReq[];
+  customTextIsOn?: boolean;
+  customText?: string;
 };
 export type Discount = {
-    id: string,
-    state: number,
-    stackable: boolean,
-    stack: number,
-    operator: string,
-    value: number,
-    count: number,
-    useLowLimit: boolean,
-    lowLimit: number,
-    showDiscount: boolean,
-    afterText: string,
-    beforeText: string,
-    replaceText: boolean,
-    consolidate: boolean,
-    hideValue: boolean,
-    hideIcon: boolean,
+  id: string;
+  state: number;
+  stackable: boolean;
+  stack: number;
+  operator: string;
+  value: number;
+  count: number;
+  useLowLimit: boolean;
+  lowLimit: number;
+  showDiscount: boolean;
+  afterText: string;
+  beforeText: string;
+  replaceText: boolean;
+  consolidate: boolean;
+  hideValue: boolean;
+  hideIcon: boolean;
 };
 export type Score = {
-    [key: string]: any,
-    idx: string,
-    id: string,
-    value: number,
-    type: string,
-    beforeText: string,
-    afterText: string,
-    requireds: Requireds[],
-    showScore: boolean,
-    isActive?: boolean,
-    isActiveMul?: boolean[],
-    isActiveMulMinus?: boolean[],
-    hideValue?: boolean,
-    isNotRecalculatable?: boolean,
-    isNotDiscountable?: boolean,
-    isRandom?: boolean,
-    minValue?: number,
-    maxValue?: number,
-    setValue?: boolean,
-    discounts?: Discount[],
-    discountIsOn?: boolean,
-    discountShow?: boolean,
-    discountBeforeText?: string,
-    discountAfterText?: string,
-    discountScore?: number,
-    discountScoreCal?: number,
-    isChangeDiscount?: boolean,
-    discountNum?: number,
-    tmpDisScore?: number,
-    tmpDiscount?: Discount[],
-    discountedFrom?: string[],
-    dupTextA?: {
-        [key: string]: number
-    },
-    dupTextB?: {
-        [key: string]: number
-    },
-    discountTextA?: string[],
-    discountTextB?: string[],
-    notStackableDiscount?: boolean,
-    multiplyByTimes?: boolean,
-    displayMulScore?: boolean,
-    appliedDiscount?: boolean,
-    replaceText?: boolean,
-    hideDisValue?: boolean,
-    hideDisIcon?: boolean,
-    useExpression?: boolean,
-    expValue?: string,
-    expMinValue?: string,
-    expMaxValue?: string,
-    mulValue?: number[],
+  [key: string]: any;
+  idx: string;
+  id: string;
+  value: number;
+  type: string;
+  beforeText: string;
+  afterText: string;
+  requireds: Requireds[];
+  showScore: boolean;
+  isActive?: boolean;
+  isActiveMul?: boolean[];
+  isActiveMulMinus?: boolean[];
+  hideValue?: boolean;
+  isNotRecalculatable?: boolean;
+  isNotDiscountable?: boolean;
+  isRandom?: boolean;
+  minValue?: number;
+  maxValue?: number;
+  setValue?: boolean;
+  discounts?: Discount[];
+  discountIsOn?: boolean;
+  discountShow?: boolean;
+  discountBeforeText?: string;
+  discountAfterText?: string;
+  discountScore?: number;
+  discountScoreCal?: number;
+  isChangeDiscount?: boolean;
+  discountNum?: number;
+  tmpDisScore?: number;
+  tmpDiscount?: Discount[];
+  discountedFrom?: string[];
+  dupTextA?: {
+    [key: string]: number;
+  };
+  dupTextB?: {
+    [key: string]: number;
+  };
+  discountTextA?: string[];
+  discountTextB?: string[];
+  notStackableDiscount?: boolean;
+  multiplyByTimes?: boolean;
+  displayMulScore?: boolean;
+  appliedDiscount?: boolean;
+  replaceText?: boolean;
+  hideDisValue?: boolean;
+  hideDisIcon?: boolean;
+  useExpression?: boolean;
+  expValue?: string;
+  expMinValue?: string;
+  expMaxValue?: string;
+  mulValue?: number[];
 };
 export type ChoiceFunc = {
-    hideMultipleCounter?: boolean,
-    allowSelectByClick?: boolean,
-    hideCounterUntilSelect?: boolean,
-    isSelectableMultiple?: boolean,
-    isMultipleUseVariable?: boolean,
-    multipleScoreId?: string,
-    numMultipleTimesMinus?: number,
-    numMultipleTimesPluss?: number,
-    isNotSelectable?: boolean,
-    selectOnce?: boolean,
-    notDeselectedByClean?: boolean,
-    isNotResult?: boolean,
-    isImageUpload?: boolean,
-    cleanACtivatedOnSelect?: boolean,
-    activateOtherChoice?: boolean,
-    isNotDeactivate?: boolean,
-    isAllowDeselect?: boolean,
-    activateAfterReset?: boolean,
-    isActivateRandom?: boolean,
-    numActivateRandom?: number,
-    activateThisChoice?: string,
-    isNotActiveUnselectable?: boolean,
-    deactivateOtherChoice?: boolean,
-    deactivateThisChoice?: string,
-    discountOther?: boolean,
-    discountLowLimitIsOn?: boolean,
-    discountLowLimit?: number,
-    discountShow?: boolean,
-    replaceScoreText?: boolean,
-    hideScoreValue?: boolean,
-    hideScoreIcon?: boolean,
-    discountBeforeText?: string,
-    discountAfterText?: string,
-    isDisChoices?: boolean,
-    discountRows?: string[],
-    discountChoices?: string[],
-    discountGroups?: string[],
-    discountPointTypes?: string[],
-    discountOperator?: string,
-    discountValue?: number,
-    stackableDiscount?: boolean,
-    useDiscountCount?: boolean,
-    discountCount?: number,
-    countPerSelection?: boolean,
-    numDiscountChoices?: number,
-    appliedDisChoices?: string[],
-    duplicateRow?: boolean,
-    dRowAddSufReq?: boolean,
-    dRowAddSufFunc?: boolean,
-    duplicateRowId?: string,
-    duplicateRowPlace?: string,
-    isContentHidden?: boolean,
-    hiddenContentsRow?: string[],
-    hiddenContentsType?: string[],
-    addToAllowChoice?: boolean,
-    idOfAllowChoice?: string[],
-    numbAddToAllowChoice?: number,
-    showAllAddons?: boolean,
-    changeTemplates?: boolean,
-    changeAddonTemplate?: boolean,
-    changeWidth?: boolean,
-    changeTemplatesList?: string,
-    changeToThisTemplate?: number,
-    changeWidthList?: string,
-    changeToThisWidth?: string,
-    defaultTemplate?: number,
-    defaultWidth?: string,
-    scrollToRow?: boolean,
-    scrollToObject?: boolean,
-    scrollObjectId?: string,
-    scrollRowId?: string,
-    changePointBar?: boolean,
-    changeBarBgColorIsOn?: boolean,
-    changeBarTextColorIsOn?: boolean,
-    changeBarIconColorIsOn?: boolean,
-    changedBarBgColor?: string,
-    changedBarTextColor?: string,
-    changedBarIconColor?: string,
-    changeBackground?: boolean,
-    changeBgImage?: boolean,
-    changedBgColorCode?: string,
-    bgImage?: string,
-    setBgmIsOn?: boolean,
-    bgmId?: string,
-    bgmFadeIn?: boolean,
-    bgmFadeOut?: boolean,
-    bgmFadeInSec?: number,
-    bgmFadeOutSec?: number,
-    bgmNoLoop?: boolean,
-    muteBgm?: boolean,
-    useAudioURL?: boolean,
-    isFadeTransition?: boolean,
-    fadeTransitionColor?: string,
-    fadeTransitionTime?: number,    
-    fadeInTransitionTime?: number,
-    fadeOutTransitionTime?: number,
-    multiplyPointtypeIsOn?: boolean,
-    pointTypeToMultiply?: string[],
-    multiplyWithThis?: number | string,
-    multiplyPointtypeIsId?: boolean,
-    dividePointtypeIsOn?: boolean,
-    pointTypeToDivide?: string[],
-    divideWithThis?: number,
-    startingSumAtMultiply?: {
-        value: number,
-        calcVal: number
-    }[],
-    startingSumAtDivide?: {
-        value: number,
-        calcVal: number
-    }[],
-    startingSumAtSet?: {
-        value: number,
-        calcVal: number
-    }[],
-    multiplyPointtypeIsOnCheck?: boolean,
-    dividePointtypeIsOnCheck?: boolean,
-    setPointtypeIsOnCheck?: boolean,
-    isChangeVariables?: boolean,
-    changedVariables?: string[],
-    changeType?: string,
-    textfieldIsOn?: boolean,
-    customTextfieldIsOn?: boolean,
-    idOfTheTextfieldWord?: string,
-    wordPromptText?: string,
-    wordChangeSelect?: string,
-    wordChangeDeselect?: string,
-    confirmIsOn?: boolean,
-    backpackBtnRequirement?: boolean,
-    forcedActivated?: boolean,
-    activatedFrom?: number,
-    activatedRandom?: string[],
-    activatedRandomMul?: string[][],
-    defaultImage?: string,
-    tempMultipleValue?: number,
-    randomWeight?: number,
-    useSeperateAddon?: boolean,
-    useSlider?: boolean,
-    hideCounter?: boolean,
-    templateStack?: {
-        id: string,
-        data: number
-    }[],
-    widthStack?: {
-        id: string,
-        data: string
-    }[],
-    isEditModeOn?: boolean,
-    isSelectDelayed?: boolean,
-    selectDelayTime?: number,
-    selectDelayTimer?: boolean,
-    isDeselectDelayed?: boolean,
-    deselectDelayTime?: number,
-    deselectDelayTimer?: boolean,
-    showScoreInAddon?: boolean,
-    showReqInAddon?: boolean,
-    showMulInAddon?: boolean,
-    setPointtypeIsOn?: boolean,
-    pointTypeToSet?: string[],
-    setWithThis?: string,
-    isNotSearchable?: boolean,
-    isAutoActive?: boolean,
-    useSfx?: boolean,
-    sfxIdOnSelect?: string,
-    sfxIdOnDeselect?: string,
-    sfxOnSelect?: boolean,
-    sfxOnDeselect?: boolean,
-    isCountDisabled?: boolean,
-    deselectWhenNoAddon?: boolean
+  hideMultipleCounter?: boolean;
+  allowSelectByClick?: boolean;
+  hideCounterUntilSelect?: boolean;
+  isSelectableMultiple?: boolean;
+  isMultipleUseVariable?: boolean;
+  multipleScoreId?: string;
+  numMultipleTimesMinus?: number;
+  numMultipleTimesPluss?: number;
+  isNotSelectable?: boolean;
+  selectOnce?: boolean;
+  notDeselectedByClean?: boolean;
+  isNotResult?: boolean;
+  isImageUpload?: boolean;
+  cleanACtivatedOnSelect?: boolean;
+  activateOtherChoice?: boolean;
+  isNotDeactivate?: boolean;
+  isAllowDeselect?: boolean;
+  activateAfterReset?: boolean;
+  isActivateRandom?: boolean;
+  numActivateRandom?: number;
+  activateThisChoice?: string;
+  isNotActiveUnselectable?: boolean;
+  deactivateOtherChoice?: boolean;
+  deactivateThisChoice?: string;
+  discountOther?: boolean;
+  discountLowLimitIsOn?: boolean;
+  discountLowLimit?: number;
+  discountShow?: boolean;
+  replaceScoreText?: boolean;
+  hideScoreValue?: boolean;
+  hideScoreIcon?: boolean;
+  discountBeforeText?: string;
+  discountAfterText?: string;
+  isDisChoices?: boolean;
+  discountRows?: string[];
+  discountChoices?: string[];
+  discountGroups?: string[];
+  discountPointTypes?: string[];
+  discountOperator?: string;
+  discountValue?: number;
+  stackableDiscount?: boolean;
+  useDiscountCount?: boolean;
+  discountCount?: number;
+  countPerSelection?: boolean;
+  numDiscountChoices?: number;
+  appliedDisChoices?: string[];
+  duplicateRow?: boolean;
+  dRowAddSufReq?: boolean;
+  dRowAddSufFunc?: boolean;
+  duplicateRowId?: string;
+  duplicateRowPlace?: string;
+  isContentHidden?: boolean;
+  hiddenContentsRow?: string[];
+  hiddenContentsType?: string[];
+  addToAllowChoice?: boolean;
+  idOfAllowChoice?: string[];
+  numbAddToAllowChoice?: number;
+  showAllAddons?: boolean;
+  changeTemplates?: boolean;
+  changeAddonTemplate?: boolean;
+  changeWidth?: boolean;
+  changeTemplatesList?: string;
+  changeToThisTemplate?: number;
+  changeWidthList?: string;
+  changeToThisWidth?: string;
+  defaultTemplate?: number;
+  defaultWidth?: string;
+  scrollToRow?: boolean;
+  scrollToObject?: boolean;
+  scrollObjectId?: string;
+  scrollRowId?: string;
+  changePointBar?: boolean;
+  changeBarBgColorIsOn?: boolean;
+  changeBarTextColorIsOn?: boolean;
+  changeBarIconColorIsOn?: boolean;
+  changedBarBgColor?: string;
+  changedBarTextColor?: string;
+  changedBarIconColor?: string;
+  changeBackground?: boolean;
+  changeBgImage?: boolean;
+  changedBgColorCode?: string;
+  bgImage?: string;
+  setBgmIsOn?: boolean;
+  bgmId?: string;
+  bgmFadeIn?: boolean;
+  bgmFadeOut?: boolean;
+  bgmFadeInSec?: number;
+  bgmFadeOutSec?: number;
+  bgmNoLoop?: boolean;
+  muteBgm?: boolean;
+  useAudioURL?: boolean;
+  isFadeTransition?: boolean;
+  fadeTransitionColor?: string;
+  fadeTransitionTime?: number;
+  fadeInTransitionTime?: number;
+  fadeOutTransitionTime?: number;
+  multiplyPointtypeIsOn?: boolean;
+  pointTypeToMultiply?: string[];
+  multiplyWithThis?: number | string;
+  multiplyPointtypeIsId?: boolean;
+  dividePointtypeIsOn?: boolean;
+  pointTypeToDivide?: string[];
+  divideWithThis?: number;
+  startingSumAtMultiply?: {
+    value: number;
+    calcVal: number;
+  }[];
+  startingSumAtDivide?: {
+    value: number;
+    calcVal: number;
+  }[];
+  startingSumAtSet?: {
+    value: number;
+    calcVal: number;
+  }[];
+  multiplyPointtypeIsOnCheck?: boolean;
+  dividePointtypeIsOnCheck?: boolean;
+  setPointtypeIsOnCheck?: boolean;
+  isChangeVariables?: boolean;
+  changedVariables?: string[];
+  changeType?: string;
+  textfieldIsOn?: boolean;
+  customTextfieldIsOn?: boolean;
+  idOfTheTextfieldWord?: string;
+  wordPromptText?: string;
+  wordChangeSelect?: string;
+  wordChangeDeselect?: string;
+  confirmIsOn?: boolean;
+  backpackBtnRequirement?: boolean;
+  forcedActivated?: boolean;
+  activatedFrom?: number;
+  activatedRandom?: string[];
+  activatedRandomMul?: string[][];
+  defaultImage?: string;
+  tempMultipleValue?: number;
+  randomWeight?: number;
+  useSeperateAddon?: boolean;
+  useSlider?: boolean;
+  hideCounter?: boolean;
+  templateStack?: {
+    id: string;
+    data: number;
+  }[];
+  widthStack?: {
+    id: string;
+    data: string;
+  }[];
+  isEditModeOn?: boolean;
+  isSelectDelayed?: boolean;
+  selectDelayTime?: number;
+  selectDelayTimer?: boolean;
+  isDeselectDelayed?: boolean;
+  deselectDelayTime?: number;
+  deselectDelayTimer?: boolean;
+  showScoreInAddon?: boolean;
+  showReqInAddon?: boolean;
+  showMulInAddon?: boolean;
+  setPointtypeIsOn?: boolean;
+  pointTypeToSet?: string[];
+  setWithThis?: string;
+  isNotSearchable?: boolean;
+  isAutoActive?: boolean;
+  useSfx?: boolean;
+  sfxIdOnSelect?: string;
+  sfxIdOnDeselect?: string;
+  sfxOnSelect?: boolean;
+  sfxOnDeselect?: boolean;
+  isCountDisabled?: boolean;
+  deselectWhenNoAddon?: boolean;
 };
 export type BaseAddon = {
-    [key: string]: any;
-    id: string,
-    title: string,
-    text: string,
-    template: number,
-    image: string,
-    requireds: Requireds[],
-    parentId?: string,
-    showAddon?: boolean,
-    hideAddon?: boolean,
-    skipIndex?: boolean,
-    defaultTemplate?: number,
-    templateStack?: {
-        id: string,
-        data: number
-    }[],
-    addonWidth?: string,
+  [key: string]: any;
+  id: string;
+  title: string;
+  text: string;
+  template: number;
+  image: string;
+  requireds: Requireds[];
+  parentId?: string;
+  showAddon?: boolean;
+  hideAddon?: boolean;
+  skipIndex?: boolean;
+  defaultTemplate?: number;
+  templateStack?: {
+    id: string;
+    data: number;
+  }[];
+  addonWidth?: string;
 };
 export type NonSelectableAddon = {
-    isSelectable?: false | undefined;
-} & BaseAddon
+  isSelectable?: false | undefined;
+} & BaseAddon;
 export type SelectableAddon = {
-    isSelectable: true,
-    scores: Score[],
-    groups: string[],
-    multipleUseVariable: number,
-    isActive: boolean,
-    deselectParent?: boolean,
-    countAsChoice?: boolean,
-} & BaseAddon & ChoiceFunc;
+  isSelectable: true;
+  scores: Score[];
+  groups: string[];
+  multipleUseVariable: number;
+  isActive: boolean;
+  deselectParent?: boolean;
+  countAsChoice?: boolean;
+} & BaseAddon &
+  ChoiceFunc;
 export type Addon = NonSelectableAddon | SelectableAddon;
 export type MDObject = {
-    [key: string]: any,
-    id: string,
+  [key: string]: any;
+  id: string;
 } & ChoiceFunc;
 export type Choice = {
-    [key: string]: any,
-    id: string,
-    index: number,
-    title: string,
-    text: string,
-    debugTitle: string,
-    image: string,
-    template: number,
-    objectWidth: string,
-    isActive: boolean,
-    multipleUseVariable: number,
-    initMultipleTimesMinus?: number,
-    selectedThisManyTimesProp: number,
-    requireds: Requireds[],
-    addons: Addon[],
-    scores: Score[],
-    groups: string[],
-    objectDesignGroups?: string[],
-    isPrivateStyling?: boolean,
-    privateFilterIsOn?: boolean,
-    privateTextIsOn?: boolean,
-    privateObjectImageIsOn?: boolean,
-    privateObjectIsOn?: boolean,
-    privateAddonImageIsOn?: boolean,
-    privateAddonIsOn?: boolean,
-    privateBackgroundIsOn?: boolean,
-    privateMultiChoiceIsOn?: boolean,
-    styling?: Styling,
-    addonJustify?: string,
-    linkedObjects?: string[]
-    /** Requirement-gated image switching: when enabled, the highest-priority
-     *  matching ImageVariant replaces the base `image`. */
-    imageSwitchingIsOn?: boolean,
-    imageVariants?: ImageVariant[]
+  [key: string]: any;
+  id: string;
+  index: number;
+  title: string;
+  text: string;
+  debugTitle: string;
+  image: string;
+  template: number;
+  objectWidth: string;
+  isActive: boolean;
+  multipleUseVariable: number;
+  initMultipleTimesMinus?: number;
+  selectedThisManyTimesProp: number;
+  requireds: Requireds[];
+  addons: Addon[];
+  scores: Score[];
+  groups: string[];
+  objectDesignGroups?: string[];
+  isPrivateStyling?: boolean;
+  privateFilterIsOn?: boolean;
+  privateTextIsOn?: boolean;
+  privateObjectImageIsOn?: boolean;
+  privateObjectIsOn?: boolean;
+  privateAddonImageIsOn?: boolean;
+  privateAddonIsOn?: boolean;
+  privateBackgroundIsOn?: boolean;
+  privateMultiChoiceIsOn?: boolean;
+  styling?: Styling;
+  addonJustify?: string;
+  linkedObjects?: string[];
+  /** Requirement-gated image switching: when enabled, the highest-priority
+   *  matching ImageVariant replaces the base `image`. */
+  imageSwitchingIsOn?: boolean;
+  imageVariants?: ImageVariant[];
 } & ChoiceFunc;
 export type Row = {
-    [key: string]: any,
-    id: string,
-    index: number,
-    isBackpack?: boolean,
-    title: string,
-    titleText: string,
-    debugTitle?: string,
-    objectWidth: string,
-    image: string,
-    template: number,
-    isButtonRow?: boolean,
-    buttonType?: boolean,
-    buttonId?: string,
-    buttonText?: string,
-    buttonRandom?: boolean,
-    buttonRandomNumber?: number,
-    isWeightedRandom?: boolean,
-    allowActivateUnselectable?: boolean,
-    isResultRow?: boolean,
-    resultGroupId?: string,
-    isInfoRow?: boolean,
-    isGroupRow?: boolean,
-    defaultAspectWidth: number,
-    defaultAspectHeight: number,
-    allowedChoices: number,
-    currentChoices: number,
-    requireds: Requireds[],
-    isEditModeOn?: boolean,
-    isSimpleEditMode?: boolean,
-    isRequirementOpen?: boolean,
-    objects: Choice[],
-    rowDesignGroups?: string[],
-    imageIsUrl?: boolean,
-    width?: boolean,
-    deselectChoices?: boolean,
-    rowJustify?: string,
-    groups?: string[],
-    imageSourceTooltip?: string,
-    isPrivateStyling?: boolean,
-    privateFilterIsOn?: boolean,
-    privateTextIsOn?: boolean,
-    privateObjectImageIsOn?: boolean,
-    privateObjectIsOn?: boolean,
-    privateRowImageIsOn?: boolean,
-    privateRowIsOn?: boolean,
-    privateAddonImageIsOn?: boolean,
-    privateAddonIsOn?: boolean,
-    privateBackgroundIsOn?: boolean,
-    privateMultiChoiceIsOn?: boolean,
-    styling?: Styling,
-    objectImgObjectFillHeight?: number,
-    resultShowRowTitle?: boolean,
-    textIsRemoved?: boolean,
-    objectTitleRemoved?: boolean,
-    objectImageRemoved?: boolean,
-    objectTextRemoved?: boolean,
-    objectScoreRemoved?: boolean,
-    objectRequirementRemoved?: boolean,
-    addonTitleRemoved?: boolean,
-    addonImageRemoved?: boolean,
-    addonTextRemoved?: boolean,
-    unselAddonRemoved?: boolean,
-    unmetAddonRemoved?: boolean,
-    buttonTypeRadio?: string,
-    btnPointAddon?: boolean,
-    pointTypeRandom?: string,
-    randomMin?: number,
-    randomMax?: number,
-    onlyUnselectedChoices?: boolean,
-    onlyIfNoChoices?: boolean,
-    choicesShareTemplate?: boolean,
-    defaultTemplate?: number,
-    defaultWidth?: string,
-    overrideWidth?: boolean,
-    templateStack?: {
-        id: string,
-        data: number
-    }[],
-    widthStack?: {
-        id: string,
-        data: string
-    }[]
+  [key: string]: any;
+  id: string;
+  index: number;
+  isBackpack?: boolean;
+  title: string;
+  titleText: string;
+  debugTitle?: string;
+  objectWidth: string;
+  image: string;
+  template: number;
+  isButtonRow?: boolean;
+  buttonType?: boolean;
+  buttonId?: string;
+  buttonText?: string;
+  buttonRandom?: boolean;
+  buttonRandomNumber?: number;
+  isWeightedRandom?: boolean;
+  allowActivateUnselectable?: boolean;
+  isResultRow?: boolean;
+  resultGroupId?: string;
+  isInfoRow?: boolean;
+  isGroupRow?: boolean;
+  defaultAspectWidth: number;
+  defaultAspectHeight: number;
+  allowedChoices: number;
+  currentChoices: number;
+  requireds: Requireds[];
+  isEditModeOn?: boolean;
+  isSimpleEditMode?: boolean;
+  isRequirementOpen?: boolean;
+  objects: Choice[];
+  rowDesignGroups?: string[];
+  imageIsUrl?: boolean;
+  width?: boolean;
+  deselectChoices?: boolean;
+  rowJustify?: string;
+  groups?: string[];
+  imageSourceTooltip?: string;
+  isPrivateStyling?: boolean;
+  privateFilterIsOn?: boolean;
+  privateTextIsOn?: boolean;
+  privateObjectImageIsOn?: boolean;
+  privateObjectIsOn?: boolean;
+  privateRowImageIsOn?: boolean;
+  privateRowIsOn?: boolean;
+  privateAddonImageIsOn?: boolean;
+  privateAddonIsOn?: boolean;
+  privateBackgroundIsOn?: boolean;
+  privateMultiChoiceIsOn?: boolean;
+  styling?: Styling;
+  objectImgObjectFillHeight?: number;
+  resultShowRowTitle?: boolean;
+  textIsRemoved?: boolean;
+  objectTitleRemoved?: boolean;
+  objectImageRemoved?: boolean;
+  objectTextRemoved?: boolean;
+  objectScoreRemoved?: boolean;
+  objectRequirementRemoved?: boolean;
+  addonTitleRemoved?: boolean;
+  addonImageRemoved?: boolean;
+  addonTextRemoved?: boolean;
+  unselAddonRemoved?: boolean;
+  unmetAddonRemoved?: boolean;
+  buttonTypeRadio?: string;
+  btnPointAddon?: boolean;
+  pointTypeRandom?: string;
+  randomMin?: number;
+  randomMax?: number;
+  onlyUnselectedChoices?: boolean;
+  onlyIfNoChoices?: boolean;
+  choicesShareTemplate?: boolean;
+  defaultTemplate?: number;
+  defaultWidth?: string;
+  overrideWidth?: boolean;
+  templateStack?: {
+    id: string;
+    data: number;
+  }[];
+  widthStack?: {
+    id: string;
+    data: string;
+  }[];
 };
 export type PointType = {
-    id: string,
-    name: string,
-    startingSum: number,
-    initValue: number,
-    activatedId: string,
-    beforeText: string,
-    afterText: string,
-    belowZeroNotAllowed?: boolean,
-    isNotShownPointBar?: boolean,
-    isNotShownObjects?: boolean,
-    plussOrMinusAdded?: boolean,
-    plussOrMinusInverted?: boolean,
-    pointColorsIsOn?: boolean,
-    positiveColor?: string,
-    negativeColor?: string,
-    iconIsOn?: boolean,
-    useSeperatePosition?: boolean,
-    image?: string,
-    imageOnSide?: boolean,
-    imageSidePlacement?: boolean,
-    imageOnSideInChoice?: boolean,
-    imageSidePlacementInChoice?: boolean,
-    iconWidth?: number,
-    iconHeight?: number,
-    negativeIconIsOn?: boolean,
-    negativeImage?: string,
-    negativeImageOnSide?: boolean,
-    negativeImageSidePlacement?: boolean,
-    negativeImageOnSideInChoice?: boolean,
-    negativeImageSidePlacementInChoice?: boolean,
-    negativeIconWidth?: number,
-    negativeIconHeight?: number,
-    pointPrivateColorIsOn?: boolean,
-    privateColor?: string,
-    privateNegativeColor?: string,
-    imageIsURL?: boolean,
-    allowFloat?: boolean,
-    decimalPlaces?: number,
-    category?: number
+  id: string;
+  name: string;
+  startingSum: number;
+  initValue: number;
+  activatedId: string;
+  beforeText: string;
+  afterText: string;
+  belowZeroNotAllowed?: boolean;
+  isNotShownPointBar?: boolean;
+  isNotShownObjects?: boolean;
+  plussOrMinusAdded?: boolean;
+  plussOrMinusInverted?: boolean;
+  pointColorsIsOn?: boolean;
+  positiveColor?: string;
+  negativeColor?: string;
+  iconIsOn?: boolean;
+  useSeperatePosition?: boolean;
+  image?: string;
+  imageOnSide?: boolean;
+  imageSidePlacement?: boolean;
+  imageOnSideInChoice?: boolean;
+  imageSidePlacementInChoice?: boolean;
+  iconWidth?: number;
+  iconHeight?: number;
+  negativeIconIsOn?: boolean;
+  negativeImage?: string;
+  negativeImageOnSide?: boolean;
+  negativeImageSidePlacement?: boolean;
+  negativeImageOnSideInChoice?: boolean;
+  negativeImageSidePlacementInChoice?: boolean;
+  negativeIconWidth?: number;
+  negativeIconHeight?: number;
+  pointPrivateColorIsOn?: boolean;
+  privateColor?: string;
+  privateNegativeColor?: string;
+  imageIsURL?: boolean;
+  allowFloat?: boolean;
+  decimalPlaces?: number;
+  category?: number;
 };
 export type Variable = {
-    id: string,
-    isTrue: boolean,
-    category?: number
-}
+  id: string;
+  isTrue: boolean;
+  category?: number;
+};
 export type Group = {
-    id: string,
-    name: string,
-    category?: number
-    elements: string[],
-    rowElements: string[],
-    designGroups?: string[],
+  id: string;
+  name: string;
+  category?: number;
+  elements: string[];
+  rowElements: string[];
+  designGroups?: string[];
 };
 export type CommonImage = {
-    [key: string]: any,
-    id?: string,
-    image?: string,
-    imageIsURL?: boolean
+  [key: string]: any;
+  id?: string;
+  image?: string;
+  imageIsURL?: boolean;
 };
 export type GlobalRequirement = {
-    id: string,
-    name: string,
-    category?: number,
-    requireds: Requireds[]
-}
+  id: string;
+  name: string;
+  category?: number;
+  requireds: Requireds[];
+};
 export type Word = {
-    id: string,
-    replaceText: string,
-    category?: number
-}
+  id: string;
+  replaceText: string;
+  category?: number;
+};
 /**
  * An image resource in the CYOA document. Choices/rows/addons reference
  * resources by id (like choices and rows reference each other); the ACL
@@ -863,15 +875,15 @@ export type Word = {
  * (data URLs / URLs) into these resources on import.
  */
 export type ImageResource = {
-    [key: string]: any,
-    id: string,
-    name?: string,
-    /** Inline data URL or remote URL (whatever the source document used). */
-    image?: string,
-    imageIsURL?: boolean,
-    sourceTooltip?: string,
-    category?: number
-}
+  [key: string]: any;
+  id: string;
+  name?: string;
+  /** Inline data URL or remote URL (whatever the source document used). */
+  image?: string;
+  imageIsURL?: boolean;
+  sourceTooltip?: string;
+  category?: number;
+};
 /**
  * A requirement-gated image variant for a choice: when `requireds` are met
  * the variant's image is shown instead of the choice's base image. Lower
@@ -879,405 +891,408 @@ export type ImageResource = {
  * choices, selectable addons, point values, groups or global requirements.
  */
 export type ImageVariant = {
-    [key: string]: any,
-    id: string,
-    /** Image resource id (or legacy inline string). */
-    image: string,
-    requireds: Requireds[],
-    priority: number,
-    name?: string
-}
+  [key: string]: any;
+  id: string;
+  /** Image resource id (or legacy inline string). */
+  image: string;
+  requireds: Requireds[];
+  priority: number;
+  name?: string;
+};
 export type RowDesignGroup = {
-    [key: string]: any,
-    id: string,
-    name: string,
-    activatedId: string,
-    elements: string[],
-    backpackElements: string[],
-    groupElements: string[],
-    privateFilterIsOn?: boolean,
-    privateTextIsOn?: boolean,
-    privateObjectImageIsOn?: boolean,
-    privateObjectIsOn?: boolean,
-    privateRowImageIsOn?: boolean,
-    privateRowIsOn?: boolean,
-    privateAddonImageIsOn?: boolean,
-    privateAddonIsOn?: boolean,
-    privateBackgroundIsOn?: boolean,
-    category?: number
-    styling: Styling
-}
+  [key: string]: any;
+  id: string;
+  name: string;
+  activatedId: string;
+  elements: string[];
+  backpackElements: string[];
+  groupElements: string[];
+  privateFilterIsOn?: boolean;
+  privateTextIsOn?: boolean;
+  privateObjectImageIsOn?: boolean;
+  privateObjectIsOn?: boolean;
+  privateRowImageIsOn?: boolean;
+  privateRowIsOn?: boolean;
+  privateAddonImageIsOn?: boolean;
+  privateAddonIsOn?: boolean;
+  privateBackgroundIsOn?: boolean;
+  category?: number;
+  styling: Styling;
+};
 export type ObjectDesignGroup = {
-    [key: string]: any,
-    id: string,
-    name: string,
-    activatedId: string,
-    elements: string[],
-    backpackElements: string[],
-    groupElements: string[],
-    privateFilterIsOn?: boolean,
-    privateTextIsOn?: boolean,
-    privateObjectImageIsOn?: boolean,
-    privateObjectIsOn?: boolean,
-    privateAddonImageIsOn?: boolean,
-    privateAddonIsOn?: boolean,
-    privateBackgroundIsOn?: boolean,
-    category?: number
-    styling: Styling
-}
+  [key: string]: any;
+  id: string;
+  name: string;
+  activatedId: string;
+  elements: string[];
+  backpackElements: string[];
+  groupElements: string[];
+  privateFilterIsOn?: boolean;
+  privateTextIsOn?: boolean;
+  privateObjectImageIsOn?: boolean;
+  privateObjectIsOn?: boolean;
+  privateAddonImageIsOn?: boolean;
+  privateAddonIsOn?: boolean;
+  privateBackgroundIsOn?: boolean;
+  category?: number;
+  styling: Styling;
+};
 export type DefaultSettings = {
-    defaultRowTitle: string,
-    defaultRowText: string,
-    defaultChoiceTitle: string,
-    defaultChoiceText: string,
-    defaultBeforePoint: string,
-    defaultAfterPoint: string,
-    defaultBeforeReq: string,
-    defaultAfterReq: string,
-    defaultAddonTitle: string,
-    defaultAddonText: string,
-    orderOrReqText: string,
-    defaultOrReq: string,
-    orderSelReqText: string,
-    defaultSelReq: string,
-    defaultRowTemplate: number,
-    defaultRowWidth: string,
-    defaultRowJustify: string,
-    defaultRowAllowedChoices: number,
-    defaultChoiceTemplate: number,
-    defaultChoiceWidth: string,
-    defaultChoiceMaxNum: number,
-    defaultAddonJustify: string,
-    defaultAddonTemplate: number,
-    defaultAddonWidth: string,
-    defaultUseSeperateAddon: boolean,
-    defaultUseShowAddon: boolean,
-    defaultUseHideAddon: boolean,
-    defaultUseShowScore: boolean,
-    defaultUseHideValue: boolean,
-    defaultUseShowReq: boolean
-}
+  defaultRowTitle: string;
+  defaultRowText: string;
+  defaultChoiceTitle: string;
+  defaultChoiceText: string;
+  defaultBeforePoint: string;
+  defaultAfterPoint: string;
+  defaultBeforeReq: string;
+  defaultAfterReq: string;
+  defaultAddonTitle: string;
+  defaultAddonText: string;
+  orderOrReqText: string;
+  defaultOrReq: string;
+  orderSelReqText: string;
+  defaultSelReq: string;
+  defaultRowTemplate: number;
+  defaultRowWidth: string;
+  defaultRowJustify: string;
+  defaultRowAllowedChoices: number;
+  defaultChoiceTemplate: number;
+  defaultChoiceWidth: string;
+  defaultChoiceMaxNum: number;
+  defaultAddonJustify: string;
+  defaultAddonTemplate: number;
+  defaultAddonWidth: string;
+  defaultUseSeperateAddon: boolean;
+  defaultUseShowAddon: boolean;
+  defaultUseHideAddon: boolean;
+  defaultUseShowScore: boolean;
+  defaultUseHideValue: boolean;
+  defaultUseShowReq: boolean;
+};
 export type ViewerConfig = {
-    title: string,
-    favicon: string,
-    loadingType: string,
-    loadingBgColor: string,
-    loadingBgImage: string,
-    loadingCircleColor: string,
-    loadingTrackColor: string,
-    loadingText: string,
-    loadingTextColor: string,
-    loadingTextFont: string,
-    loadingTextShadow: string,
-    useSeparateImages: boolean,
-    useLocalViewer: boolean
-}
+  title: string;
+  favicon: string;
+  loadingType: string;
+  loadingBgColor: string;
+  loadingBgImage: string;
+  loadingCircleColor: string;
+  loadingTrackColor: string;
+  loadingText: string;
+  loadingTextColor: string;
+  loadingTextFont: string;
+  loadingTextShadow: string;
+  useSeparateImages: boolean;
+  useLocalViewer: boolean;
+};
 export type SoundEffect = {
-    id: string,
-    name: string,
-    audio: string,
-    volume: number,
-    pitch: number,
-    isDefault: boolean,
-    onSelected: boolean,
-    onDeselected: boolean,
-    requireds: Requireds[],
-    groups: string[]
-}
+  id: string;
+  name: string;
+  audio: string;
+  volume: number;
+  pitch: number;
+  isDefault: boolean;
+  onSelected: boolean;
+  onDeselected: boolean;
+  requireds: Requireds[];
+  groups: string[];
+};
 export type App = {
-    [key: string]: any,
-    version?: string,
-    isEditModeOnAll: boolean,
-    isPointerCursor: boolean,
-    importedChoicesIsOpen: boolean,
-    curVolume: number,
-    isMute: boolean,
-    showMusicPlayer: boolean,
-    fadeTransitionColor: string,
-    fadeTransitionTime: number,
-    fadeTransitionIsOn: boolean,
-    hideBackpackBtn: number,
-    btnBackpackIsOn: number,
-    showAllAddons: number,
-    tmpRow: Row[],
-    tmpChoice: Choice[],
-    tmpRequired: Requireds[],
-    tmpScore: Score[],
-    tmpAddon: Addon[],
-    tmpGroup: string[],
-    tmpDesignGroup: string[],
-    rowIdLength: number,
-    objectIdLength: number,
-    words: Word[],
-    groups: Group[],
-    rowDesignGroups?: RowDesignGroup[],
-    objectDesignGroups: ObjectDesignGroup[],
-    objectsPerRow: string,
-    globalRequirements?: GlobalRequirement[],
-    soundEffects: SoundEffect[],
-    googleFonts: string[],
-    customFonts: string[],
-    compressImageAuto: boolean,
-    useTextEditor: boolean,
-    useToolbarBtn: boolean,
-    useChoiceEditBtn: boolean,
-    hideScoresUpdated: boolean,
-    hideChoiceDT: boolean,
-    hideImages: boolean,
-    preloadImages: boolean,
-    preloadExternalImages: boolean,
-    useVW: boolean,
-    addPrefix?: boolean,
-    mdObjects: string[],
-    printThis: boolean,
-    autoSaveIsOn: boolean,
-    autoSaveInterval: number,
-    buildAutoSaveIsOn: boolean,
-    buildAutoSaveInterval: number,
-    tooltipDelay?: number,
-    checkDeleteRow: boolean,
-    checkDeleteObject: boolean,
-    checkSelectAll: boolean,
-    enableShortcut: boolean,
-    defaultBgColor?: string,
-    defaultBgImage?: string,
-    defaultBarBgColor?: string,
-    defaultBarTextColor?: string,
-    defaultBarIconColor?: string,
-    bgColorStack?: {
-        id: string,
-        data: string
-    }[],
-    bgImageStack?: {
-        id: string,
-        data: string
-    }[],
-    barBgColorStack?: {
-        id: string,
-        data: string
-    }[],
-    barTextColorStack?: {
-        id: string,
-        data: string
-    }[],
-    barIconColorStack?: {
-        id: string,
-        data: string
-    }[],
-    customCSS?: string,
-    variables: Variable[],
-    pointTypes: PointType[],
-    activated: string[],
-    rows: Row[],
-    backpack: Row[],
-    images: ImageResource[],
-    styling: Styling,
-    categories: Category[],
-    cropperPosition: number,
-    enableSearch: boolean,
-    useDesignGroupBtn: boolean,
-    smallerScreenPx: number,
-    enableHalfRow: boolean,
-    minimizeTemplate: boolean,
-    viewerConfig: ViewerConfig
+  [key: string]: any;
+  version?: string;
+  isEditModeOnAll: boolean;
+  isPointerCursor: boolean;
+  importedChoicesIsOpen: boolean;
+  curVolume: number;
+  isMute: boolean;
+  showMusicPlayer: boolean;
+  fadeTransitionColor: string;
+  fadeTransitionTime: number;
+  fadeTransitionIsOn: boolean;
+  hideBackpackBtn: number;
+  btnBackpackIsOn: number;
+  showAllAddons: number;
+  tmpRow: Row[];
+  tmpChoice: Choice[];
+  tmpRequired: Requireds[];
+  tmpScore: Score[];
+  tmpAddon: Addon[];
+  tmpGroup: string[];
+  tmpDesignGroup: string[];
+  rowIdLength: number;
+  objectIdLength: number;
+  words: Word[];
+  groups: Group[];
+  rowDesignGroups?: RowDesignGroup[];
+  objectDesignGroups: ObjectDesignGroup[];
+  objectsPerRow: string;
+  globalRequirements?: GlobalRequirement[];
+  soundEffects: SoundEffect[];
+  googleFonts: string[];
+  customFonts: string[];
+  compressImageAuto: boolean;
+  useTextEditor: boolean;
+  useToolbarBtn: boolean;
+  useChoiceEditBtn: boolean;
+  hideScoresUpdated: boolean;
+  hideChoiceDT: boolean;
+  hideImages: boolean;
+  preloadImages: boolean;
+  preloadExternalImages: boolean;
+  useVW: boolean;
+  addPrefix?: boolean;
+  mdObjects: string[];
+  printThis: boolean;
+  autoSaveIsOn: boolean;
+  autoSaveInterval: number;
+  buildAutoSaveIsOn: boolean;
+  buildAutoSaveInterval: number;
+  tooltipDelay?: number;
+  checkDeleteRow: boolean;
+  checkDeleteObject: boolean;
+  checkSelectAll: boolean;
+  enableShortcut: boolean;
+  defaultBgColor?: string;
+  defaultBgImage?: string;
+  defaultBarBgColor?: string;
+  defaultBarTextColor?: string;
+  defaultBarIconColor?: string;
+  bgColorStack?: {
+    id: string;
+    data: string;
+  }[];
+  bgImageStack?: {
+    id: string;
+    data: string;
+  }[];
+  barBgColorStack?: {
+    id: string;
+    data: string;
+  }[];
+  barTextColorStack?: {
+    id: string;
+    data: string;
+  }[];
+  barIconColorStack?: {
+    id: string;
+    data: string;
+  }[];
+  customCSS?: string;
+  variables: Variable[];
+  pointTypes: PointType[];
+  activated: string[];
+  rows: Row[];
+  backpack: Row[];
+  images: ImageResource[];
+  styling: Styling;
+  categories: Category[];
+  cropperPosition: number;
+  enableSearch: boolean;
+  useDesignGroupBtn: boolean;
+  smallerScreenPx: number;
+  enableHalfRow: boolean;
+  minimizeTemplate: boolean;
+  viewerConfig: ViewerConfig;
 } & DefaultSettings;
 export type RowMap = {
-    rows: number,
-    type: string
+  rows: number;
+  type: string;
 };
 export type ObjectMap = {
-    rows: number,
-    objects: number,
-    type: string
+  rows: number;
+  objects: number;
+  type: string;
 };
 export type GroupMap = {
-    groups: number,
-    rows: string[],
-    objects: string[]
+  groups: number;
+  rows: string[];
+  objects: string[];
 };
 export type PointTypeMap = {
-    points: number,
-    startingSum: number
+  points: number;
+  startingSum: number;
 };
 export type ActivatedMap = {
-    multiple: number,
-    activatedFrom?: number,
-    isAllowDeselect?: boolean,
-    isVariable?: boolean,
-    isRowButton?: boolean,
-    rndPoint?: string,
-    pointNum?: number
+  multiple: number;
+  activatedFrom?: number;
+  isAllowDeselect?: boolean;
+  isVariable?: boolean;
+  isRowButton?: boolean;
+  rndPoint?: string;
+  pointNum?: number;
 };
 export type ChoiceMap = {
-    choice: Choice | SelectableAddon,
-    row: Row
+  choice: Choice | SelectableAddon;
+  row: Row;
 };
 export type BgmPlayer = {
-    isBgmInit: number,
-    bgmIsPlaying: boolean,
-    bgmPlayInterval: number,
-    bgmTitleInterval: number,
-    bgmFadeInterval: number,
-    bgmFadeTimer: number,
-    bgmWaitTimer: number,
-    bgmTitle: string,
-    curBgmTime: number,
-    curBgmLength: number,
-    isSeeking: boolean,
-    lastFadeTime: number,
-    isFadingOut: boolean,
-    bgmObjectId: string,
-    noCors: boolean
+  isBgmInit: number;
+  bgmIsPlaying: boolean;
+  bgmPlayInterval: number;
+  bgmTitleInterval: number;
+  bgmFadeInterval: number;
+  bgmFadeTimer: number;
+  bgmWaitTimer: number;
+  bgmTitle: string;
+  curBgmTime: number;
+  curBgmLength: number;
+  isSeeking: boolean;
+  lastFadeTime: number;
+  isFadingOut: boolean;
+  bgmObjectId: string;
+  noCors: boolean;
 };
 export type SaveSlot = {
-    stored: boolean,
-    name: string,
-    time: string,
-    app: string
+  stored: boolean;
+  name: string;
+  time: string;
+  app: string;
 };
 export type TempScore = Map<string, number>;
 export type DlgVariables = {
-    currentDialog: string,
-    data?: Row | Choice | Addon | Requireds | Score,
-    point?: PointType,
-    func?: (e: number) => void,
-    cFunc?: (e: any, word?: string) => void,
-    choice?: Choice | SelectableAddon,
-    row?: Row,
-    imgProp?: string,
-    title?: string,
-    context?: string,
-    isWord?: boolean,
-    prevText?: string,
-    isDeselect?: boolean
+  currentDialog: string;
+  data?: Row | Choice | Addon | Requireds | Score;
+  point?: PointType;
+  func?: (e: number) => void;
+  cFunc?: (e: any, word?: string) => void;
+  choice?: Choice | SelectableAddon;
+  row?: Row;
+  imgProp?: string;
+  title?: string;
+  context?: string;
+  isWord?: boolean;
+  prevText?: string;
+  isDeselect?: boolean;
 };
 export type SnackBarVariables = {
-    labelText: string,
-    timeoutMs: number,
-    isOpen: boolean
+  labelText: string;
+  timeoutMs: number;
+  isOpen: boolean;
 };
 export type ViewerSetting = {
-    allowDeselect: boolean,
-    isSingleFile: boolean
+  allowDeselect: boolean;
+  isSingleFile: boolean;
 };
 export type MenuVariables = {
-    anchor: HTMLElement | null,
-    isOpen: boolean,
-    importType: string,
-    importNum: number,
-    parent: Row | Choice | Addon | null,
-    copy: () => void,
-    paste: () => void,
-    clear: () => void,
-    export: () => void
+  anchor: HTMLElement | null;
+  isOpen: boolean;
+  importType: string;
+  importNum: number;
+  parent: Row | Choice | Addon | null;
+  copy: () => void;
+  paste: () => void;
+  clear: () => void;
+  export: () => void;
 };
 export type ExprNode = {
-    left: number | ExprNode,
-    operator: string,
-    right: number | ExprNode,
-    priority: number
+  left: number | ExprNode;
+  operator: string;
+  right: number | ExprNode;
+  priority: number;
 };
 export type WordDialog = {
-    currentDialog: string,
-    choice?: Choice | SelectableAddon | null,
-    row?: Row | null,
-    context?: string,
-    prevText?: string,
-    isWord?: boolean
-    cFunc?: (e: any, word?: string) => void,
-    title?: string,
-    isDeselect?: boolean,
-    isForced?: boolean
+  currentDialog: string;
+  choice?: Choice | SelectableAddon | null;
+  row?: Row | null;
+  context?: string;
+  prevText?: string;
+  isWord?: boolean;
+  cFunc?: (e: any, word?: string) => void;
+  title?: string;
+  isDeselect?: boolean;
+  isForced?: boolean;
 };
 export type ImgDialog = {
-    currentDialog: string,
-    data?: Row | Choice | Addon,
-    cFunc?: (e: any) => void,
-    choice?: Choice,
-    row?: Row,
-    imgProp?: string,
-    isDeselect?: boolean,
-    isForced?: boolean
+  currentDialog: string;
+  data?: Row | Choice | Addon;
+  cFunc?: (e: any) => void;
+  choice?: Choice;
+  row?: Row;
+  imgProp?: string;
+  isDeselect?: boolean;
+  isForced?: boolean;
 };
 export type Category = {
-    idx: number,
-    name: string,
-    type: string
+  idx: number;
+  name: string;
+  type: string;
 };
 export type MusicPlayer = {
-    type: 'audio' | 'youtube';
-    load(idOrUrl: string, options?: {
-        loop?: boolean;
-    }): void;
-    play(): void;
-    pause(): void;
-    stop(): void;
-    mute(): void;
-    unMute(): void;
+  type: "audio" | "youtube";
+  load(
+    idOrUrl: string,
+    options?: {
+      loop?: boolean;
+    },
+  ): void;
+  play(): void;
+  pause(): void;
+  stop(): void;
+  mute(): void;
+  unMute(): void;
 
-    setVolume(v: number): void;
-    getVolume?(): number;
+  setVolume(v: number): void;
+  getVolume?(): number;
 
-    isPlaying(): boolean;
-    isStopped(): boolean;
-    isMuted(): boolean;
+  isPlaying(): boolean;
+  isStopped(): boolean;
+  isMuted(): boolean;
 
-    seekTo?(sec: number): boolean,
+  seekTo?(sec: number): boolean;
 
-    getCurrentTime(): number;
-    getDuration(): number;
-    getPlayerState(): number;
+  getCurrentTime(): number;
+  getDuration(): number;
+  getPlayerState(): number;
 
-    getTitle(): string;
-    getId(): string;
+  getTitle(): string;
+  getId(): string;
 };
 export type ChoiceOptions = {
-    linkedObjects: string[],
-    mainDiv?: HTMLDivElement,
-    bCreatorMode?: boolean,
-    isBackpack?: boolean,
-    isOverDlg?: boolean,
-    isOverImg?: boolean,
-    isForced?: boolean,
-    isAllowDeselect?: boolean,
-    isLinked?: boolean,
-    fromTemp?: boolean,
-    fromAddon?: boolean
+  linkedObjects: string[];
+  mainDiv?: HTMLDivElement;
+  bCreatorMode?: boolean;
+  isBackpack?: boolean;
+  isOverDlg?: boolean;
+  isOverImg?: boolean;
+  isForced?: boolean;
+  isAllowDeselect?: boolean;
+  isLinked?: boolean;
+  fromTemp?: boolean;
+  fromAddon?: boolean;
 };
 export type Filters = {
-    dropShadow?: string,
-    blur?: string,
-    brightness?: string,
-    contrast?: string,
-    grayscale?: string,
-    hueRotate?: string,
-    invert?: string,
-    opacity?: string,
-    saturate?: string,
-    sepia?: string
-}
+  dropShadow?: string;
+  blur?: string;
+  brightness?: string;
+  contrast?: string;
+  grayscale?: string;
+  hueRotate?: string;
+  invert?: string;
+  opacity?: string;
+  saturate?: string;
+  sepia?: string;
+};
 export type BgStyles = {
-    border?: string,
-    borderImage?: string,
-    bgImage?: string,
-    bgColor?: string,
-    margin?: string,
-    borderRadius?: string,
-    overflow?: string,
-    boxShadow?: string,
-    filter?: string,
-    cursor?: string,
+  border?: string;
+  borderImage?: string;
+  bgImage?: string;
+  bgColor?: string;
+  margin?: string;
+  borderRadius?: string;
+  overflow?: string;
+  boxShadow?: string;
+  filter?: string;
+  cursor?: string;
 };
 export type LastPages = {
-    [key: string]: any,
-    point: number,
-    variable: number,
-    group: number,
-    word: number,
-    rDesign: number,
-    cDesign: number,
-    isRow: boolean,
-    globalReq: number,
-    pSave: number,
-    vSave: number
-}
+  [key: string]: any;
+  point: number;
+  variable: number;
+  group: number;
+  word: number;
+  rDesign: number;
+  cDesign: number;
+  isRow: boolean;
+  globalReq: number;
+  pSave: number;
+  vSave: number;
+};

@@ -14,7 +14,9 @@ export default defineAction({
     fields: z
       .record(z.string(), z.unknown())
       .optional()
-      .describe("Choice fields to set at creation (title, text, image, template, objectWidth, scores, groups, requireds, imageVariants, styling, addons, …). `id` is always generated."),
+      .describe(
+        "Choice fields to set at creation (title, text, image, template, objectWidth, scores, groups, requireds, imageVariants, styling, addons, …). `id` is always generated.",
+      ),
   }),
   run: async ({ projectId, rowId, index, fields }) => {
     const { app } = await getProjectOrThrow(projectId);

@@ -1,7 +1,9 @@
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { chromium } = require("/home/deric/git/C-CAN/node_modules/.pnpm/playwright@1.62.1/node_modules/playwright/index.js");
+const {
+  chromium,
+} = require("/home/deric/git/C-CAN/node_modules/.pnpm/playwright@1.62.1/node_modules/playwright/index.js");
 
 const BASE = "http://localhost:8080";
 const PROJECT_ID = process.argv[2] || "503b0648-41e4-466b-82bc-ecffd4e7b3ae";

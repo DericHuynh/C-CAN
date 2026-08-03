@@ -5,11 +5,18 @@ import { createDefaultChoice } from "../shared/cyoa.js";
 import { assertFound, getProjectOrThrow, reindexChoices, saveProject } from "./_project-store.js";
 
 const choiceSpec = z.object({
-  index: z.number().int().min(0).optional().describe("Insert position in the row's current choices; defaults to the end"),
+  index: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Insert position in the row's current choices; defaults to the end"),
   fields: z
     .record(z.string(), z.unknown())
     .optional()
-    .describe("Choice fields to set at creation (title, text, image, template, objectWidth, scores, groups, requireds, imageVariants, styling, addons, …). `id` is always generated."),
+    .describe(
+      "Choice fields to set at creation (title, text, image, template, objectWidth, scores, groups, requireds, imageVariants, styling, addons, …). `id` is always generated.",
+    ),
 });
 
 export default defineAction({
@@ -21,7 +28,9 @@ export default defineAction({
     choices: z
       .array(choiceSpec)
       .min(1)
-      .describe("Choice specs to create, in order. Consecutive specs without `index` append at the end."),
+      .describe(
+        "Choice specs to create, in order. Consecutive specs without `index` append at the end.",
+      ),
   }),
   run: async ({ projectId, rowId, choices }) => {
     const { app } = await getProjectOrThrow(projectId);

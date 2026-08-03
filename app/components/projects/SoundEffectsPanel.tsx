@@ -354,7 +354,6 @@ export function SoundEffectsPanel({ project }: SoundEffectsPanelProps) {
           }}
         />
       )}
-
     </div>
   );
 
@@ -400,9 +399,7 @@ function SoundEffectDialog({
   const [id, setId] = useState(item?.id ?? "");
   const [name, setName] = useState(item?.name ?? "");
   const [audio, setAudio] = useState(item?.audio ?? "");
-  const [volume, setVolume] = useState(
-    item?.volume != null ? String(item.volume) : "1",
-  );
+  const [volume, setVolume] = useState(item?.volume != null ? String(item.volume) : "1");
   const [pitch, setPitch] = useState(item?.pitch != null ? String(item.pitch) : "0");
   const [isDefault, setIsDefault] = useState(item?.isDefault ?? false);
   const [onSelected, setOnSelected] = useState(item?.onSelected ?? false);
@@ -451,144 +448,144 @@ function SoundEffectDialog({
       onSave={handleSave}
     >
       <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="sfx-id">Id</Label>
-              <Input
-                id="sfx-id"
-                value={id}
-                onChange={(event) => setId(event.target.value)}
-                placeholder="e.g. sfx-click"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="sfx-name">Name</Label>
-              <Input
-                id="sfx-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="e.g. Click pop"
-              />
-            </div>
-          </div>
-
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="sfx-audio">Audio file</Label>
-            <Input id="sfx-audio" type="file" accept="audio/*" onChange={handleAudioFile} />
-            {audioSizeKb !== null ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={audioSizeKb > 100 ? "destructive" : "secondary"}>
-                  {audioSizeKb} KB
-                </Badge>
-                {audioSizeKb > 100 ? (
-                  <p className="text-xs text-destructive">
-                    Large audio files bloat the project and can slow the viewer. Prefer a short clip
-                    under 100 KB.
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Stored inline in the project as a data URL.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                No audio loaded yet. Pick a file above to embed it.
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="sfx-volume">Volume (0–1)</Label>
-              <Input
-                id="sfx-volume"
-                type="number"
-                min={0}
-                max={1}
-                step={0.05}
-                value={volume}
-                onChange={(event) => setVolume(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="sfx-pitch">Pitch (semitones, −12..12)</Label>
-              <Input
-                id="sfx-pitch"
-                type="number"
-                min={-12}
-                max={12}
-                value={pitch}
-                onChange={(event) => setPitch(event.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <label
-              htmlFor="sfx-is-default"
-              className="flex cursor-pointer items-center gap-2 text-sm"
-            >
-              <Checkbox
-                id="sfx-is-default"
-                checked={isDefault}
-                onCheckedChange={(checked) => setIsDefault(checked === true)}
-              />
-              Default sound
-            </label>
-            <label
-              htmlFor="sfx-on-selected"
-              className="flex cursor-pointer items-center gap-2 text-sm"
-            >
-              <Checkbox
-                id="sfx-on-selected"
-                checked={onSelected}
-                onCheckedChange={(checked) => setOnSelected(checked === true)}
-              />
-              Play on select
-            </label>
-            <label
-              htmlFor="sfx-on-deselected"
-              className="flex cursor-pointer items-center gap-2 text-sm"
-            >
-              <Checkbox
-                id="sfx-on-deselected"
-                checked={onDeselected}
-                onCheckedChange={(checked) => setOnDeselected(checked === true)}
-              />
-              Play on deselect
-            </label>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="sfx-groups">
-              Groups
-              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                comma-separated group ids
-              </span>
-            </Label>
+            <Label htmlFor="sfx-id">Id</Label>
             <Input
-              id="sfx-groups"
-              value={groups}
-              onChange={(event) => setGroups(event.target.value)}
-              placeholder="e.g. ui, combat"
+              id="sfx-id"
+              value={id}
+              onChange={(event) => setId(event.target.value)}
+              placeholder="e.g. sfx-click"
             />
-            <p className="text-xs text-muted-foreground">
-              Leave empty to play for every group. When set, only choices in one of these groups
-              trigger the sound.
-            </p>
           </div>
-
           <div className="space-y-2">
-            <Label>Requirements</Label>
-            <RequirementListEditor
-              requireds={requireds}
-              onChange={setRequireds}
-              choices={choices}
-              pointTypes={pointTypes}
-              globalRequirements={globalRequirements}
+            <Label htmlFor="sfx-name">Name</Label>
+            <Input
+              id="sfx-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. Click pop"
             />
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="sfx-audio">Audio file</Label>
+          <Input id="sfx-audio" type="file" accept="audio/*" onChange={handleAudioFile} />
+          {audioSizeKb !== null ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={audioSizeKb > 100 ? "destructive" : "secondary"}>
+                {audioSizeKb} KB
+              </Badge>
+              {audioSizeKb > 100 ? (
+                <p className="text-xs text-destructive">
+                  Large audio files bloat the project and can slow the viewer. Prefer a short clip
+                  under 100 KB.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Stored inline in the project as a data URL.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No audio loaded yet. Pick a file above to embed it.
+            </p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="sfx-volume">Volume (0–1)</Label>
+            <Input
+              id="sfx-volume"
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              value={volume}
+              onChange={(event) => setVolume(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="sfx-pitch">Pitch (semitones, −12..12)</Label>
+            <Input
+              id="sfx-pitch"
+              type="number"
+              min={-12}
+              max={12}
+              value={pitch}
+              onChange={(event) => setPitch(event.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <label
+            htmlFor="sfx-is-default"
+            className="flex cursor-pointer items-center gap-2 text-sm"
+          >
+            <Checkbox
+              id="sfx-is-default"
+              checked={isDefault}
+              onCheckedChange={(checked) => setIsDefault(checked === true)}
+            />
+            Default sound
+          </label>
+          <label
+            htmlFor="sfx-on-selected"
+            className="flex cursor-pointer items-center gap-2 text-sm"
+          >
+            <Checkbox
+              id="sfx-on-selected"
+              checked={onSelected}
+              onCheckedChange={(checked) => setOnSelected(checked === true)}
+            />
+            Play on select
+          </label>
+          <label
+            htmlFor="sfx-on-deselected"
+            className="flex cursor-pointer items-center gap-2 text-sm"
+          >
+            <Checkbox
+              id="sfx-on-deselected"
+              checked={onDeselected}
+              onCheckedChange={(checked) => setOnDeselected(checked === true)}
+            />
+            Play on deselect
+          </label>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="sfx-groups">
+            Groups
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+              comma-separated group ids
+            </span>
+          </Label>
+          <Input
+            id="sfx-groups"
+            value={groups}
+            onChange={(event) => setGroups(event.target.value)}
+            placeholder="e.g. ui, combat"
+          />
+          <p className="text-xs text-muted-foreground">
+            Leave empty to play for every group. When set, only choices in one of these groups
+            trigger the sound.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Requirements</Label>
+          <RequirementListEditor
+            requireds={requireds}
+            onChange={setRequireds}
+            choices={choices}
+            pointTypes={pointTypes}
+            globalRequirements={globalRequirements}
+          />
+        </div>
       </div>
     </EditorPane>
   );

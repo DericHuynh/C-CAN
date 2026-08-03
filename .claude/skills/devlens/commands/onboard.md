@@ -2,7 +2,7 @@
 
 Produce a complete, **one-shot** onboarding guide for a newcomer and **save it to `ONBOARDING.md`** at the repo root. Unlike `/devlens explain` (a quick in-chat orientation), this writes a durable, structured document a new engineer can read top to bottom and then start working. Arguments: none (cwd graph; `graphId` to target another). **Needs summaries** for the richest output — follow the freshness/summarize-permission policy in SKILL.md first (structure-only still yields stack, setup, modules, flows skeleton, and a reading path).
 
-This is graph-driven for *code understanding* (modules, flows, reading path) and uses a few targeted file reads for things the graph doesn't model (how to install/run). Synthesize — don't dump.
+This is graph-driven for _code understanding_ (modules, flows, reading path) and uses a few targeted file reads for things the graph doesn't model (how to install/run). Synthesize — don't dump.
 
 ## Method — one graph call + disk reads
 
@@ -13,6 +13,7 @@ This is graph-driven for *code understanding* (modules, flows, reading path) and
 3. Verify `result.schemaVersion === 1`. If not, stop and warn the user.
 
 ## Write `ONBOARDING.md` (fill every section)
+
 Save to the repo root as `ONBOARDING.md`. Keep it concrete — name real files and nodes, link `/devlens` follow-ups.
 
 1. **What this is** — 2–4 sentences on the product/domain (from business summaries) + the stack (framework, router, state, data, db).
@@ -26,6 +27,7 @@ Save to the repo root as `ONBOARDING.md`. Keep it concrete — name real files a
 9. **DevLens cheat sheet** — the handful of `/devlens` commands most useful day-to-day (`find`, `impact`, `summary`, `guard`, `explain`) with a one-line when-to-use each.
 
 ## Deliver
+
 - Write the file to `ONBOARDING.md` (repo root) and tell the user the path.
 - Print a short summary in chat: the modules covered, the flows documented, and the reading-path length — plus a note that summary-dependent sections (1, 4, 6) need summarization if the graph is structure-only.
 - If `ONBOARDING.md` already exists, mention it and offer to overwrite or write to `ONBOARDING.devlens.md` instead.

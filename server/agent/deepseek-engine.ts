@@ -90,10 +90,7 @@ const DEEPSEEK_EFFORT_TIERS: Record<string, string | undefined> = {
   max: "high",
 };
 
-function resolveReasoningEffort(
-  model: string,
-  effort: string | undefined,
-): string | undefined {
+function resolveReasoningEffort(model: string, effort: string | undefined): string | undefined {
   if (!isDeepSeekReasoningModel(model)) return undefined;
   // The provider's default is medium, and so is the framework's default
   // effort — an unset/auto tier maps to the same value the API would pick
@@ -109,11 +106,7 @@ function resolveReasoningEffort(
  * falls back to the full 8192 so reasoning-heavy turns keep headroom.
  */
 export function resolveMaxOutputTokens(explicit: unknown): number {
-  if (
-    typeof explicit === "number" &&
-    Number.isFinite(explicit) &&
-    explicit > 0
-  ) {
+  if (typeof explicit === "number" && Number.isFinite(explicit) && explicit > 0) {
     return Math.min(Math.floor(explicit), DEEPSEEK_MAX_OUTPUT_TOKENS);
   }
   return DEEPSEEK_MAX_OUTPUT_TOKENS;
@@ -238,10 +231,7 @@ function buildRequestBody(opts: EngineStreamOptions): Record<string, unknown> {
   if (opts.temperature !== undefined) {
     body.temperature = opts.temperature;
   }
-  const reasoningEffort = resolveReasoningEffort(
-    opts.model,
-    opts.reasoningEffort,
-  );
+  const reasoningEffort = resolveReasoningEffort(opts.model, opts.reasoningEffort);
   if (reasoningEffort) body.reasoning_effort = reasoningEffort;
   return body;
 }
@@ -250,9 +240,7 @@ function buildRequestBody(opts: EngineStreamOptions): Record<string, unknown> {
 // SSE parsing
 // ---------------------------------------------------------------------------
 
-async function* sseDataLines(
-  body: AsyncIterable<Uint8Array>,
-): AsyncGenerator<string> {
+async function* sseDataLines(body: AsyncIterable<Uint8Array>): AsyncGenerator<string> {
   const decoder = new TextDecoder();
   let buffer = "";
   for await (const raw of body) {
@@ -282,8 +270,7 @@ function sseLineData(line: string): string | undefined {
 // ---------------------------------------------------------------------------
 
 function describeErrorWithCauses(err: unknown, maxLinks = 4): string {
-  const head =
-    err instanceof Error ? err.message : String(err ?? "Unknown error");
+  const head = err instanceof Error ? err.message : String(err ?? "Unknown error");
   const links: string[] = [];
   const seen = new Set<unknown>([err]);
   let cause: unknown = (err as { cause?: unknown } | null)?.cause;
@@ -292,9 +279,7 @@ function describeErrorWithCauses(err: unknown, maxLinks = 4): string {
     seen.add(cause);
     const code = (cause as { code?: unknown }).code;
     const message = cause instanceof Error ? cause.message : String(cause);
-    const text = (typeof code === "string" ? `${code} ${message}` : message)
-      .trim()
-      .slice(0, 200);
+    const text = (typeof code === "string" ? `${code} ${message}` : message).trim().slice(0, 200);
     if (text) links.push(text);
     cause = (cause as { cause?: unknown }).cause;
   }
@@ -355,9 +340,7 @@ interface FirstEventAbortController {
   cleanup: () => void;
 }
 
-function createFirstEventAbortController(
-  parentSignal: AbortSignal,
-): FirstEventAbortController {
+function createFirstEventAbortController(parentSignal: AbortSignal): FirstEventAbortController {
   const controller = new AbortController();
   let timedOut = false;
   let firstEventSeen = false;
@@ -438,8 +421,7 @@ class DeepSeekEngine implements AgentEngine {
         : describeErrorWithCauses(err);
       // A fetch rejection with no HTTP status is a transport failure: tag it
       // so run-level retries treat it as a transient blip, never a hard stop.
-      const isConnectionError =
-        !timedOut && isConnectionErrorMessage(rawMessage);
+      const isConnectionError = !timedOut && isConnectionErrorMessage(rawMessage);
       yield {
         type: "stop",
         reason: "error",
@@ -476,15 +458,10 @@ class DeepSeekEngine implements AgentEngine {
       let reasoningText = "";
       let finishReason: string | null = null;
       let usage: Record<string, unknown> | null = null;
-      const toolCallsByIndex = new Map<
-        number,
-        { id?: string; name?: string; arguments: string }
-      >();
+      const toolCallsByIndex = new Map<number, { id?: string; name?: string; arguments: string }>();
       const startedIndices = new Set<number>();
 
-      for await (const data of sseDataLines(
-        res.body as unknown as AsyncIterable<Uint8Array>,
-      )) {
+      for await (const data of sseDataLines(res.body as unknown as AsyncIterable<Uint8Array>)) {
         // The first data line proves the provider is actually streaming.
         firstEventAbort.markFirstEvent();
 
@@ -497,10 +474,7 @@ class DeepSeekEngine implements AgentEngine {
         const choice = chunk?.choices?.[0];
         const delta = choice?.delta;
 
-        if (
-          typeof delta?.reasoning_content === "string" &&
-          delta.reasoning_content
-        ) {
+        if (typeof delta?.reasoning_content === "string" && delta.reasoning_content) {
           reasoningText += delta.reasoning_content;
           yield { type: "thinking-delta", text: delta.reasoning_content };
         }
@@ -533,10 +507,7 @@ class DeepSeekEngine implements AgentEngine {
                 ...(entry.name ? { name: entry.name } : {}),
               };
             }
-            if (
-              typeof toolCall?.function?.arguments === "string" &&
-              toolCall.function.arguments
-            ) {
+            if (typeof toolCall?.function?.arguments === "string" && toolCall.function.arguments) {
               yield {
                 type: "tool-input-delta",
                 ...(entry.id ? { id: entry.id } : {}),
@@ -608,8 +579,7 @@ class DeepSeekEngine implements AgentEngine {
               ? usage.total_tokens
               : ((usage.prompt_tokens as number | undefined) ?? 0) +
                 ((usage.completion_tokens as number | undefined) ?? 0),
-          reasoningTokens: (usage as any).completion_tokens_details
-            ?.reasoning_tokens,
+          reasoningTokens: (usage as any).completion_tokens_details?.reasoning_tokens,
         };
       }
 
@@ -621,8 +591,7 @@ class DeepSeekEngine implements AgentEngine {
       const errorMessage = timedOut
         ? `Model request produced no stream events within ${FIRST_STREAM_EVENT_TIMEOUT_MS / 1000}s; the connection appears wedged.`
         : describeErrorWithCauses(err);
-      const isConnectionError =
-        !timedOut && isConnectionErrorMessage(rawMessage);
+      const isConnectionError = !timedOut && isConnectionErrorMessage(rawMessage);
       yield {
         type: "stop",
         reason: "error",
@@ -651,16 +620,12 @@ function stopReasonFromFinishReason(
   }
 }
 
-function parseToolArguments(
-  text: string,
-): Record<string, unknown> | undefined {
+function parseToolArguments(text: string): Record<string, unknown> | undefined {
   const trimmed = text.trim();
   if (!trimmed) return undefined;
   try {
     const parsed = JSON.parse(trimmed);
-    return typeof parsed === "object" &&
-      parsed !== null &&
-      !Array.isArray(parsed)
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : undefined;
   } catch {
@@ -699,9 +664,7 @@ function missingKeyEngine(): AgentEngine {
  * BYOK only: the key comes exclusively from `config.apiKey` (resolved by the
  * engine registry from the user's stored secret). Never reads .env.
  */
-export function createDeepSeekEngine(
-  config: Record<string, unknown> = {},
-): AgentEngine {
+export function createDeepSeekEngine(config: Record<string, unknown> = {}): AgentEngine {
   const apiKey = (config.apiKey as string | undefined) ?? "";
   if (!apiKey) return missingKeyEngine();
   const baseUrl = (config.baseUrl as string | undefined) ?? DEEPSEEK_BASE_URL;

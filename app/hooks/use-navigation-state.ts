@@ -21,8 +21,7 @@ export function useNavigationState() {
         ...(threadId ? { threadId } : {}),
       };
     },
-    getCommandPath: (command) =>
-      routerPath(command.path || pathForCommand(command)),
+    getCommandPath: (command) => routerPath(command.path || pathForCommand(command)),
   });
 }
 
@@ -73,8 +72,7 @@ function pathForView(view?: string): string {
 function pathForCommand(command: any): string {
   const path = pathForView(command?.view);
   if (path !== "/") return path;
-  const threadId =
-    typeof command?.threadId === "string" ? command.threadId.trim() : "";
+  const threadId = typeof command?.threadId === "string" ? command.threadId.trim() : "";
   return threadId ? `/chat/${encodeURIComponent(threadId)}` : "/";
 }
 

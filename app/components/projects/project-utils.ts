@@ -1,9 +1,7 @@
 import type { App, Choice, PointType, Row, Score } from "@shared/types";
 
 /** Format a timestamp (ISO string, epoch ms, or Date) for display. */
-export function formatDate(
-  value: string | number | Date | null | undefined,
-): string {
+export function formatDate(value: string | number | Date | null | undefined): string {
   if (value == null) return "—";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
@@ -15,10 +13,7 @@ export function formatDate(
 }
 
 /** Look up a point type's name by id, falling back to the raw id. */
-export function pointTypeName(
-  pointTypes: PointType[],
-  id: string | undefined,
-): string {
+export function pointTypeName(pointTypes: PointType[], id: string | undefined): string {
   if (!id) return "?";
   const pointType = pointTypes.find((pt) => pt.id === id);
   return pointType?.name || id;
@@ -28,15 +23,10 @@ export function pointTypeName(
  * Render a score as a compact chip label, e.g. "Cost: -5 gold" or "+3 points".
  * `beforeText`/`afterText` come from the owning point type when available.
  */
-export function formatScoreChip(
-  score: Score,
-  pointTypes: PointType[],
-): string {
+export function formatScoreChip(score: Score, pointTypes: PointType[]): string {
   const value = Number(score.value ?? 0);
   const label = `${value > 0 ? "+" : ""}${value}`;
-  const pointType = pointTypes.find(
-    (pt) => pt.id === (score.id ?? score.type),
-  );
+  const pointType = pointTypes.find((pt) => pt.id === (score.id ?? score.type));
   const before = (pointType?.beforeText ?? score.beforeText ?? "").trim();
   const after = (pointType?.afterText ?? score.afterText ?? "").trim();
   return [before, label, after].filter(Boolean).join(" ") || label;
@@ -44,16 +34,12 @@ export function formatScoreChip(
 
 /** Sort rows by their `index` field. */
 export function sortedRows(app: App): Row[] {
-  return [...(app.rows ?? [])].sort(
-    (a, b) => (a.index ?? 0) - (b.index ?? 0),
-  );
+  return [...(app.rows ?? [])].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 }
 
 /** Sort a row's choices by their `index` field. */
 export function sortedChoices(row: Row): Choice[] {
-  return [...(row.objects ?? [])].sort(
-    (a, b) => (a.index ?? 0) - (b.index ?? 0),
-  );
+  return [...(row.objects ?? [])].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 }
 
 /**
@@ -76,10 +62,7 @@ export function countGroupMembers(app: App, groupId: string): number {
  * selected choice ids. Totals start at each point type's `startingSum` and
  * add the value of every selected score for that point type.
  */
-export function computePointTotals(
-  app: App,
-  selected: Set<string>,
-): Record<string, number> {
+export function computePointTotals(app: App, selected: Set<string>): Record<string, number> {
   const totals: Record<string, number> = {};
   for (const pointType of app.pointTypes ?? []) {
     totals[pointType.id] = Number(pointType.startingSum ?? 0);
@@ -90,8 +73,7 @@ export function computePointTotals(
       for (const score of choice.scores ?? []) {
         const pointTypeId = score.id ?? score.type;
         if (!pointTypeId) continue;
-        totals[pointTypeId] =
-          (totals[pointTypeId] ?? 0) + Number(score.value ?? 0);
+        totals[pointTypeId] = (totals[pointTypeId] ?? 0) + Number(score.value ?? 0);
       }
     }
   }

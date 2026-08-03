@@ -9,9 +9,17 @@ export default defineAction({
   schema: z.object({
     projectId: z.string().describe("Project id"),
     sourceChoiceId: z.string().describe("Choice currently holding the addon"),
-    addonIndex: z.number().int().min(0).describe("0-based position of the addon in the source choice's addons array"),
+    addonIndex: z
+      .number()
+      .int()
+      .min(0)
+      .describe("0-based position of the addon in the source choice's addons array"),
     targetChoiceId: z.string().describe("Choice the addon moves to"),
-    targetIndex: z.number().int().min(0).describe("0-based position in the target choice's addons array (after removal)"),
+    targetIndex: z
+      .number()
+      .int()
+      .min(0)
+      .describe("0-based position in the target choice's addons array (after removal)"),
   }),
   run: async ({ projectId, sourceChoiceId, addonIndex, targetChoiceId, targetIndex }) => {
     const { app } = await getProjectOrThrow(projectId);

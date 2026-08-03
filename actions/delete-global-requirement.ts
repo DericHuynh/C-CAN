@@ -15,7 +15,7 @@ export default defineAction({
     const index = app.globalRequirements.findIndex((g) => g.id === requirementId);
     assertFound(
       index !== -1,
-      `Global requirement "${requirementId}" not found in project "${projectId}"`
+      `Global requirement "${requirementId}" not found in project "${projectId}"`,
     );
     app.globalRequirements.splice(index, 1);
     await saveProject(projectId, app);

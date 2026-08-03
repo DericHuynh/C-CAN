@@ -42,11 +42,12 @@ function streamResponse(lines: string[]): any {
 
 /** Run one stream() call against a canned SSE body and collect events. */
 async function runStream(opts: EngineStreamOptions, lines: string[]) {
-  vi.stubGlobal("fetch", vi.fn(async () => streamResponse(lines)));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => streamResponse(lines)),
+  );
   try {
-    return await collectEvents(
-      createDeepSeekEngine({ apiKey: "test" }).stream(opts),
-    );
+    return await collectEvents(createDeepSeekEngine({ apiKey: "test" }).stream(opts));
   } finally {
     vi.unstubAllGlobals();
   }
@@ -83,9 +84,7 @@ async function captureRequest(opts: EngineStreamOptions): Promise<any> {
   return { url, body: JSON.parse(init.body), headers: init.headers };
 }
 
-function baseOpts(
-  overrides: Partial<EngineStreamOptions> = {},
-): EngineStreamOptions {
+function baseOpts(overrides: Partial<EngineStreamOptions> = {}): EngineStreamOptions {
   return {
     model: "deepseek-v4-flash",
     systemPrompt: "You are helpful.",
@@ -162,9 +161,7 @@ describe("createDeepSeekEngine", () => {
         ],
       }),
       dataLine({
-        choices: [
-          { index: 0, delta: { reasoning_content: " carefully" }, finish_reason: null },
-        ],
+        choices: [{ index: 0, delta: { reasoning_content: " carefully" }, finish_reason: null }],
       }),
       dataLine({
         choices: [{ index: 0, delta: { content: "Answer." }, finish_reason: null }],
@@ -345,9 +342,7 @@ describe("createDeepSeekEngine", () => {
         ],
       }),
     );
-    const assistantMessages = body.messages.filter(
-      (m: any) => m.role === "assistant",
-    );
+    const assistantMessages = body.messages.filter((m: any) => m.role === "assistant");
     expect(assistantMessages).toHaveLength(0);
   });
 
@@ -371,9 +366,7 @@ describe("createDeepSeekEngine", () => {
   });
 
   it("uses explicit reasoning effort when provided", async () => {
-    const { body } = await captureRequest(
-      baseOpts({ reasoningEffort: "high" }),
-    );
+    const { body } = await captureRequest(baseOpts({ reasoningEffort: "high" }));
     expect(body.reasoning_effort).toBe("high");
   });
 
@@ -412,36 +405,31 @@ describe("createDeepSeekEngine", () => {
     expect(stopEvent?.errorCode).toBe("missing_credentials");
   });
 
-  it.each([429, 503])(
-    "tags upstream %i backpressure with a structured status",
-    async (status) => {
-      const mockFetch = vi.fn(async () => ({
-        ok: false,
-        status,
-        json: async () => ({ error: { message: "Rate limit exceeded" } }),
-      }));
-      vi.stubGlobal("fetch", mockFetch);
-      try {
-        // The engine yields the terminal stop event and then rethrows, so
-        // collect events defensively.
-        const events: any[] = [];
-        await expect(async () => {
-          for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(
-            baseOpts(),
-          ))
-            events.push(e);
-        }).rejects.toThrow();
+  it.each([429, 503])("tags upstream %i backpressure with a structured status", async (status) => {
+    const mockFetch = vi.fn(async () => ({
+      ok: false,
+      status,
+      json: async () => ({ error: { message: "Rate limit exceeded" } }),
+    }));
+    vi.stubGlobal("fetch", mockFetch);
+    try {
+      // The engine yields the terminal stop event and then rethrows, so
+      // collect events defensively.
+      const events: any[] = [];
+      await expect(async () => {
+        for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()))
+          events.push(e);
+      }).rejects.toThrow();
 
-        const stopEvent = events.find((e) => e.type === "stop");
-        expect(stopEvent?.reason).toBe("error");
-        expect(stopEvent?.error).toContain("Rate limit exceeded");
-        expect(stopEvent?.errorCode).toBe(`http_${status}`);
-        expect(stopEvent?.statusCode).toBe(status);
-      } finally {
-        vi.unstubAllGlobals();
-      }
-    },
-  );
+      const stopEvent = events.find((e) => e.type === "stop");
+      expect(stopEvent?.reason).toBe("error");
+      expect(stopEvent?.error).toContain("Rate limit exceeded");
+      expect(stopEvent?.errorCode).toBe(`http_${status}`);
+      expect(stopEvent?.statusCode).toBe(status);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 
   it("reports a 401 as a structured http_401 stop error", async () => {
     vi.stubGlobal(
@@ -455,9 +443,7 @@ describe("createDeepSeekEngine", () => {
     try {
       const events: any[] = [];
       await expect(async () => {
-        for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(
-          baseOpts(),
-        ))
+        for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()))
           events.push(e);
       }).rejects.toThrow();
 
@@ -485,9 +471,7 @@ describe("createDeepSeekEngine", () => {
     try {
       const events: any[] = [];
       await expect(async () => {
-        for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(
-          baseOpts(),
-        ))
+        for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()))
           events.push(e);
       }).rejects.toThrow();
 
@@ -512,9 +496,7 @@ describe("createDeepSeekEngine", () => {
     try {
       const events: any[] = [];
       await expect(async () => {
-        for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(
-          baseOpts(),
-        ))
+        for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()))
           events.push(e);
       }).rejects.toThrow("fetch failed");
 
@@ -522,9 +504,7 @@ describe("createDeepSeekEngine", () => {
       expect(stopEvent?.reason).toBe("error");
       // The cause chain survives into the recorded message so the real
       // transport failure is diagnosable after the fact.
-      expect(stopEvent?.error).toBe(
-        "fetch failed (cause: UND_ERR_SOCKET other side closed)",
-      );
+      expect(stopEvent?.error).toBe("fetch failed (cause: UND_ERR_SOCKET other side closed)");
       expect(stopEvent?.errorCode).toBe("provider_network_error");
       expect(stopEvent?.providerRetryable).toBe(true);
     } finally {
@@ -571,9 +551,7 @@ describe("createDeepSeekEngine first-event deadline", () => {
     const events: any[] = [];
     let settledEarly = false;
     const runPromise = (async () => {
-      for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(
-        baseOpts(),
-      ))
+      for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()))
         events.push(e);
     })();
     void runPromise
@@ -617,9 +595,7 @@ describe("createDeepSeekEngine first-event deadline", () => {
       ),
     );
 
-    const events = await collectEvents(
-      createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()),
-    );
+    const events = await collectEvents(createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()));
 
     const stop = events.find((e) => e.type === "stop");
     expect(stop?.reason).toBe("end_turn");
@@ -636,10 +612,7 @@ describe("createDeepSeekEngine streamed tool-input reconciliation", () => {
     vi.unstubAllGlobals();
   });
 
-  async function runToolInputStream(
-    argsDeltas: string[],
-    finishReason = "tool_calls",
-  ) {
+  async function runToolInputStream(argsDeltas: string[], finishReason = "tool_calls") {
     const lines: string[] = [
       dataLine({
         choices: [
@@ -696,9 +669,7 @@ describe("createDeepSeekEngine streamed tool-input reconciliation", () => {
       name: "create_document",
       input: { title: "Q3 plan" },
     });
-    expect(
-      events.find((e) => e.type === "assistant-content")?.parts,
-    ).toContainEqual({
+    expect(events.find((e) => e.type === "assistant-content")?.parts).toContainEqual({
       type: "tool-call",
       id: "call_01",
       name: "create_document",
@@ -719,9 +690,7 @@ describe("createDeepSeekEngine streamed tool-input reconciliation", () => {
 
     const deltas = events.filter((e) => e.type === "tool-input-delta");
     expect(deltas.map((e: any) => e.text).join("")).toBe('{"a":1}');
-    expect(
-      deltas.every((e: any) => e.id === "call_01" && e.name === "create_document"),
-    ).toBe(true);
+    expect(deltas.every((e: any) => e.id === "call_01" && e.name === "create_document")).toBe(true);
   });
 
   it("reports a tool call truncated mid-arguments as an in-band tool-call error", async () => {

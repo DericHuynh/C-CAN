@@ -34,8 +34,10 @@ const summary = await runAction("get-project-summary", { projectId: COPY_ID });
 const firstRow = summary.rows[0];
 check(
   "get-project-summary returns compact rows",
-  Array.isArray(summary.rows) && summary.rows.length > 0 &&
-    firstRow.id && typeof firstRow.choiceCount === "number" &&
+  Array.isArray(summary.rows) &&
+    summary.rows.length > 0 &&
+    firstRow.id &&
+    typeof firstRow.choiceCount === "number" &&
     Array.isArray(firstRow.choices),
   `rows=${summary.rows?.length} first=${firstRow?.title?.slice(0, 30) ?? "(untitled)"} choices=${firstRow?.choices?.length}`,
 );
@@ -84,7 +86,13 @@ const bulkChoices = await runAction("add-choices", {
   projectId: COPY_ID,
   rowId: bulkRows.rows[0].id,
   choices: [
-    { fields: { title: "Choice One", text: "First", scores: [{ id: summary.pointTypes[0]?.id ?? "pt", value: -1 }] } },
+    {
+      fields: {
+        title: "Choice One",
+        text: "First",
+        scores: [{ id: summary.pointTypes[0]?.id ?? "pt", value: -1 }],
+      },
+    },
     { fields: { title: "Choice Two", groups: summary.groups[0] ? [summary.groups[0].id] : [] } },
     { fields: { title: "Choice Three" } },
   ],
@@ -100,12 +108,16 @@ check(
 
 // 5. patch-app-document: wholesale replace of the rows array.
 const keepRows = (await runAction("get-project-summary", { projectId: COPY_ID })).rows;
-const rebuilt = keepRows.slice(0, 5).map((r) => ({ id: r.id, index: r.index, title: `${r.title} (kept)`, objects: [] }));
+const rebuilt = keepRows
+  .slice(0, 5)
+  .map((r) => ({ id: r.id, index: r.index, title: `${r.title} (kept)`, objects: [] }));
 await runAction("patch-app-document", { projectId: COPY_ID, patch: { rows: rebuilt } });
 const after = await runAction("get-project-summary", { projectId: COPY_ID });
 check(
   "patch-app-document replaces rows wholesale",
-  after.rows.length === 5 && after.rows[0].title.endsWith("(kept)") && after.rows[0].choices.length === 0,
+  after.rows.length === 5 &&
+    after.rows[0].title.endsWith("(kept)") &&
+    after.rows[0].choices.length === 0,
   `rows=${after.rows.length} first=${after.rows[0].title.slice(0, 40)}`,
 );
 
@@ -113,13 +125,24 @@ check(
 // seed a fake entry to validate the query path end-to-end.
 await db.execute(
   "INSERT INTO agent_tool_ledger (thread_id, tool_key, result_summary, completed_at) VALUES (?, ?, ?, ?)",
-  ["test-thread", `add-row:{"projectId":"${COPY_ID}","fields":{"title":"Ledger Probe"}}`, "{\"row\":{\"id\":\"probe\"}}", Date.now()],
+  [
+    "test-thread",
+    `add-row:{"projectId":"${COPY_ID}","fields":{"title":"Ledger Probe"}}`,
+    '{"row":{"id":"probe"}}',
+    Date.now(),
+  ],
 );
 const changes = await runAction("list-project-changes", { projectId: COPY_ID, limit: 20 });
 // Only the seeded entry is visible — the other calls above ran the action's
 // `run` directly and never went through the agent runtime's ledger.
-const foundProbe = changes.changes.some((c) => c.action === "add-row" && c.summary.includes("probe"));
-check("list-project-changes reads the tool ledger", foundProbe, `entries=${changes.changeCount} actions=${[...new Set(changes.changes.map((c) => c.action))].join(",")}`);
+const foundProbe = changes.changes.some(
+  (c) => c.action === "add-row" && c.summary.includes("probe"),
+);
+check(
+  "list-project-changes reads the tool ledger",
+  foundProbe,
+  `entries=${changes.changeCount} actions=${[...new Set(changes.changes.map((c) => c.action))].join(",")}`,
+);
 await db.execute("DELETE FROM agent_tool_ledger WHERE thread_id = ?", ["test-thread"]);
 
 await db.execute("DELETE FROM projects WHERE id = ?", [COPY_ID]);

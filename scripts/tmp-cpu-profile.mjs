@@ -67,7 +67,9 @@ for (const s of samples.slice(0, 20000)) {
     const n = profile.nodes.find((x) => x.id === cur);
     if (!n) break;
     const f = n.callFrame;
-    path.push(`${f.functionName || "(anonymous)"} (${(f.url ?? "").split("/").pop()}:${f.lineNumber + 1})`);
+    path.push(
+      `${f.functionName || "(anonymous)"} (${(f.url ?? "").split("/").pop()}:${f.lineNumber + 1})`,
+    );
     cur = n.parent;
   }
   const key = path.join(" <- ");

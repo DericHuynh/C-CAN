@@ -6,10 +6,10 @@ import { getProjectOrThrow, saveProject } from "./_project-store.js";
 
 export default defineAction({
   description:
-    "Add a new point type to a project (default name \"Points\") and return it. Optional startingSum/beforeText/afterText override the defaults.",
+    'Add a new point type to a project (default name "Points") and return it. Optional startingSum/beforeText/afterText override the defaults.',
   schema: z.object({
     projectId: z.string().describe("Project id"),
-    name: z.string().optional().describe("Point type name; defaults to \"Points\""),
+    name: z.string().optional().describe('Point type name; defaults to "Points"'),
     startingSum: z.number().optional().describe("Initial point total"),
     beforeText: z.string().optional().describe("Label shown before the value"),
     afterText: z.string().optional().describe("Label shown after the value"),

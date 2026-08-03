@@ -5,11 +5,18 @@ import { createDefaultRow } from "../shared/cyoa.js";
 import { getProjectOrThrow, reindexRows, saveProject } from "./_project-store.js";
 
 const rowSpec = z.object({
-  index: z.number().int().min(0).optional().describe("Insert position in the current rows array; defaults to the end"),
+  index: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Insert position in the current rows array; defaults to the end"),
   fields: z
     .record(z.string(), z.unknown())
     .optional()
-    .describe("Row fields to set at creation (title, titleText, objectWidth, image, template, allowedChoices, rowJustify, requireds, styling, groups, isInfoRow, isResultRow, isGroupRow, isButtonRow, …). `id` is always generated."),
+    .describe(
+      "Row fields to set at creation (title, titleText, objectWidth, image, template, allowedChoices, rowJustify, requireds, styling, groups, isInfoRow, isResultRow, isGroupRow, isButtonRow, …). `id` is always generated.",
+    ),
 });
 
 export default defineAction({
@@ -20,7 +27,9 @@ export default defineAction({
     rows: z
       .array(rowSpec)
       .min(1)
-      .describe("Row specs to create, in order. Consecutive specs without `index` append at the end."),
+      .describe(
+        "Row specs to create, in order. Consecutive specs without `index` append at the end.",
+      ),
   }),
   run: async ({ projectId, rows }) => {
     const { app } = await getProjectOrThrow(projectId);

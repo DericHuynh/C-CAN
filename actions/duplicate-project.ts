@@ -9,7 +9,7 @@ import { getProjectOrThrow, newProjectRow, toProjectDetail } from "./_project-st
 
 export default defineAction({
   description:
-    "Duplicate an existing project: same document under a fresh id, title suffixed with \" (Copy)\", never a seed.",
+    'Duplicate an existing project: same document under a fresh id, title suffixed with " (Copy)", never a seed.',
   schema: z.object({
     id: z.string().describe("Project id to duplicate"),
   }),

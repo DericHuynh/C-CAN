@@ -1,9 +1,6 @@
 import { AgentToggleButton } from "@agent-native/core/client/agent-chat";
 import { useT } from "@agent-native/core/client/i18n";
-import {
-  useHeaderTitle,
-  useHeaderActions,
-} from "@agent-native/toolkit/app-shell";
+import { useHeaderTitle, useHeaderActions } from "@agent-native/toolkit/app-shell";
 import { IconMenu2 } from "@tabler/icons-react";
 import { useLocation } from "react-router";
 

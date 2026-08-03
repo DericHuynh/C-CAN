@@ -13,12 +13,7 @@ import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { APP_TITLE } from "@/lib/app-config";
 import { TAB_ID } from "@/lib/tab-id";
 
@@ -51,8 +46,7 @@ export function Layout({ children }: LayoutProps) {
   const t = useT();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const isChatRoute =
-    location.pathname === "/" || location.pathname.startsWith("/chat/");
+  const isChatRoute = location.pathname === "/" || location.pathname.startsWith("/chat/");
   const chatHomeHandoffActive = useAgentChatHomeHandoff({
     storageKey: "chat",
     activePath: location.pathname,
@@ -88,10 +82,7 @@ export function Layout({ children }: LayoutProps) {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        SIDEBAR_COLLAPSE_KEY,
-        sidebarCollapsed ? "1" : "0",
-      );
+      window.localStorage.setItem(SIDEBAR_COLLAPSE_KEY, sidebarCollapsed ? "1" : "0");
     } catch {
       // Ignore storage access errors.
     }
@@ -142,16 +133,11 @@ export function Layout({ children }: LayoutProps) {
     <HeaderActionsProvider>
       <div className="agent-layout-shell flex h-screen w-full overflow-hidden bg-background text-foreground">
         <div className="agent-layout-left-drawer hidden md:block">
-          <Sidebar
-            collapsed={sidebarCollapsed}
-            onCollapsedChange={setSidebarCollapsed}
-          />
+          <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
         </div>
         <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
           <SheetContent side="left" className="p-0 w-[260px]">
-            <SheetTitle className="sr-only">
-              {t("navigation.navigation")}
-            </SheetTitle>
+            <SheetTitle className="sr-only">{t("navigation.navigation")}</SheetTitle>
             <SheetDescription className="sr-only">
               {t("navigation.navigationDescription")}
             </SheetDescription>

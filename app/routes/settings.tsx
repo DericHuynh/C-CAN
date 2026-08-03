@@ -10,13 +10,7 @@ import {
 import { useSetPageTitle } from "@agent-native/toolkit/app-shell";
 import { useMemo } from "react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { APP_TITLE } from "@/lib/app-config";
 
@@ -51,18 +45,12 @@ export default function SettingsRoute() {
       generalSearchEntries={generalSearchEntries}
       general={
         <div className="mx-auto w-full max-w-2xl space-y-6">
-          <p className="text-sm leading-6 text-muted-foreground">
-            {t("settings.description")}
-          </p>
+          <p className="text-sm leading-6 text-muted-foreground">{t("settings.description")}</p>
 
           <Card id="language" className="scroll-mt-16">
             <CardHeader>
-              <CardTitle className="text-base">
-                {t("settings.languageTitle")}
-              </CardTitle>
-              <CardDescription>
-                {t("settings.languageDescription")}
-              </CardDescription>
+              <CardTitle className="text-base">{t("settings.languageTitle")}</CardTitle>
+              <CardDescription>{t("settings.languageDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="max-w-xs space-y-1.5">
               <Label>{t("settings.languageLabel")}</Label>
@@ -73,10 +61,7 @@ export default function SettingsRoute() {
       }
       team={
         <div className="mx-auto w-full max-w-3xl">
-          <TeamPage
-            showTitle={false}
-            createOrgDescription={t("pages.teamCreateOrgDescription")}
-          />
+          <TeamPage showTitle={false} createOrgDescription={t("pages.teamCreateOrgDescription")} />
         </div>
       }
       whatsNew={

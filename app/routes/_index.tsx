@@ -1,7 +1,4 @@
-import {
-  AgentChatSurface,
-  markAgentChatHomeHandoff,
-} from "@agent-native/core/client/agent-chat";
+import { AgentChatSurface, markAgentChatHomeHandoff } from "@agent-native/core/client/agent-chat";
 import { useT } from "@agent-native/core/client/i18n";
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -51,8 +48,7 @@ export default function ChatRoute() {
     }
 
     window.addEventListener("agentNative.chatRunning", handleChatRunning);
-    return () =>
-      window.removeEventListener("agentNative.chatRunning", handleChatRunning);
+    return () => window.removeEventListener("agentNative.chatRunning", handleChatRunning);
   }, []);
 
   return (

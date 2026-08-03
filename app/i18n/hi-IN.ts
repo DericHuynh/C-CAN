@@ -6,13 +6,11 @@ const messages = {
     languageDescription: "इंटरफ़ेस भाषा चुनें। यह पसंद आपके खाते में सहेजी जाती है।",
     languageLabel: "इंटरफ़ेस भाषा",
     workspaceTitle: "कार्यस्थान",
-    workspaceDescription:
-      "टीम सदस्यों, संगठन पहुंच और साझा कार्यस्थान प्राथमिकताओं को प्रबंधित करें।",
+    workspaceDescription: "टीम सदस्यों, संगठन पहुंच और साझा कार्यस्थान प्राथमिकताओं को प्रबंधित करें।",
     openTeamSettings: "टीम सेटिंग्स खोलें",
     openResourceSettings: "संसाधन सेटिंग्स खोलें",
     agentTitle: "एजेंट प्रबंधित करें",
-    agentDescription:
-      "एजेंट के मॉडल, API कुंजियों, ऑटोमेशन, आवाज़ और अन्य नियंत्रणों को प्रबंधित करें।",
+    agentDescription: "एजेंट के मॉडल, API कुंजियों, ऑटोमेशन, आवाज़ और अन्य नियंत्रणों को प्रबंधित करें।",
     openAgentSettings: "एजेंट प्रबंधित करें",
   },
   chat: {
@@ -56,8 +54,7 @@ const messages = {
     databaseTitle: "डेटाबेस",
     observabilityPageTitle: "एजेंट ऑब्ज़र्वेबिलिटी",
     teamTitle: "टीम",
-    teamCreateOrgDescription:
-      "टीम के सदस्यों को आमंत्रित करने और यह ऐप साझा करने के लिए संगठन बनाएं।",
+    teamCreateOrgDescription: "टीम के सदस्यों को आमंत्रित करने और यह ऐप साझा करने के लिए संगठन बनाएं।",
   },
   root: {
     commandActions: "कार्रवाइयाँ",

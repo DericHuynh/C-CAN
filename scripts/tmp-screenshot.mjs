@@ -14,7 +14,10 @@ const browser = await chromium.launch({
   headless: true,
   args: ["--no-sandbox"],
 });
-const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, colorScheme: "dark" });
+const context = await browser.newContext({
+  viewport: { width: 1600, height: 1000 },
+  colorScheme: "dark",
+});
 const page = await context.newPage();
 
 await page.goto(`${BASE}/_agent-native/sign-in`, { waitUntil: "networkidle" });
@@ -42,7 +45,10 @@ await page.waitForSelector('input[placeholder="Search…"]', { timeout: 5000 });
 await page.screenshot({ path: "scripts/tmp-lazy-select-open.png" });
 await page.keyboard.press("Escape");
 
-await page.goto(`${BASE}/projects/${PROJECT_ID}?tab=images`, { waitUntil: "networkidle", timeout: 60000 });
+await page.goto(`${BASE}/projects/${PROJECT_ID}?tab=images`, {
+  waitUntil: "networkidle",
+  timeout: 60000,
+});
 await page.waitForSelector("text=Add image", { timeout: 60000 });
 await page.waitForTimeout(1200);
 await page.screenshot({ path: "scripts/tmp-images-paginated.png" });

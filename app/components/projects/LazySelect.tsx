@@ -128,7 +128,11 @@ export function LazySelect({
                       onKeyDown={(event) => {
                         // Let Radix handle Escape/Enter/arrows; keep typing in
                         // the input instead of Radix's typeahead.
-                        if (event.key.length === 1 || event.key === "Backspace" || event.key === " ") {
+                        if (
+                          event.key.length === 1 ||
+                          event.key === "Backspace" ||
+                          event.key === " "
+                        ) {
                           event.stopPropagation();
                         }
                       }}
@@ -141,9 +145,7 @@ export function LazySelect({
                   {item.label}
                 </SelectItem>
               ))}
-              {allowCustom ? (
-                <SelectItem value={customMarker}>{customLabel}</SelectItem>
-              ) : null}
+              {allowCustom ? <SelectItem value={customMarker}>{customLabel}</SelectItem> : null}
               {searchable && filtered.length === 0 ? (
                 <p className="px-2 py-3 text-center text-xs text-muted-foreground">
                   No matches for “{query.trim()}”.

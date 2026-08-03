@@ -10,7 +10,11 @@ export default defineAction({
     projectId: z.string().describe("Project id"),
     rowId: z.string().describe("Target row id"),
     choiceId: z.string().describe("Choice id"),
-    index: z.number().int().min(0).describe("Target 0-based position in the target row (after removal)"),
+    index: z
+      .number()
+      .int()
+      .min(0)
+      .describe("Target 0-based position in the target row (after removal)"),
   }),
   run: async ({ projectId, rowId, choiceId, index }) => {
     const { app } = await getProjectOrThrow(projectId);

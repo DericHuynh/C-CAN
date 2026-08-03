@@ -176,7 +176,12 @@ export function CategoriesPanel({ project }: CategoriesPanelProps) {
                       {typeLabel(type)}{" "}
                       <span className="text-muted-foreground">({typeCategories.length})</span>
                     </p>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => openAddDialog(type)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openAddDialog(type)}
+                    >
                       <IconPlus className="mr-1.5 size-4" />
                       Add
                     </Button>
@@ -197,7 +202,9 @@ export function CategoriesPanel({ project }: CategoriesPanelProps) {
                               <CardTitle className="text-base">{category.name}</CardTitle>
                               <Badge variant="secondary">Slot {category.idx}</Badge>
                             </div>
-                            <CardDescription className="mt-1">Type: {category.type}</CardDescription>
+                            <CardDescription className="mt-1">
+                              Type: {category.type}
+                            </CardDescription>
                           </div>
                           <div className="flex shrink-0 items-center gap-0.5">
                             <Button

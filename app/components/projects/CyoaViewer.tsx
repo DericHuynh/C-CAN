@@ -928,13 +928,7 @@ const SEARCH_FILTERS: { value: ProjectSearchType | "all"; label: string }[] = [
  * then jumps to the match — selecting choices/addons and scrolling to the
  * first choice that references non-visual entities.
  */
-function ViewerSearchBar({
-  cyoa,
-  ref,
-}: {
-  cyoa: UseCyoaResult;
-  ref?: Ref<ViewerSearchBarHandle>;
-}) {
+function ViewerSearchBar({ cyoa, ref }: { cyoa: UseCyoaResult; ref?: Ref<ViewerSearchBarHandle> }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProjectSearchType | "all">("all");
@@ -1145,12 +1139,9 @@ function PointBar({
 
   return (
     <div
-      className={cn(
-        "sticky bottom-0 z-20 -mx-4 px-4 py-2.5 lg:-mx-6 lg:px-6",
-      )}
+      className={cn("sticky bottom-0 z-20 -mx-4 px-4 py-2.5 lg:-mx-6 lg:px-6")}
       style={{
-        backgroundColor:
-          barOverrides.bgColor ?? (str("barBackgroundColor") || undefined),
+        backgroundColor: barOverrides.bgColor ?? (str("barBackgroundColor") || undefined),
         color: barOverrides.textColor ?? (str("barTextColor") || undefined),
       }}
     >
@@ -1170,7 +1161,9 @@ function PointBar({
               const privateColor =
                 pointType.pointPrivateColorIsOn &&
                 (isNegative ? pointType.privateNegativeColor : pointType.privateColor)
-                  ? (isNegative ? pointType.privateNegativeColor : pointType.privateColor)
+                  ? isNegative
+                    ? pointType.privateNegativeColor
+                    : pointType.privateColor
                   : undefined;
               const icon = pointType.iconIsOn
                 ? isNegative && pointType.negativeIconIsOn
@@ -1359,9 +1352,7 @@ function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewp
           backgroundSize: rowSurface.bodyBackgroundSize || undefined,
         }
       : {}),
-    ...(rowSurface.bodyBackgroundColor
-      ? { backgroundColor: rowSurface.bodyBackgroundColor }
-      : {}),
+    ...(rowSurface.bodyBackgroundColor ? { backgroundColor: rowSurface.bodyBackgroundColor } : {}),
   };
 
   // Row card surface (original `AppRow.rowBackground`): the header box that
@@ -1926,7 +1917,7 @@ function formatScoreValue(point: PointType | undefined, value: number): string {
   const display = point?.allowFloat ? abs : Math.floor(abs);
   if (point?.plussOrMinusAdded) {
     const negative = value < 0;
-    const prefix = point.plussOrMinusInverted ? (negative ? "-" : "+") : (negative ? "+" : "-");
+    const prefix = point.plussOrMinusInverted ? (negative ? "-" : "+") : negative ? "+" : "-";
     return `${prefix}${formatPointValue(point, display)}`;
   }
   return formatPointValue(point ?? ({} as PointType), display);
@@ -2022,15 +2013,7 @@ function ScoreIcon({
   return { image, width, height, beforeText, afterBeforeText, afterText, afterAfterText };
 }
 
-function Scores({
-  cyoa,
-  choice,
-  row,
-}: {
-  cyoa: UseCyoaResult;
-  choice: Choice;
-  row: Row;
-}) {
+function Scores({ cyoa, choice, row }: { cyoa: UseCyoaResult; choice: Choice; row: Row }) {
   const scores = choice.scores ?? [];
   const activeScores = scores.filter((score) => {
     if (!isScoreShown(score, choice, cyoa.idx, cyoa.state)) return false;
@@ -2038,10 +2021,13 @@ function Scores({
   });
   if (activeScores.length === 0) return null;
   const scoreStyle = textStyle("scoreText", cyoa.idx, cyoa.state, row, choice);
-  const filterStyling = getStyling("privateFilterIsOn", cyoa.idx, cyoa.state, row, choice) as Record<
-    string,
-    unknown
-  >;
+  const filterStyling = getStyling(
+    "privateFilterIsOn",
+    cyoa.idx,
+    cyoa.state,
+    row,
+    choice,
+  ) as Record<string, unknown>;
   const fStr = (key: string): string =>
     typeof filterStyling[key] === "string" ? (filterStyling[key] as string) : "";
   const fOn = (key: string): boolean => filterStyling[key] === true;
@@ -2088,7 +2074,11 @@ function Scores({
           ? ScoreIcon({ app: cyoa.idx.app, point, isNegative: !checkNegative })
           : null;
         return (
-          <Badge key={`${score.id ?? score.type}-${scoreIndex}`} variant="secondary" style={{ ...scoreStyle, color }}>
+          <Badge
+            key={`${score.id ?? score.type}-${scoreIndex}`}
+            variant="secondary"
+            style={{ ...scoreStyle, color }}
+          >
             {icon && icon.beforeText ? (
               <img
                 src={icon.image}
@@ -2222,9 +2212,7 @@ function Requirements({
         <Badge
           key={i}
           variant="outline"
-          className={
-            label.negated ? "border-destructive/40 text-destructive" : undefined
-          }
+          className={label.negated ? "border-destructive/40 text-destructive" : undefined}
           style={{ ...style, color: textColor || undefined }}
         >
           <span dangerouslySetInnerHTML={{ __html: label.text }} />
@@ -2321,11 +2309,7 @@ function requirementLabel(req: import("@shared/types").Requireds, cyoa: UseCyoaR
   if (req.required === false) {
     return replaceText(`Not: ${text}`.trim(), idx, cyoa.state);
   }
-  return replaceText(
-    `${before} ${text} ${after}`.trim(),
-    idx,
-    cyoa.state,
-  );
+  return replaceText(`${before} ${text} ${after}`.trim(), idx, cyoa.state);
 }
 
 /** Strip known entity-type prefixes (choice-/row-/addon-/point-…) from ids. */
@@ -2371,9 +2355,9 @@ function AddonView({
   const visible = isSelectable
     ? (!unselAddonRemoved || selected) &&
       (!row.isResultRow || selected) &&
-      (forceShow || (!addon.hideAddon || choiceActive) && (addon.showAddon || enabled))
+      (forceShow || ((!addon.hideAddon || choiceActive) && (addon.showAddon || enabled)))
     : (!unmetAddonRemoved || enabled) &&
-      (forceShow || (!addon.hideAddon || choiceActive) && (addon.showAddon || enabled));
+      (forceShow || ((!addon.hideAddon || choiceActive) && (addon.showAddon || enabled)));
 
   if (!visible) return null;
   const titleStyle = textStyle("addonTitle", cyoa.idx, cyoa.state, row, choice);
@@ -2411,11 +2395,7 @@ function AddonView({
         />
       ) : null}
       {!hidden?.has("4") && (showParentScores || addonScores.length > 0) ? (
-        <Scores
-          cyoa={cyoa}
-          choice={(showParentScores ? choice : addon) as Choice}
-          row={row}
-        />
+        <Scores cyoa={cyoa} choice={(showParentScores ? choice : addon) as Choice} row={row} />
       ) : null}
       {!hidden?.has("5") && (showParentReqs || addonReqs.length > 0) ? (
         <Requirements

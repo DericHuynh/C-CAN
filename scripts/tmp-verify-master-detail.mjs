@@ -29,7 +29,10 @@ const browser = await chromium.launch({
   headless: true,
   args: ["--no-sandbox"],
 });
-const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, colorScheme: "dark" });
+const context = await browser.newContext({
+  viewport: { width: 1600, height: 1000 },
+  colorScheme: "dark",
+});
 const page = await context.newPage();
 
 const results = [];
@@ -57,7 +60,9 @@ try {
   await page.waitForTimeout(1500);
   const widthInfo = await page.evaluate(() => {
     const main = document.querySelector(".agent-native-app-main");
-    const h1 = Array.from(document.querySelectorAll("h1")).find((el) => el.textContent && el.textContent.trim().length > 0);
+    const h1 = Array.from(document.querySelectorAll("h1")).find(
+      (el) => el.textContent && el.textContent.trim().length > 0,
+    );
     return {
       mainW: main ? main.clientWidth : 0,
       h1W: h1 ? h1.getBoundingClientRect().width : 0,
@@ -84,7 +89,9 @@ try {
 
   // Empty-state detail pane before any selection.
   const emptyDetail = await page.evaluate(() =>
-    Array.from(document.querySelectorAll("p")).some((el) => /Select a row, choice, or addon/.test(el.textContent ?? "")),
+    Array.from(document.querySelectorAll("p")).some((el) =>
+      /Select a row, choice, or addon/.test(el.textContent ?? ""),
+    ),
   );
   check("empty-state detail pane before selection", emptyDetail, "");
 
@@ -95,14 +102,21 @@ try {
     const main = document.querySelector(".agent-native-app-main");
     return {
       hasDialog: Boolean(document.querySelector('[role="dialog"]')),
-      hasEditRowTitle: Array.from(document.querySelectorAll("h3, div")).some((el) => el.textContent === "Edit row"),
+      hasEditRowTitle: Array.from(document.querySelectorAll("h3, div")).some(
+        (el) => el.textContent === "Edit row",
+      ),
       hasRowTitleInput: Boolean(document.querySelector('input[id="row-title"]')),
-      hasFooter: Array.from(document.querySelectorAll("button")).some((b) => b.textContent === "Save"),
+      hasFooter: Array.from(document.querySelectorAll("button")).some(
+        (b) => b.textContent === "Save",
+      ),
     };
   });
   check(
     "selecting a row opens the inline RowEditor (no dialog)",
-    !rowDetail.hasDialog && rowDetail.hasEditRowTitle && rowDetail.hasRowTitleInput && rowDetail.hasFooter,
+    !rowDetail.hasDialog &&
+      rowDetail.hasEditRowTitle &&
+      rowDetail.hasRowTitleInput &&
+      rowDetail.hasFooter,
     JSON.stringify(rowDetail),
   );
 
@@ -116,7 +130,9 @@ try {
   const choiceDetail = await page.evaluate(() => ({
     hasDialog: Boolean(document.querySelector('[role="dialog"]')),
     hasChoiceTitleInput: Boolean(document.querySelector('input[id="choice-title"]')),
-    hasAccordion: Array.from(document.querySelectorAll("button")).some((b) => b.textContent === "Basics"),
+    hasAccordion: Array.from(document.querySelectorAll("button")).some(
+      (b) => b.textContent === "Basics",
+    ),
   }));
   check(
     "selecting a choice opens the inline ChoiceEditor (accordion, no dialog)",
@@ -127,9 +143,9 @@ try {
   // Edit a field and Save -> persists (mutates the DB, then restore).
   const before = await db.execute("SELECT json FROM projects WHERE id = ?", [PROJECT_ID]);
   const beforeApp = JSON.parse(before.rows[0].json);
-  const firstChoiceId = (beforeApp.rows ?? []).find((r) => (r.objects ?? []).length)?.objects?.[0]?.id;
-  const firstChoiceTitle = (beforeApp.rows ?? [])
-    .find((r) => (r.objects ?? []).length)
+  const firstChoiceId = (beforeApp.rows ?? []).find((r) => (r.objects ?? []).length)?.objects?.[0]
+    ?.id;
+  const firstChoiceTitle = (beforeApp.rows ?? []).find((r) => (r.objects ?? []).length)
     ?.objects?.[0]?.title;
   // Target the first choice by its title so the edit lands on a known id.
   await page
@@ -146,7 +162,9 @@ try {
   await page.waitForTimeout(2000);
   const after = await db.execute("SELECT json FROM projects WHERE id = ?", [PROJECT_ID]);
   const afterApp = JSON.parse(after.rows[0].json);
-  const editedChoice = (afterApp.rows ?? []).flatMap((r) => r.objects ?? []).find((c) => c.id === firstChoiceId);
+  const editedChoice = (afterApp.rows ?? [])
+    .flatMap((r) => r.objects ?? [])
+    .find((c) => c.id === firstChoiceId);
   check(
     "saving the inline form persists to the project",
     filledValue === `${firstChoiceId}-master-detail-check` && editedChoice?.title === filledValue,
@@ -154,7 +172,10 @@ try {
   );
   // Restore the original title.
   const restoredApp = JSON.parse(before.rows[0].json);
-  await db.execute("UPDATE projects SET json = ? WHERE id = ?", [JSON.stringify(restoredApp), PROJECT_ID]);
+  await db.execute("UPDATE projects SET json = ? WHERE id = ?", [
+    JSON.stringify(restoredApp),
+    PROJECT_ID,
+  ]);
 
   // ---- Groups tab: master + inline form ----
   await page.locator('[aria-label="Editor section"] button').filter({ hasText: "Content" }).click();
@@ -163,10 +184,18 @@ try {
   await page.waitForTimeout(1200);
   const groupsTab = await page.evaluate(() => ({
     hasDialog: Boolean(document.querySelector('[role="dialog"]')),
-    hasAddButton: Array.from(document.querySelectorAll("button")).some((b) => b.textContent === "Add group"),
-    hasMasterText: Array.from(document.querySelectorAll("p")).some((el) => /group/.test((el.textContent ?? "").toLowerCase())),
+    hasAddButton: Array.from(document.querySelectorAll("button")).some(
+      (b) => b.textContent === "Add group",
+    ),
+    hasMasterText: Array.from(document.querySelectorAll("p")).some((el) =>
+      /group/.test((el.textContent ?? "").toLowerCase()),
+    ),
   }));
-  check("groups tab renders without dialogs", !groupsTab.hasDialog && groupsTab.hasAddButton, JSON.stringify(groupsTab));
+  check(
+    "groups tab renders without dialogs",
+    !groupsTab.hasDialog && groupsTab.hasAddButton,
+    JSON.stringify(groupsTab),
+  );
 
   const groupCards = page.locator("div[class*='card']").filter({ hasText: "member" });
   await page.waitForSelector("text=members", { timeout: 8000 });
@@ -193,10 +222,16 @@ try {
   await page.locator('[role="tab"]:has-text("Images")').click();
   await page.waitForTimeout(1500);
   const imagesTab = await page.evaluate(() => ({
-    hasAddButton: Array.from(document.querySelectorAll("button")).some((b) => b.textContent === "Add image"),
+    hasAddButton: Array.from(document.querySelectorAll("button")).some(
+      (b) => b.textContent === "Add image",
+    ),
     hasDialog: Boolean(document.querySelector('[role="dialog"]')),
   }));
-  check("images tab renders (grid master, no dialogs)", imagesTab.hasAddButton && !imagesTab.hasDialog, JSON.stringify(imagesTab));
+  check(
+    "images tab renders (grid master, no dialogs)",
+    imagesTab.hasAddButton && !imagesTab.hasDialog,
+    JSON.stringify(imagesTab),
+  );
 
   await page.screenshot({ path: "scripts/tmp-verify-master-detail.png" });
 } catch (err) {

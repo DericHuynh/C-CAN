@@ -4,12 +4,15 @@ import { z } from "zod";
 import { assertFound, getProjectOrThrow, saveProject } from "./_project-store.js";
 
 export default defineAction({
-  description:
-    "Remove an addon (by its array index) from a choice and save the updated choice.",
+  description: "Remove an addon (by its array index) from a choice and save the updated choice.",
   schema: z.object({
     projectId: z.string().describe("Project id"),
     choiceId: z.string().describe("Choice holding the addon"),
-    addonIndex: z.number().int().min(0).describe("0-based position of the addon in the choice's addons array"),
+    addonIndex: z
+      .number()
+      .int()
+      .min(0)
+      .describe("0-based position of the addon in the choice's addons array"),
   }),
   run: async ({ projectId, choiceId, addonIndex }) => {
     const { app } = await getProjectOrThrow(projectId);

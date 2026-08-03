@@ -107,29 +107,29 @@ All CYOA operations go through `defineAction`s in `actions/`. Action name =
 file name. Reads use `http: { method: "GET" }`; mutations POST. Keep this table
 in sync when actions change.
 
-| Action | Purpose |
-| --- | --- |
-| `list-projects` | Summaries of all projects (rows/choices/point types counts) |
-| `get-project` | Full project: metadata, `summary`, parsed `app` document |
-| `get-project-summary` | **Lightweight** structure read (no images/bodies): rows → choices with ids, titles, counts, `requiredIds`, groups + point types — for planning wiring without loading the doc |
-| `list-project-changes` | Recent agent tool calls that mutated a project (action + timestamp + result summary) — "what changed since X" |
-| `create-project` | New project from the default document |
-| `update-project` | Patch list metadata (`title`, `description`) |
-| `delete-project` | Remove a project |
-| `duplicate-project` | Clone a project ("(Copy)" suffix, fresh timestamps) |
-| `import-project-json` | Import an ICCPlus JSON document (string or object) |
-| `export-project-json` | Return the parsed document for download/copy |
-| `add-row` / `update-row` / `delete-row` / `move-row` | Row CRUD + ordering; `add-row` accepts optional `fields` (title, requireds, styling, …) to create fully-formed |
-| `add-rows` | **Bulk** create many rows in one call (`rows: [{ index?, fields? }]`) |
-| `add-choice` / `update-choice` / `delete-choice` / `move-choice` | Choice CRUD + ordering; `add-choice` accepts optional `fields` (title, text, scores, requireds, …); `move-choice` also reparents across rows (`rowId` is the target row) |
-| `add-choices` | **Bulk** create many choices in one row (`choices: [{ index?, fields? }]`) |
-| `add-score` / `delete-score` | Attach/remove a point score on a choice |
-| `move-addon` / `delete-addon` | Move an addon (by array index) between choices or reorder within one (rewrites `parentId`); remove an addon from a choice |
-| `add-point-type` / `update-point-type` / `delete-point-type` | Currency CRUD; delete also strips referencing scores |
-| `add-group` / `update-group` / `delete-group` | Group CRUD |
-| `add-global-requirement` / `update-global-requirement` / `delete-global-requirement` | Global requirement CRUD |
-| `patch-app-document` | Wholesale-replace any top-level app field (`rows`, `images`, …) in one call — the sanctioned way to rewrite a big section without hundreds of mutations |
-| `update-project-settings` | Viewer title, description, and top-level app defaults |
+| Action                                                                               | Purpose                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list-projects`                                                                      | Summaries of all projects (rows/choices/point types counts)                                                                                                                   |
+| `get-project`                                                                        | Full project: metadata, `summary`, parsed `app` document                                                                                                                      |
+| `get-project-summary`                                                                | **Lightweight** structure read (no images/bodies): rows → choices with ids, titles, counts, `requiredIds`, groups + point types — for planning wiring without loading the doc |
+| `list-project-changes`                                                               | Recent agent tool calls that mutated a project (action + timestamp + result summary) — "what changed since X"                                                                 |
+| `create-project`                                                                     | New project from the default document                                                                                                                                         |
+| `update-project`                                                                     | Patch list metadata (`title`, `description`)                                                                                                                                  |
+| `delete-project`                                                                     | Remove a project                                                                                                                                                              |
+| `duplicate-project`                                                                  | Clone a project ("(Copy)" suffix, fresh timestamps)                                                                                                                           |
+| `import-project-json`                                                                | Import an ICCPlus JSON document (string or object)                                                                                                                            |
+| `export-project-json`                                                                | Return the parsed document for download/copy                                                                                                                                  |
+| `add-row` / `update-row` / `delete-row` / `move-row`                                 | Row CRUD + ordering; `add-row` accepts optional `fields` (title, requireds, styling, …) to create fully-formed                                                                |
+| `add-rows`                                                                           | **Bulk** create many rows in one call (`rows: [{ index?, fields? }]`)                                                                                                         |
+| `add-choice` / `update-choice` / `delete-choice` / `move-choice`                     | Choice CRUD + ordering; `add-choice` accepts optional `fields` (title, text, scores, requireds, …); `move-choice` also reparents across rows (`rowId` is the target row)      |
+| `add-choices`                                                                        | **Bulk** create many choices in one row (`choices: [{ index?, fields? }]`)                                                                                                    |
+| `add-score` / `delete-score`                                                         | Attach/remove a point score on a choice                                                                                                                                       |
+| `move-addon` / `delete-addon`                                                        | Move an addon (by array index) between choices or reorder within one (rewrites `parentId`); remove an addon from a choice                                                     |
+| `add-point-type` / `update-point-type` / `delete-point-type`                         | Currency CRUD; delete also strips referencing scores                                                                                                                          |
+| `add-group` / `update-group` / `delete-group`                                        | Group CRUD                                                                                                                                                                    |
+| `add-global-requirement` / `update-global-requirement` / `delete-global-requirement` | Global requirement CRUD                                                                                                                                                       |
+| `patch-app-document`                                                                 | Wholesale-replace any top-level app field (`rows`, `images`, …) in one call — the sanctioned way to rewrite a big section without hundreds of mutations                       |
+| `update-project-settings`                                                            | Viewer title, description, and top-level app defaults                                                                                                                         |
 
 ## Application State
 

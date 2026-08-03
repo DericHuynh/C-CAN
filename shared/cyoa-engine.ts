@@ -2151,10 +2151,20 @@ export function getProjectSearchEntries(app: App): ProjectSearchEntry[] {
     }
   }
   for (const point of app.pointTypes ?? []) {
-    entries.push({ type: "point", id: point.id, label: point.name || point.id, kindLabel: "Point" });
+    entries.push({
+      type: "point",
+      id: point.id,
+      label: point.name || point.id,
+      kindLabel: "Point",
+    });
   }
   for (const group of app.groups ?? []) {
-    entries.push({ type: "group", id: group.id, label: group.name || group.id, kindLabel: "Group" });
+    entries.push({
+      type: "group",
+      id: group.id,
+      label: group.name || group.id,
+      kindLabel: "Group",
+    });
   }
   for (const globalReq of app.globalRequirements ?? []) {
     entries.push({
@@ -2165,7 +2175,12 @@ export function getProjectSearchEntries(app: App): ProjectSearchEntry[] {
     });
   }
   for (const word of app.words ?? []) {
-    entries.push({ type: "word", id: word.id, label: word.replaceText || word.id, kindLabel: "Word" });
+    entries.push({
+      type: "word",
+      id: word.id,
+      label: word.replaceText || word.id,
+      kindLabel: "Word",
+    });
   }
   return entries;
 }

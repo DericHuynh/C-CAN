@@ -151,32 +151,47 @@ export default async function aggregateJsonStats(args: Record<string, unknown>) 
     console.log(`\n== ${label} (${keys.length} keys) ==`);
     for (const key of keys) {
       const { count, values } = agg[key];
-      const valStr = values.map((v) => (v === undefined ? "undefined" : JSON.stringify(v))).join(" | ");
+      const valStr = values
+        .map((v) => (v === undefined ? "undefined" : JSON.stringify(v)))
+        .join(" | ");
       console.log(`  ${key}: [${count}/${total}] ${typeOf(values[0])} ${valStr}`);
     }
   };
 
   // Top-level: which keys are NOT covered by our default app?
   const topMissing = Object.keys(raw).filter((k) => !(k in defaults));
-  console.log(`\n[top-level] source keys missing from createDefaultApp(): ${topMissing.length ? topMissing.join(", ") : "none"}`);
+  console.log(
+    `\n[top-level] source keys missing from createDefaultApp(): ${topMissing.length ? topMissing.join(", ") : "none"}`,
+  );
   const topExtra = Object.keys(defaults).filter((k) => !(k in raw));
-  console.log(`[top-level] default keys absent from source (filled by normalize): ${topExtra.length}`);
+  console.log(
+    `[top-level] default keys absent from source (filled by normalize): ${topExtra.length}`,
+  );
 
   // Styling
   const srcStyling = raw.styling as Record<string, unknown> | undefined;
   const defStyling = defaults.styling as Record<string, unknown>;
   if (srcStyling) {
     const missing = Object.keys(srcStyling).filter((k) => !(k in defStyling));
-    console.log(`\n[styling] source styling keys missing from defaults: ${missing.length ? missing.join(", ") : "none"}`);
-    console.log(`[styling] default styling keys absent from source (filled by normalize): ${Object.keys(defStyling).filter((k) => !(k in srcStyling)).length}`);
+    console.log(
+      `\n[styling] source styling keys missing from defaults: ${missing.length ? missing.join(", ") : "none"}`,
+    );
+    console.log(
+      `[styling] default styling keys absent from source (filled by normalize): ${Object.keys(defStyling).filter((k) => !(k in srcStyling)).length}`,
+    );
     const payload = Object.keys(srcStyling).filter((k) => PAYLOAD_KEYS.has(k));
     if (payload.length) console.log(`[styling] payload keys ignored: ${payload.join(", ")}`);
     // Only print keys whose value differs from defaults — that's what the doc customizes.
     const custom = Object.keys(srcStyling).filter(
-      (k) => !PAYLOAD_KEYS.has(k) && JSON.stringify(srcStyling[k]) !== JSON.stringify(defStyling[k]),
+      (k) =>
+        !PAYLOAD_KEYS.has(k) && JSON.stringify(srcStyling[k]) !== JSON.stringify(defStyling[k]),
     );
     console.log(`[styling] customized keys (differ from defaults): ${custom.length}`);
-    print("styling.customized", aggregateItems(custom.map((k) => ({ [k]: srcStyling[k] }))), custom.length);
+    print(
+      "styling.customized",
+      aggregateItems(custom.map((k) => ({ [k]: srcStyling[k] }))),
+      custom.length,
+    );
   }
 
   // Entity collections
@@ -197,7 +212,14 @@ export default async function aggregateJsonStats(args: Record<string, unknown>) 
     ["rows", arr(raw.rows)],
     ["backpack rows", arr(raw.backpack)],
     ["choices", arr(raw.rows).flatMap((r) => arr((r as Record<string, unknown>).objects))],
-    ["addons", arr(raw.rows).flatMap((r) => arr((r as Record<string, unknown>).objects).flatMap((o) => arr((o as Record<string, unknown>).addons)))],
+    [
+      "addons",
+      arr(raw.rows).flatMap((r) =>
+        arr((r as Record<string, unknown>).objects).flatMap((o) =>
+          arr((o as Record<string, unknown>).addons),
+        ),
+      ),
+    ],
     ["pointTypes", arr(raw.pointTypes)],
     ["groups", arr(raw.groups)],
     ["globalRequirements", arr(raw.globalRequirements)],
@@ -214,7 +236,9 @@ export default async function aggregateJsonStats(args: Record<string, unknown>) 
     if (factory) {
       const defKeys = new Set(Object.keys(factory()));
       const unknown = Object.keys(agg).filter((k) => !defKeys.has(k) && k !== "styling");
-      console.log(`  keys not in default ${label}: ${unknown.length ? unknown.join(", ") : "none"}`);
+      console.log(
+        `  keys not in default ${label}: ${unknown.length ? unknown.join(", ") : "none"}`,
+      );
     }
     print(label, agg, items.length);
   }
@@ -225,12 +249,16 @@ export default async function aggregateJsonStats(args: Record<string, unknown>) 
   const choiceIds = new Set(
     rows.flatMap((r) => ((r.objects as Record<string, unknown>[]) ?? []).map((o) => o.id)),
   );
-  const danglingChoices = rows
-    .flatMap((r) => ((r.objects as Record<string, unknown>[]) ?? []).filter((o) => !o.id))
-    .length;
+  const danglingChoices = rows.flatMap((r) =>
+    ((r.objects as Record<string, unknown>[]) ?? []).filter((o) => !o.id),
+  ).length;
   const danglingRows = rows.filter((r) => !r.id).length;
-  console.log(`\n[id integrity] rows without id: ${danglingRows}, choices without id: ${danglingChoices}`);
-  console.log(`[id integrity] unique row ids: ${rowIds.size}, unique choice ids: ${choiceIds.size}`);
+  console.log(
+    `\n[id integrity] rows without id: ${danglingRows}, choices without id: ${danglingChoices}`,
+  );
+  console.log(
+    `[id integrity] unique row ids: ${rowIds.size}, unique choice ids: ${choiceIds.size}`,
+  );
 
   return { ok: true };
 }

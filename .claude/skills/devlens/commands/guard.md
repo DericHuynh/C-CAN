@@ -5,6 +5,7 @@ Check whether a change touches **load-bearing** code and warn before it's edited
 Use proactively: when the user is about to edit, asks "is it safe to change X", or after edits but before committing.
 
 ## Method — find the targets, then measure risk
+
 1. **Determine target node(s) — all of them:**
    - No arg → `git status --porcelain` / `git diff --name-only` for changed files (+ untracked), then `get_nodes_in_path <file>` for each → every changed node.
    - file → `get_nodes_in_path <file>`.
@@ -17,11 +18,13 @@ Use proactively: when the user is about to edit, asks "is it safe to change X", 
    - note the node's `severity` (medium/high = extra scrutiny; `get_node` with `include: ["security"]` for detail).
 
 ## Risk scoring (per node)
+
 - 🔴 **High** — high score AND/OR large blast radius (many dependents, e.g. a meaningful fraction of total nodes) AND/OR high security severity.
 - 🟡 **Medium** — moderate blast radius, or a high-value direct neighbor.
 - 🟢 **Low** — leaf/peripheral, few/no dependents.
 
 ## Output template
+
 1. **Overall verdict** — the highest risk among the targets, one line ("⚠️ This change touches load-bearing code").
 2. **Per-target table** — each affected node → risk level, `score`, blast-radius `count`, severity.
 3. **For each 🔴/🟡** — **what could break** (the notable dependents from blast radius, with their one-line summaries) and **recommended precautions** (specific tests to run, request review, gate behind a flag, add coverage).

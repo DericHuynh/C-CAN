@@ -55,29 +55,30 @@ export function PaginatedList<T>({
     ? rangeLabel(start, end, items.length)
     : `${start + 1}–${end} of ${items.length}`;
 
-  const pager = totalPages > 1 ? (
-    <div className="flex items-center justify-between gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={safePage === 0}
-        onClick={() => setPage(safePage - 1)}
-      >
-        Prev
-      </Button>
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={safePage >= totalPages - 1}
-        onClick={() => setPage(safePage + 1)}
-      >
-        Next
-      </Button>
-    </div>
-  ) : null;
+  const pager =
+    totalPages > 1 ? (
+      <div className="flex items-center justify-between gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={safePage === 0}
+          onClick={() => setPage(safePage - 1)}
+        >
+          Prev
+        </Button>
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={safePage >= totalPages - 1}
+          onClick={() => setPage(safePage + 1)}
+        >
+          Next
+        </Button>
+      </div>
+    ) : null;
 
   return (
     <div className={cn("space-y-3", className)}>

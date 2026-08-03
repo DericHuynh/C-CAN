@@ -3,17 +3,14 @@ const messages = {
     title: "設定",
     description: "このアプリの言語とワークスペース設定。",
     languageTitle: "言語",
-    languageDescription:
-      "インターフェース言語を選択します。この設定はアカウントに保存されます。",
+    languageDescription: "インターフェース言語を選択します。この設定はアカウントに保存されます。",
     languageLabel: "インターフェース言語",
     workspaceTitle: "ワークスペース",
-    workspaceDescription:
-      "チームメンバー、組織アクセス、共有ワークスペース設定を管理します。",
+    workspaceDescription: "チームメンバー、組織アクセス、共有ワークスペース設定を管理します。",
     openTeamSettings: "チーム設定を開く",
     openResourceSettings: "リソース設定を開く",
     agentTitle: "エージェントを管理",
-    agentDescription:
-      "エージェントのモデル、API キー、自動化、音声などを管理します。",
+    agentDescription: "エージェントのモデル、API キー、自動化、音声などを管理します。",
     openAgentSettings: "エージェントを管理",
   },
   chat: {
@@ -57,8 +54,7 @@ const messages = {
     databaseTitle: "データベース",
     observabilityPageTitle: "エージェント可観測性",
     teamTitle: "チーム",
-    teamCreateOrgDescription:
-      "チームメイトを招待してこのアプリを共有するための組織を作成します。",
+    teamCreateOrgDescription: "チームメイトを招待してこのアプリを共有するための組織を作成します。",
   },
   root: {
     commandActions: "操作",

@@ -205,18 +205,17 @@ const FUNCTION_KEYS: string[] = [
   "defaultImage",
 ];
 
-export const ChoiceEditor = memo(
-  function ChoiceEditor({
-    choice,
-    app,
-    pointTypes,
-    groups,
-    busy = false,
-    initialSection,
-    onCancel,
-    onSave,
-  }: ChoiceEditorProps) {
-    const [title, setTitle] = useState(choice?.title ?? "");
+export const ChoiceEditor = memo(function ChoiceEditor({
+  choice,
+  app,
+  pointTypes,
+  groups,
+  busy = false,
+  initialSection,
+  onCancel,
+  onSave,
+}: ChoiceEditorProps) {
+  const [title, setTitle] = useState(choice?.title ?? "");
   const [text, setText] = useState(choice?.text ?? "");
   const [groupIds, setGroupIds] = useState<string[]>(choice?.groups ?? []);
   const [scores, setScores] = useState<Score[]>(choice?.scores ?? []);
@@ -276,8 +275,7 @@ export const ChoiceEditor = memo(
       })),
     [app],
   );
-  const imageName = (id: string) =>
-    (app.images ?? []).find((img) => img.id === id)?.name ?? id;
+  const imageName = (id: string) => (app.images ?? []).find((img) => img.id === id)?.name ?? id;
 
   // Choice functions (ChoiceFunc): seeded from the current choice, merged
   // into the save patch.
@@ -455,346 +453,58 @@ export const ChoiceEditor = memo(
       <div className="space-y-5">
         <Accordion
           type="multiple"
-          defaultValue={
-            initialSection ? [initialSection] : ["basics", "scores", "requirements"]
-          }
+          defaultValue={initialSection ? [initialSection] : ["basics", "scores", "requirements"]}
           className="space-y-3"
         >
-            <AccordionItem value="basics">
-              <AccordionTrigger>Basics</AccordionTrigger>
-              <AccordionContent className="space-y-5 pt-2">
-          <div className="space-y-2">
-            <Label htmlFor="choice-title">Title</Label>
-            <Input
-              id="choice-title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Choice title"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="choice-text">Text</Label>
-            <Textarea
-              id="choice-text"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Optional description shown inside the choice"
-              rows={3}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <LazySelect
-              id="choice-image"
-              label="Image"
-              value={image}
-              onValueChange={setImage}
-              items={imageItems}
-              placeholder="Select an image"
-              searchable
-              allowCustom
-              renderValue={(value) => {
-                if (value === "__custom__") return "Custom URL / data…";
-                return imageName(value);
-              }}
-            />
-            <div className="space-y-2">
-              <Label htmlFor="choice-template">Template</Label>
-              <Select
-                value={String(template)}
-                onValueChange={(value) => setTemplate(Number(value))}
-              >
-                <SelectTrigger id="choice-template" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TEMPLATES.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <ImageVariantsEditor
-            isOn={imageSwitchingIsOn}
-            onIsOnChange={setImageSwitchingIsOn}
-            variants={imageVariants}
-            onChange={setImageVariants}
-            images={app.images ?? []}
-            choices={allChoices}
-            pointTypes={pointTypes}
-            globalRequirements={globalRequirementOptions}
-          />
-
-          <div className="space-y-2">
-            <Label htmlFor="choice-width">Width</Label>
-            <Select
-              value={objectWidth === "" ? "row" : objectWidth}
-              onValueChange={(value) => setObjectWidth(value === "row" ? "" : value)}
-            >
-              <SelectTrigger id="choice-width" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {OBJECT_WIDTHS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {groups.length > 0 ? (
-            <div className="space-y-2">
-              <Label>Groups</Label>
-              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                {groups.map((group) => (
-                  <label
-                    key={group.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent/50"
-                  >
-                    <Checkbox
-                      checked={groupIds.includes(group.id)}
-                      onCheckedChange={() => toggleGroup(group.id)}
-                    />
-                    <span className="min-w-0 truncate">{group.name}</span>
-                  </label>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Choices in the same group are mutually exclusive in the viewer.
-              </p>
-            </div>
-          ) : null}
-              </AccordionContent>
-            </AccordionItem>
-
-            <AccordionItem value="scores">
-              <AccordionTrigger>Scores</AccordionTrigger>
-              <AccordionContent className="space-y-5 pt-2">
-
-          <div className="space-y-2">
-            <Label>Scores</Label>
-            {scores.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No point scores yet. Add one below to make this choice cost or grant points.
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {scores.map((score, index) => (
-                  <div
-                    key={`${score.id ?? score.type}-${index}`}
-                    className="flex items-center gap-2"
-                  >
-                    <Badge
-                      variant="secondary"
-                      className="w-28 shrink-0 justify-center overflow-hidden text-ellipsis"
-                      title={pointTypeName(pointTypes, score.id ?? score.type)}
-                    >
-                      {pointTypeName(pointTypes, score.id ?? score.type)}
-                    </Badge>
-                    <Input
-                      type="number"
-                      value={String(score.value ?? 0)}
-                      onChange={(event) => updateScoreValue(score, event.target.value)}
-                      className="w-24"
-                      aria-label={`Value for ${pointTypeName(pointTypes, score.id ?? score.type)}`}
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      {score.value !== undefined && score.value < 0 ? "cost" : "gain"}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="ml-auto text-muted-foreground hover:text-destructive"
-                      onClick={() => removeScore(score)}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {availablePointTypes.length > 0 ? (
-              <div className="flex flex-wrap items-end gap-2 pt-1">
-                <div className="min-w-40 flex-1 space-y-1">
-                  <Label htmlFor="new-score-point-type">Point type</Label>
-                  <Select value={scorePointType} onValueChange={setScorePointType}>
-                    <SelectTrigger id="new-score-point-type" className="w-full">
-                      <SelectValue placeholder="Select a point type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availablePointTypes.map((pt) => (
-                        <SelectItem key={pt.id} value={pt.id}>
-                          {pt.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-24 space-y-1">
-                  <Label htmlFor="new-score-value">Value</Label>
-                  <Input
-                    id="new-score-value"
-                    type="number"
-                    value={scoreValue}
-                    onChange={(event) => setScoreValue(event.target.value)}
-                    placeholder="e.g. -5"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="size-9"
-                  onClick={addScore}
-                  disabled={!scorePointType}
-                  aria-label="Add score"
-                  title="Add score"
-                >
-                  +
-                </Button>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                All point types are already scored. Add a point type on the Points tab to attach
-                more scores.
-              </p>
-            )}
-          </div>
-              </AccordionContent>
-            </AccordionItem>
-
-            <AccordionItem value="multi-select">
-              <AccordionTrigger>Multi-select</AccordionTrigger>
-              <AccordionContent className="space-y-3 pt-2">
-
-          <div className="space-y-3 rounded-md border border-border p-3">
-            <div className="space-y-2">
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <Checkbox
-                  checked={isSelectableMultiple}
-                  onCheckedChange={(checked) => setIsSelectableMultiple(checked === true)}
+          <AccordionItem value="basics">
+            <AccordionTrigger>Basics</AccordionTrigger>
+            <AccordionContent className="space-y-5 pt-2">
+              <div className="space-y-2">
+                <Label htmlFor="choice-title">Title</Label>
+                <Input
+                  id="choice-title"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Choice title"
                 />
-                Allow multiple selection
-              </label>
-            </div>
-            {isSelectableMultiple ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label htmlFor="choice-multi-pluss">Max selections</Label>
-                    <Input
-                      id="choice-multi-pluss"
-                      type="number"
-                      min={0}
-                      value={numMultipleTimesPluss}
-                      onChange={(event) => setNumMultipleTimesPluss(event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="choice-multi-minus">Min selections</Label>
-                    <Input
-                      id="choice-multi-minus"
-                      type="number"
-                      min={0}
-                      value={numMultipleTimesMinus}
-                      onChange={(event) => setNumMultipleTimesMinus(event.target.value)}
-                    />
-                  </div>
-                </div>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={allowSelectByClick}
-                    onCheckedChange={(checked) => setAllowSelectByClick(checked === true)}
-                  />
-                  Allow select by click
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={isMultipleUseVariable}
-                    onCheckedChange={(checked) => setIsMultipleUseVariable(checked === true)}
-                  />
-                  Track selections in a variable
-                </label>
               </div>
-            ) : null}
-          </div>
-              </AccordionContent>
-            </AccordionItem>
+              <div className="space-y-2">
+                <Label htmlFor="choice-text">Text</Label>
+                <Textarea
+                  id="choice-text"
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  placeholder="Optional description shown inside the choice"
+                  rows={3}
+                />
+              </div>
 
-            <AccordionItem value="behavior">
-              <AccordionTrigger>Behavior</AccordionTrigger>
-              <AccordionContent className="space-y-5 pt-2">
-
-          <div className="space-y-2">
-            <Label>Behavior</Label>
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {[
-                { label: "Not selectable", checked: isNotSelectable, set: setIsNotSelectable },
-                { label: "Select once", checked: selectOnce, set: setSelectOnce },
-                { label: "Auto active", checked: isAutoActive, set: setIsAutoActive },
-                { label: "Not a result", checked: isNotResult, set: setIsNotResult },
-                { label: "Not searchable", checked: isNotSearchable, set: setIsNotSearchable },
-                { label: "Image upload", checked: isImageUpload, set: setIsImageUpload },
-                {
-                  label: "Clean activated on select",
-                  checked: cleanACtivatedOnSelect,
-                  set: setCleanACtivatedOnSelect,
-                },
-                {
-                  label: "Hide counter until selected",
-                  checked: hideCounterUntilSelect,
-                  set: setHideCounterUntilSelect,
-                },
-              ].map((flag) => (
-                <label
-                  key={flag.label}
-                  className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent/50"
-                >
-                  <Checkbox
-                    checked={flag.checked}
-                    onCheckedChange={(checked) => flag.set(checked === true)}
-                  />
-                  <span className="min-w-0 truncate">{flag.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-3 rounded-md border border-border p-3">
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <Checkbox
-                checked={isChangeVariables}
-                onCheckedChange={(checked) => setIsChangeVariables(checked === true)}
-              />
-              Change variables
-            </label>
-            {isChangeVariables ? (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label htmlFor="choice-changed-variables">Variable ids (comma-separated)</Label>
-                  <Input
-                    id="choice-changed-variables"
-                    value={changedVariables}
-                    onChange={(event) => setChangedVariables(event.target.value)}
-                    placeholder="var-1, var-2"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="choice-change-type">Change</Label>
-                  <Select value={changeType} onValueChange={setChangeType}>
-                    <SelectTrigger id="choice-change-type" className="w-full">
+              <div className="grid grid-cols-2 gap-4">
+                <LazySelect
+                  id="choice-image"
+                  label="Image"
+                  value={image}
+                  onValueChange={setImage}
+                  items={imageItems}
+                  placeholder="Select an image"
+                  searchable
+                  allowCustom
+                  renderValue={(value) => {
+                    if (value === "__custom__") return "Custom URL / data…";
+                    return imageName(value);
+                  }}
+                />
+                <div className="space-y-2">
+                  <Label htmlFor="choice-template">Template</Label>
+                  <Select
+                    value={String(template)}
+                    onValueChange={(value) => setTemplate(Number(value))}
+                  >
+                    <SelectTrigger id="choice-template" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {VARIABLE_CHANGE_TYPES.map((item) => (
+                      {TEMPLATES.map((item) => (
                         <SelectItem key={item.value} value={item.value}>
                           {item.label}
                         </SelectItem>
@@ -803,352 +513,648 @@ export const ChoiceEditor = memo(
                   </Select>
                 </div>
               </div>
-            ) : null}
-          </div>
-              </AccordionContent>
-            </AccordionItem>
 
-            <AccordionItem value="addons">
-              <AccordionTrigger>Addons</AccordionTrigger>
-              <AccordionContent className="space-y-3 pt-2">
+              <ImageVariantsEditor
+                isOn={imageSwitchingIsOn}
+                onIsOnChange={setImageSwitchingIsOn}
+                variants={imageVariants}
+                onChange={setImageVariants}
+                images={app.images ?? []}
+                choices={allChoices}
+                pointTypes={pointTypes}
+                globalRequirements={globalRequirementOptions}
+              />
 
-          <div className="space-y-3 rounded-md border border-border p-3">
-            <div className="flex items-center justify-between gap-2">
-              <Label>Addons</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addAddon} disabled={!app}>
-                Add addon
-              </Button>
-            </div>
-            {addons.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No addons yet. Addons are extra blocks shown inside the choice.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {addons.map((addon, index) => (
-                  <div
-                    key={addon.id ?? `addon-${index}`}
-                    className="space-y-2 rounded-md border border-border p-3"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 truncate text-sm font-medium">{addon.title}</span>
-                      <Badge variant="secondary">
-                        {addon.isSelectable ? "Selectable" : "Not selectable"}
-                      </Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Title</Label>
-                      <Input
-                        value={addon.title ?? ""}
-                        onChange={(event) => updateAddon(addon, { title: event.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Text</Label>
-                      <Input
-                        value={addon.text ?? ""}
-                        onChange={(event) => updateAddon(addon, { text: event.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Image</Label>
-                      <LazySelect
-                        value={addon.image ?? ""}
-                        onValueChange={(value) => updateAddon(addon, { image: value })}
-                        items={imageItems}
-                        placeholder="Select an image"
-                        searchable
-                        allowCustom
-                        renderValue={(value) => {
-                          if (value === "__custom__") return "Custom URL / data…";
-                          return imageName(value);
-                        }}
-                      />
-                    </div>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={addon.isSelectable ?? false}
-                        onCheckedChange={(checked) =>
-                          updateAddon(addon, { isSelectable: checked === true })
-                        }
-                      />
-                      Selectable
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Template</Label>
-                        <Select
-                          value={String(addon.template ?? 1)}
-                          onValueChange={(value) => updateAddon(addon, { template: Number(value) })}
+              <div className="space-y-2">
+                <Label htmlFor="choice-width">Width</Label>
+                <Select
+                  value={objectWidth === "" ? "row" : objectWidth}
+                  onValueChange={(value) => setObjectWidth(value === "row" ? "" : value)}
+                >
+                  <SelectTrigger id="choice-width" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OBJECT_WIDTHS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {groups.length > 0 ? (
+                <div className="space-y-2">
+                  <Label>Groups</Label>
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    {groups.map((group) => (
+                      <label
+                        key={group.id}
+                        className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent/50"
+                      >
+                        <Checkbox
+                          checked={groupIds.includes(group.id)}
+                          onCheckedChange={() => toggleGroup(group.id)}
+                        />
+                        <span className="min-w-0 truncate">{group.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Choices in the same group are mutually exclusive in the viewer.
+                  </p>
+                </div>
+              ) : null}
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="scores">
+            <AccordionTrigger>Scores</AccordionTrigger>
+            <AccordionContent className="space-y-5 pt-2">
+              <div className="space-y-2">
+                <Label>Scores</Label>
+                {scores.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No point scores yet. Add one below to make this choice cost or grant points.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {scores.map((score, index) => (
+                      <div
+                        key={`${score.id ?? score.type}-${index}`}
+                        className="flex items-center gap-2"
+                      >
+                        <Badge
+                          variant="secondary"
+                          className="w-28 shrink-0 justify-center overflow-hidden text-ellipsis"
+                          title={pointTypeName(pointTypes, score.id ?? score.type)}
                         >
-                          <SelectTrigger className="h-8 w-full text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {TEMPLATES.map((item) => (
-                              <SelectItem key={item.value} value={item.value}>
-                                {item.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Width</Label>
-                        <Select
-                          value={addon.addonWidth || "col-12"}
-                          onValueChange={(value) => updateAddon(addon, { addonWidth: value })}
+                          {pointTypeName(pointTypes, score.id ?? score.type)}
+                        </Badge>
+                        <Input
+                          type="number"
+                          value={String(score.value ?? 0)}
+                          onChange={(event) => updateScoreValue(score, event.target.value)}
+                          className="w-24"
+                          aria-label={`Value for ${pointTypeName(pointTypes, score.id ?? score.type)}`}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {score.value !== undefined && score.value < 0 ? "cost" : "gain"}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="ml-auto text-muted-foreground hover:text-destructive"
+                          onClick={() => removeScore(score)}
                         >
-                          <SelectTrigger className="h-8 w-full text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {OBJECT_WIDTHS.map((item) => (
-                              <SelectItem key={item.value} value={item.value}>
-                                {item.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          Remove
+                        </Button>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <label className="flex cursor-pointer items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={addon.showAddon === true}
-                          onCheckedChange={(checked) =>
-                            updateAddon(addon, { showAddon: checked === true })
-                          }
-                        />
-                        Always show
-                      </label>
-                      <label className="flex cursor-pointer items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={addon.hideAddon === true}
-                          onCheckedChange={(checked) =>
-                            updateAddon(addon, { hideAddon: checked === true })
-                          }
-                        />
-                        Hide until parent selected
-                      </label>
-                      <label className="flex cursor-pointer items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={addon.skipIndex === true}
-                          onCheckedChange={(checked) =>
-                            updateAddon(addon, { skipIndex: checked === true })
-                          }
-                        />
-                        Skip index
-                      </label>
-                      <label className="flex cursor-pointer items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={
-                            (addon as unknown as Record<string, unknown>).countAsChoice === true
-                          }
-                          onCheckedChange={(checked) =>
-                            updateAddon(addon, { countAsChoice: checked === true })
-                          }
-                        />
-                        Counts toward row limit
-                      </label>
-                      {addon.isSelectable ? (
-                        <>
-                          <label className="flex cursor-pointer items-center gap-2 text-sm">
-                            <Checkbox
-                              checked={addon.deselectParent === true}
-                              onCheckedChange={(checked) =>
-                                updateAddon(addon, { deselectParent: checked === true })
-                              }
-                            />
-                            Deselect parent with addon
-                          </label>
-                          <label className="flex cursor-pointer items-center gap-2 text-sm">
-                            <Checkbox
-                              checked={addon.deselectWhenNoAddon === true}
-                              onCheckedChange={(checked) =>
-                                updateAddon(addon, { deselectWhenNoAddon: checked === true })
-                              }
-                            />
-                            Deselect parent when none remain
-                          </label>
-                        </>
-                      ) : null}
-                    </div>
-                    {addon.isSelectable ? (
-                      <>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            Groups (comma-separated ids)
-                          </Label>
-                          <Input
-                            className="h-8 text-sm"
-                            value={((addon.groups as string[]) ?? []).join(", ")}
-                            onChange={(event) =>
-                              updateAddon(addon, {
-                                groups: event.target.value
-                                  .split(",")
-                                  .map((part) => part.trim())
-                                  .filter(Boolean),
-                              })
-                            }
-                            placeholder="group-id"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            Addon scores (selectable addons can carry their own point scores)
-                          </Label>
-                          {(addon.scores ?? []).map((score, scoreIndex) => (
-                            <div
-                              key={`${score.id ?? score.type}-${scoreIndex}`}
-                              className="flex items-center gap-2"
-                            >
-                              <Badge
-                                variant="secondary"
-                                className="w-28 shrink-0 justify-center overflow-hidden text-ellipsis"
-                                title={pointTypeName(pointTypes, score.id ?? score.type)}
-                              >
-                                {pointTypeName(pointTypes, score.id ?? score.type)}
-                              </Badge>
-                              <Input
-                                type="number"
-                                className="h-8 w-24 text-sm"
-                                value={String(score.value ?? 0)}
-                                onChange={(event) =>
-                                  updateAddon(addon, {
-                                    scores: (addon.scores ?? []).map((item) =>
-                                      item === score
-                                        ? { ...item, value: Number(event.target.value) || 0 }
-                                        : item,
-                                    ),
-                                  })
-                                }
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="text-muted-foreground hover:text-destructive"
-                                onClick={() =>
-                                  updateAddon(addon, {
-                                    scores: (addon.scores ?? []).filter((item) => item !== score),
-                                  })
-                                }
-                              >
-                                Remove
-                              </Button>
-                            </div>
+                    ))}
+                  </div>
+                )}
+
+                {availablePointTypes.length > 0 ? (
+                  <div className="flex flex-wrap items-end gap-2 pt-1">
+                    <div className="min-w-40 flex-1 space-y-1">
+                      <Label htmlFor="new-score-point-type">Point type</Label>
+                      <Select value={scorePointType} onValueChange={setScorePointType}>
+                        <SelectTrigger id="new-score-point-type" className="w-full">
+                          <SelectValue placeholder="Select a point type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availablePointTypes.map((pt) => (
+                            <SelectItem key={pt.id} value={pt.id}>
+                              {pt.name}
+                            </SelectItem>
                           ))}
-                          {pointTypes.length > 0 ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Select
-                                value={""}
-                                onValueChange={(pointTypeId) => {
-                                  const pointType = pointTypes.find((pt) => pt.id === pointTypeId);
-                                  if (!pointType) return;
-                                  updateAddon(addon, {
-                                    scores: [
-                                      ...(addon.scores ?? []),
-                                      {
-                                        idx: String((addon.scores ?? []).length),
-                                        id: pointType.id,
-                                        type: pointType.id,
-                                        value: 0,
-                                        beforeText: pointType.beforeText ?? "",
-                                        afterText: pointType.afterText ?? "",
-                                        requireds: [],
-                                        showScore: true,
-                                      } as Score,
-                                    ],
-                                  });
-                                }}
-                              >
-                                <SelectTrigger className="h-8 w-full text-sm">
-                                  <SelectValue placeholder="Add a score…" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {pointTypes.map((pt) => (
-                                    <SelectItem key={pt.id} value={pt.id}>
-                                      {pt.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          ) : null}
-                        </div>
-                      </>
-                    ) : null}
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">
-                        Addon requirements (controls when the addon is enabled / shown)
-                      </Label>
-                      <RequirementListEditor
-                        requireds={addon.requireds ?? []}
-                        onChange={(next) => updateAddon(addon, { requireds: next })}
-                        choices={allChoices}
-                        pointTypes={pointTypes}
-                        globalRequirements={globalRequirementOptions}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-24 space-y-1">
+                      <Label htmlFor="new-score-value">Value</Label>
+                      <Input
+                        id="new-score-value"
+                        type="number"
+                        value={scoreValue}
+                        onChange={(event) => setScoreValue(event.target.value)}
+                        placeholder="e.g. -5"
                       />
                     </div>
                     <Button
                       type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => removeAddon(addon)}
+                      variant="outline"
+                      size="icon"
+                      className="size-9"
+                      onClick={addScore}
+                      disabled={!scorePointType}
+                      aria-label="Add score"
+                      title="Add score"
                     >
-                      Remove
+                      +
                     </Button>
                   </div>
-                ))}
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    All point types are already scored. Add a point type on the Points tab to attach
+                    more scores.
+                  </p>
+                )}
               </div>
-            )}
-          </div>
-              </AccordionContent>
-            </AccordionItem>
+            </AccordionContent>
+          </AccordionItem>
 
-            <AccordionItem value="requirements">
-              <AccordionTrigger>Requirements</AccordionTrigger>
-              <AccordionContent className="space-y-3 pt-2">
+          <AccordionItem value="multi-select">
+            <AccordionTrigger>Multi-select</AccordionTrigger>
+            <AccordionContent className="space-y-3 pt-2">
+              <div className="space-y-3 rounded-md border border-border p-3">
+                <div className="space-y-2">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={isSelectableMultiple}
+                      onCheckedChange={(checked) => setIsSelectableMultiple(checked === true)}
+                    />
+                    Allow multiple selection
+                  </label>
+                </div>
+                {isSelectableMultiple ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor="choice-multi-pluss">Max selections</Label>
+                        <Input
+                          id="choice-multi-pluss"
+                          type="number"
+                          min={0}
+                          value={numMultipleTimesPluss}
+                          onChange={(event) => setNumMultipleTimesPluss(event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="choice-multi-minus">Min selections</Label>
+                        <Input
+                          id="choice-multi-minus"
+                          type="number"
+                          min={0}
+                          value={numMultipleTimesMinus}
+                          onChange={(event) => setNumMultipleTimesMinus(event.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={allowSelectByClick}
+                        onCheckedChange={(checked) => setAllowSelectByClick(checked === true)}
+                      />
+                      Allow select by click
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={isMultipleUseVariable}
+                        onCheckedChange={(checked) => setIsMultipleUseVariable(checked === true)}
+                      />
+                      Track selections in a variable
+                    </label>
+                  </div>
+                ) : null}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
 
-          <div className="space-y-3 rounded-md border border-border p-3">
-            <Label>Requirements</Label>
-            <RequirementListEditor
-              requireds={requireds}
-              onChange={setRequireds}
-              choices={allChoices}
-              pointTypes={pointTypes}
-              globalRequirements={globalRequirementOptions}
-            />
-          </div>
-              </AccordionContent>
-            </AccordionItem>
+          <AccordionItem value="behavior">
+            <AccordionTrigger>Behavior</AccordionTrigger>
+            <AccordionContent className="space-y-5 pt-2">
+              <div className="space-y-2">
+                <Label>Behavior</Label>
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  {[
+                    { label: "Not selectable", checked: isNotSelectable, set: setIsNotSelectable },
+                    { label: "Select once", checked: selectOnce, set: setSelectOnce },
+                    { label: "Auto active", checked: isAutoActive, set: setIsAutoActive },
+                    { label: "Not a result", checked: isNotResult, set: setIsNotResult },
+                    { label: "Not searchable", checked: isNotSearchable, set: setIsNotSearchable },
+                    { label: "Image upload", checked: isImageUpload, set: setIsImageUpload },
+                    {
+                      label: "Clean activated on select",
+                      checked: cleanACtivatedOnSelect,
+                      set: setCleanACtivatedOnSelect,
+                    },
+                    {
+                      label: "Hide counter until selected",
+                      checked: hideCounterUntilSelect,
+                      set: setHideCounterUntilSelect,
+                    },
+                  ].map((flag) => (
+                    <label
+                      key={flag.label}
+                      className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent/50"
+                    >
+                      <Checkbox
+                        checked={flag.checked}
+                        onCheckedChange={(checked) => flag.set(checked === true)}
+                      />
+                      <span className="min-w-0 truncate">{flag.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
-            <AccordionItem value="functions">
-              <AccordionTrigger>Functions</AccordionTrigger>
-              <AccordionContent className="space-y-3 pt-2">
+              <div className="space-y-3 rounded-md border border-border p-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={isChangeVariables}
+                    onCheckedChange={(checked) => setIsChangeVariables(checked === true)}
+                  />
+                  Change variables
+                </label>
+                {isChangeVariables ? (
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="choice-changed-variables">
+                        Variable ids (comma-separated)
+                      </Label>
+                      <Input
+                        id="choice-changed-variables"
+                        value={changedVariables}
+                        onChange={(event) => setChangedVariables(event.target.value)}
+                        placeholder="var-1, var-2"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="choice-change-type">Change</Label>
+                      <Select value={changeType} onValueChange={setChangeType}>
+                        <SelectTrigger id="choice-change-type" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VARIABLE_CHANGE_TYPES.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
 
-          <div className="space-y-3 rounded-md border border-border p-3">
-            <Label>Functions</Label>
-            <p className="text-xs text-muted-foreground">
-              Runtime behaviors: linked activation, discounts, duplication,
-              template/width/background changes, music, fades, delays, sounds and more.
-            </p>
-            <ChoiceFunctionsEditor
-              value={functions}
-              onChange={setFunctions}
-              choices={allChoices}
-              rows={rowOptions}
-              groups={groupOptions}
-              pointTypes={pointTypes}
-              soundEffects={sfxOptions}
-            />
-          </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </div>
+          <AccordionItem value="addons">
+            <AccordionTrigger>Addons</AccordionTrigger>
+            <AccordionContent className="space-y-3 pt-2">
+              <div className="space-y-3 rounded-md border border-border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Addons</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addAddon}
+                    disabled={!app}
+                  >
+                    Add addon
+                  </Button>
+                </div>
+                {addons.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No addons yet. Addons are extra blocks shown inside the choice.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {addons.map((addon, index) => (
+                      <div
+                        key={addon.id ?? `addon-${index}`}
+                        className="space-y-2 rounded-md border border-border p-3"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 truncate text-sm font-medium">
+                            {addon.title}
+                          </span>
+                          <Badge variant="secondary">
+                            {addon.isSelectable ? "Selectable" : "Not selectable"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Title</Label>
+                          <Input
+                            value={addon.title ?? ""}
+                            onChange={(event) => updateAddon(addon, { title: event.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Text</Label>
+                          <Input
+                            value={addon.text ?? ""}
+                            onChange={(event) => updateAddon(addon, { text: event.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Image</Label>
+                          <LazySelect
+                            value={addon.image ?? ""}
+                            onValueChange={(value) => updateAddon(addon, { image: value })}
+                            items={imageItems}
+                            placeholder="Select an image"
+                            searchable
+                            allowCustom
+                            renderValue={(value) => {
+                              if (value === "__custom__") return "Custom URL / data…";
+                              return imageName(value);
+                            }}
+                          />
+                        </div>
+                        <label className="flex cursor-pointer items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={addon.isSelectable ?? false}
+                            onCheckedChange={(checked) =>
+                              updateAddon(addon, { isSelectable: checked === true })
+                            }
+                          />
+                          Selectable
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Template</Label>
+                            <Select
+                              value={String(addon.template ?? 1)}
+                              onValueChange={(value) =>
+                                updateAddon(addon, { template: Number(value) })
+                              }
+                            >
+                              <SelectTrigger className="h-8 w-full text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {TEMPLATES.map((item) => (
+                                  <SelectItem key={item.value} value={item.value}>
+                                    {item.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Width</Label>
+                            <Select
+                              value={addon.addonWidth || "col-12"}
+                              onValueChange={(value) => updateAddon(addon, { addonWidth: value })}
+                            >
+                              <SelectTrigger className="h-8 w-full text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {OBJECT_WIDTHS.map((item) => (
+                                  <SelectItem key={item.value} value={item.value}>
+                                    {item.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <label className="flex cursor-pointer items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={addon.showAddon === true}
+                              onCheckedChange={(checked) =>
+                                updateAddon(addon, { showAddon: checked === true })
+                              }
+                            />
+                            Always show
+                          </label>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={addon.hideAddon === true}
+                              onCheckedChange={(checked) =>
+                                updateAddon(addon, { hideAddon: checked === true })
+                              }
+                            />
+                            Hide until parent selected
+                          </label>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={addon.skipIndex === true}
+                              onCheckedChange={(checked) =>
+                                updateAddon(addon, { skipIndex: checked === true })
+                              }
+                            />
+                            Skip index
+                          </label>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={
+                                (addon as unknown as Record<string, unknown>).countAsChoice === true
+                              }
+                              onCheckedChange={(checked) =>
+                                updateAddon(addon, { countAsChoice: checked === true })
+                              }
+                            />
+                            Counts toward row limit
+                          </label>
+                          {addon.isSelectable ? (
+                            <>
+                              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                <Checkbox
+                                  checked={addon.deselectParent === true}
+                                  onCheckedChange={(checked) =>
+                                    updateAddon(addon, { deselectParent: checked === true })
+                                  }
+                                />
+                                Deselect parent with addon
+                              </label>
+                              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                <Checkbox
+                                  checked={addon.deselectWhenNoAddon === true}
+                                  onCheckedChange={(checked) =>
+                                    updateAddon(addon, { deselectWhenNoAddon: checked === true })
+                                  }
+                                />
+                                Deselect parent when none remain
+                              </label>
+                            </>
+                          ) : null}
+                        </div>
+                        {addon.isSelectable ? (
+                          <>
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">
+                                Groups (comma-separated ids)
+                              </Label>
+                              <Input
+                                className="h-8 text-sm"
+                                value={((addon.groups as string[]) ?? []).join(", ")}
+                                onChange={(event) =>
+                                  updateAddon(addon, {
+                                    groups: event.target.value
+                                      .split(",")
+                                      .map((part) => part.trim())
+                                      .filter(Boolean),
+                                  })
+                                }
+                                placeholder="group-id"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">
+                                Addon scores (selectable addons can carry their own point scores)
+                              </Label>
+                              {(addon.scores ?? []).map((score, scoreIndex) => (
+                                <div
+                                  key={`${score.id ?? score.type}-${scoreIndex}`}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Badge
+                                    variant="secondary"
+                                    className="w-28 shrink-0 justify-center overflow-hidden text-ellipsis"
+                                    title={pointTypeName(pointTypes, score.id ?? score.type)}
+                                  >
+                                    {pointTypeName(pointTypes, score.id ?? score.type)}
+                                  </Badge>
+                                  <Input
+                                    type="number"
+                                    className="h-8 w-24 text-sm"
+                                    value={String(score.value ?? 0)}
+                                    onChange={(event) =>
+                                      updateAddon(addon, {
+                                        scores: (addon.scores ?? []).map((item) =>
+                                          item === score
+                                            ? { ...item, value: Number(event.target.value) || 0 }
+                                            : item,
+                                        ),
+                                      })
+                                    }
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-muted-foreground hover:text-destructive"
+                                    onClick={() =>
+                                      updateAddon(addon, {
+                                        scores: (addon.scores ?? []).filter(
+                                          (item) => item !== score,
+                                        ),
+                                      })
+                                    }
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              ))}
+                              {pointTypes.length > 0 ? (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Select
+                                    value={""}
+                                    onValueChange={(pointTypeId) => {
+                                      const pointType = pointTypes.find(
+                                        (pt) => pt.id === pointTypeId,
+                                      );
+                                      if (!pointType) return;
+                                      updateAddon(addon, {
+                                        scores: [
+                                          ...(addon.scores ?? []),
+                                          {
+                                            idx: String((addon.scores ?? []).length),
+                                            id: pointType.id,
+                                            type: pointType.id,
+                                            value: 0,
+                                            beforeText: pointType.beforeText ?? "",
+                                            afterText: pointType.afterText ?? "",
+                                            requireds: [],
+                                            showScore: true,
+                                          } as Score,
+                                        ],
+                                      });
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-8 w-full text-sm">
+                                      <SelectValue placeholder="Add a score…" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {pointTypes.map((pt) => (
+                                        <SelectItem key={pt.id} value={pt.id}>
+                                          {pt.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              ) : null}
+                            </div>
+                          </>
+                        ) : null}
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">
+                            Addon requirements (controls when the addon is enabled / shown)
+                          </Label>
+                          <RequirementListEditor
+                            requireds={addon.requireds ?? []}
+                            onChange={(next) => updateAddon(addon, { requireds: next })}
+                            choices={allChoices}
+                            pointTypes={pointTypes}
+                            globalRequirements={globalRequirementOptions}
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => removeAddon(addon)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="requirements">
+            <AccordionTrigger>Requirements</AccordionTrigger>
+            <AccordionContent className="space-y-3 pt-2">
+              <div className="space-y-3 rounded-md border border-border p-3">
+                <Label>Requirements</Label>
+                <RequirementListEditor
+                  requireds={requireds}
+                  onChange={setRequireds}
+                  choices={allChoices}
+                  pointTypes={pointTypes}
+                  globalRequirements={globalRequirementOptions}
+                />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="functions">
+            <AccordionTrigger>Functions</AccordionTrigger>
+            <AccordionContent className="space-y-3 pt-2">
+              <div className="space-y-3 rounded-md border border-border p-3">
+                <Label>Functions</Label>
+                <p className="text-xs text-muted-foreground">
+                  Runtime behaviors: linked activation, discounts, duplication,
+                  template/width/background changes, music, fades, delays, sounds and more.
+                </p>
+                <ChoiceFunctionsEditor
+                  value={functions}
+                  onChange={setFunctions}
+                  choices={allChoices}
+                  rows={rowOptions}
+                  groups={groupOptions}
+                  pointTypes={pointTypes}
+                  soundEffects={sfxOptions}
+                />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
     </EditorPane>
   );
 });
@@ -1244,9 +1250,7 @@ function ImageVariantsEditor({
                       items={variantImageItems}
                       placeholder="Select an image"
                       triggerClassName="h-8 text-sm"
-                      renderValue={(value) =>
-                        images.find((img) => img.id === value)?.name ?? value
-                      }
+                      renderValue={(value) => images.find((img) => img.id === value)?.name ?? value}
                     />
                   </div>
                   <div className="space-y-1">

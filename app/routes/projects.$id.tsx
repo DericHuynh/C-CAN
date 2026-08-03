@@ -6,16 +6,8 @@ import { useSetPageTitle } from "@agent-native/toolkit/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BackpackPanel } from "@/components/projects/BackpackPanel";
 import { CategoriesPanel } from "@/components/projects/CategoriesPanel";
 import { CustomCssPanel } from "@/components/projects/CustomCssPanel";
@@ -98,9 +90,8 @@ export default function ProjectEditorRoute() {
   // ?tab= so individual editor tabs can be deep-linked.
   const [activeTab, setActiveTab] = useState(
     () =>
-      TAB_GROUPS.flatMap((group) => group.tabs).find(
-        (tab) => tab.value === searchParams.get("tab"),
-      )?.value ?? "rows",
+      TAB_GROUPS.flatMap((group) => group.tabs).find((tab) => tab.value === searchParams.get("tab"))
+        ?.value ?? "rows",
   );
   const [tabGroup, setTabGroup] = useState(
     () =>
@@ -108,8 +99,7 @@ export default function ProjectEditorRoute() {
       "content",
   );
 
-  const mode =
-    searchParams.get("mode") === "viewer" ? "viewer" : "editor";
+  const mode = searchParams.get("mode") === "viewer" ? "viewer" : "editor";
 
   useSetPageTitle(
     project
@@ -119,8 +109,7 @@ export default function ProjectEditorRoute() {
       : "Project Editor",
   );
 
-  const activeGroup =
-    TAB_GROUPS.find((group) => group.id === tabGroup) ?? TAB_GROUPS[0];
+  const activeGroup = TAB_GROUPS.find((group) => group.id === tabGroup) ?? TAB_GROUPS[0];
 
   function handleModeChange(next: string) {
     if (!next || next === mode) return;
@@ -221,14 +210,10 @@ export default function ProjectEditorRoute() {
                 <IconArrowLeft className="size-4" />
               </Link>
             </Button>
-            <h1 className="truncate text-2xl font-semibold tracking-tight">
-              {title}
-            </h1>
+            <h1 className="truncate text-2xl font-semibold tracking-tight">{title}</h1>
           </div>
           {project.description ? (
-            <p className="mt-1 text-sm text-muted-foreground">
-              {project.description}
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{project.description}</p>
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -278,8 +263,8 @@ export default function ProjectEditorRoute() {
                 {group.label}
                 {group.id === "content" ? (
                   <span className="text-muted-foreground">
-                    · {rowCount} row{rowCount === 1 ? "" : "s"} · {choiceCount}{" "}
-                    choice{choiceCount === 1 ? "" : "s"}
+                    · {rowCount} row{rowCount === 1 ? "" : "s"} · {choiceCount} choice
+                    {choiceCount === 1 ? "" : "s"}
                   </span>
                 ) : null}
               </ToggleGroupItem>
@@ -294,63 +279,63 @@ export default function ProjectEditorRoute() {
                 </TabsTrigger>
               ))}
             </TabsList>
-          <TabsContent value="rows" className="mt-4">
-            <RowsPanel project={project} />
-          </TabsContent>
-          <TabsContent value="points" className="mt-4">
-            <PointTypePanel project={project} />
-          </TabsContent>
-          <TabsContent value="groups" className="mt-4">
-            <GroupPanel project={project} />
-          </TabsContent>
-          <TabsContent value="images" className="mt-4">
-            <ImagesPanel project={project} />
-          </TabsContent>
-          <TabsContent value="requirements" className="mt-4">
-            <RequirementPanel project={project} />
-          </TabsContent>
-          <TabsContent value="variables" className="mt-4">
-            <VariablesPanel project={project} />
-          </TabsContent>
-          <TabsContent value="words" className="mt-4">
-            <WordsPanel project={project} />
-          </TabsContent>
-          <TabsContent value="design-groups" className="mt-4">
-            <DesignGroupsPanel project={project} />
-          </TabsContent>
-          <TabsContent value="categories" className="mt-4">
-            <CategoriesPanel project={project} />
-          </TabsContent>
-          <TabsContent value="backpack" className="mt-4">
-            <BackpackPanel project={project} />
-          </TabsContent>
-          <TabsContent value="design" className="mt-4">
-            <DesignPanel project={project} />
-          </TabsContent>
-          <TabsContent value="templates" className="mt-4">
-            <TemplatesPanel project={project} />
-          </TabsContent>
-          <TabsContent value="sound-effects" className="mt-4">
-            <SoundEffectsPanel project={project} />
-          </TabsContent>
-          <TabsContent value="viewer-config" className="mt-4">
-            <ViewerConfigPanel project={project} />
-          </TabsContent>
-          <TabsContent value="custom-css" className="mt-4">
-            <CustomCssPanel project={project} />
-          </TabsContent>
-          <TabsContent value="stats" className="mt-4">
-            <ProjectStatsPanel project={project} />
-          </TabsContent>
-          <TabsContent value="id-list" className="mt-4">
-            <IdListPanel project={project} />
-          </TabsContent>
-          <TabsContent value="settings" className="mt-4">
-            <SettingsPanel project={project} />
-          </TabsContent>
-          <TabsContent value="json" className="mt-4">
-            <JsonPanel project={project} />
-          </TabsContent>
+            <TabsContent value="rows" className="mt-4">
+              <RowsPanel project={project} />
+            </TabsContent>
+            <TabsContent value="points" className="mt-4">
+              <PointTypePanel project={project} />
+            </TabsContent>
+            <TabsContent value="groups" className="mt-4">
+              <GroupPanel project={project} />
+            </TabsContent>
+            <TabsContent value="images" className="mt-4">
+              <ImagesPanel project={project} />
+            </TabsContent>
+            <TabsContent value="requirements" className="mt-4">
+              <RequirementPanel project={project} />
+            </TabsContent>
+            <TabsContent value="variables" className="mt-4">
+              <VariablesPanel project={project} />
+            </TabsContent>
+            <TabsContent value="words" className="mt-4">
+              <WordsPanel project={project} />
+            </TabsContent>
+            <TabsContent value="design-groups" className="mt-4">
+              <DesignGroupsPanel project={project} />
+            </TabsContent>
+            <TabsContent value="categories" className="mt-4">
+              <CategoriesPanel project={project} />
+            </TabsContent>
+            <TabsContent value="backpack" className="mt-4">
+              <BackpackPanel project={project} />
+            </TabsContent>
+            <TabsContent value="design" className="mt-4">
+              <DesignPanel project={project} />
+            </TabsContent>
+            <TabsContent value="templates" className="mt-4">
+              <TemplatesPanel project={project} />
+            </TabsContent>
+            <TabsContent value="sound-effects" className="mt-4">
+              <SoundEffectsPanel project={project} />
+            </TabsContent>
+            <TabsContent value="viewer-config" className="mt-4">
+              <ViewerConfigPanel project={project} />
+            </TabsContent>
+            <TabsContent value="custom-css" className="mt-4">
+              <CustomCssPanel project={project} />
+            </TabsContent>
+            <TabsContent value="stats" className="mt-4">
+              <ProjectStatsPanel project={project} />
+            </TabsContent>
+            <TabsContent value="id-list" className="mt-4">
+              <IdListPanel project={project} />
+            </TabsContent>
+            <TabsContent value="settings" className="mt-4">
+              <SettingsPanel project={project} />
+            </TabsContent>
+            <TabsContent value="json" className="mt-4">
+              <JsonPanel project={project} />
+            </TabsContent>
           </Tabs>
         </div>
       )}

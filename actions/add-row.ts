@@ -13,7 +13,9 @@ export default defineAction({
     fields: z
       .record(z.string(), z.unknown())
       .optional()
-      .describe("Row fields to set at creation (title, titleText, objectWidth, image, template, allowedChoices, rowJustify, requireds, styling, groups, isInfoRow, isResultRow, isGroupRow, isButtonRow, …). `id` is always generated."),
+      .describe(
+        "Row fields to set at creation (title, titleText, objectWidth, image, template, allowedChoices, rowJustify, requireds, styling, groups, isInfoRow, isResultRow, isGroupRow, isButtonRow, …). `id` is always generated.",
+      ),
   }),
   run: async ({ projectId, index, fields }) => {
     const { app } = await getProjectOrThrow(projectId);

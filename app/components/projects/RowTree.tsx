@@ -164,17 +164,17 @@ export const RowTree = memo(function RowTree({
     [],
   );
 
-  const handleDragStart = useCallback(
-    (event: DragEvent<HTMLDivElement>, payload: DragPayload) => {
-      startDrag(event, payload, setDrag);
-    },
-    [],
-  );
+  const handleDragStart = useCallback((event: DragEvent<HTMLDivElement>, payload: DragPayload) => {
+    startDrag(event, payload, setDrag);
+  }, []);
 
   /** The drop handler closes over the `drag` state fallback; only its
    *  identity changes during an active drag (rare). */
   const handleDropAt = useCallback(
-    (event: DragEvent<HTMLDivElement>, targetBase: { kind: "row" | "choice" | "addon"; id: string }) => {
+    (
+      event: DragEvent<HTMLDivElement>,
+      targetBase: { kind: "row" | "choice" | "addon"; id: string },
+    ) => {
       const payload = payloadFromEvent(event, drag);
       if (!payload) return;
       const insideAllowed =
@@ -351,7 +351,11 @@ const TreeRow = memo(function TreeRow({
           aria-label={collapsed ? "Expand row" : "Collapse row"}
           title={collapsed ? "Expand row" : "Collapse row"}
         >
-          {collapsed ? <IconChevronRight className="size-4" /> : <IconChevronDown className="size-4" />}
+          {collapsed ? (
+            <IconChevronRight className="size-4" />
+          ) : (
+            <IconChevronDown className="size-4" />
+          )}
         </Button>
         {rowImage ? (
           <LazyImage
@@ -499,7 +503,11 @@ const TreeChoice = memo(function TreeChoice({
             aria-label={choiceCollapsed ? "Expand choice" : "Collapse choice"}
             title={choiceCollapsed ? "Expand choice" : "Collapse choice"}
           >
-            {choiceCollapsed ? <IconChevronRight className="size-4" /> : <IconChevronDown className="size-4" />}
+            {choiceCollapsed ? (
+              <IconChevronRight className="size-4" />
+            ) : (
+              <IconChevronDown className="size-4" />
+            )}
           </Button>
         ) : (
           <span className="w-6 shrink-0" />
@@ -585,7 +593,9 @@ const TreeChoice = memo(function TreeChoice({
                     <span className="truncate text-sm">{addon.title || "Untitled addon"}</span>
                   </div>
                   {addon.text ? (
-                    <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{addon.text}</p>
+                    <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                      {addon.text}
+                    </p>
                   ) : null}
                 </div>
                 <NodeActions onDelete={() => onDeleteAddon(choice.id, addonIndex)} />
@@ -668,7 +678,10 @@ function handleDrop(
     const dragIndex = rows.findIndex((r) => r.id === payload.id);
     const targetIndex = rows.findIndex((r) => r.id === target.id);
     if (dragIndex === -1 || targetIndex === -1 || dragIndex === targetIndex) return;
-    onMoveRow(payload.id, rowOffset + indexAfterRemoval(rows, dragIndex, targetIndex, target.position));
+    onMoveRow(
+      payload.id,
+      rowOffset + indexAfterRemoval(rows, dragIndex, targetIndex, target.position),
+    );
   } else if (kind === "choice") {
     if (target.kind === "row" && target.position === "inside") {
       // Drop onto a row header -> append to that row.
@@ -792,7 +805,11 @@ function addonOverTarget(
 ) {
   if (drag.kind !== "addon" || drag.id === target.id) return;
   event.preventDefault();
-  setDrop({ kind: "addon", id: target.id, position: positionFromY(event, false) as "before" | "after" });
+  setDrop({
+    kind: "addon",
+    id: target.id,
+    position: positionFromY(event, false) as "before" | "after",
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -870,13 +887,7 @@ function TreeNode({
 }
 
 /** Right-side action buttons for a tree branch. */
-function NodeActions({
-  onAdd,
-  onDelete,
-}: {
-  onAdd?: () => void;
-  onDelete?: () => void;
-}) {
+function NodeActions({ onAdd, onDelete }: { onAdd?: () => void; onDelete?: () => void }) {
   return (
     <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
       {onAdd ? (

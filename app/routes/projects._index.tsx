@@ -9,11 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ImportJsonDialog } from "@/components/projects/ImportJsonDialog";
 import { ProjectCard } from "@/components/projects/ProjectCard";
-import {
-  extractProjectId,
-  useCreateProject,
-  useProjects,
-} from "@/hooks/use-projects";
+import { extractProjectId, useCreateProject, useProjects } from "@/hooks/use-projects";
 import { APP_TITLE } from "@/lib/app-config";
 
 export function meta() {
@@ -39,9 +35,7 @@ export default function ProjectsIndexRoute() {
           }
         },
         onError: (err) =>
-          toast.error(
-            err instanceof Error ? err.message : "Failed to create project",
-          ),
+          toast.error(err instanceof Error ? err.message : "Failed to create project"),
       },
     );
   }
@@ -50,19 +44,13 @@ export default function ProjectsIndexRoute() {
     <div className="mx-auto w-full max-w-6xl space-y-6 p-4 lg:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            CYOA Projects
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">CYOA Projects</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Build and play interactive choose-your-own-adventure stories.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setImportOpen(true)}
-          >
+          <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
             <IconFileImport className="mr-1.5 size-4" />
             Import JSON
           </Button>
@@ -102,19 +90,15 @@ export default function ProjectsIndexRoute() {
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <p className="text-base font-medium">No projects yet</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Create your first CYOA to start adding rows and choices, or import
-              an existing document from JSON.
+              Create your first CYOA to start adding rows and choices, or import an existing
+              document from JSON.
             </p>
             <div className="flex items-center gap-2">
               <Button type="button" onClick={handleNewProject}>
                 <IconPlus className="mr-1.5 size-4" />
                 New CYOA
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setImportOpen(true)}
-              >
+              <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
                 Import JSON
               </Button>
             </div>

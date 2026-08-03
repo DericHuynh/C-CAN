@@ -87,11 +87,18 @@
     "tsx": "^4.20.3",
     "typescript-7": "npm:typescript@^7.0.2",
     "vaul": "^1.1.2",
-    "vitest": "catalog:",
     "vite-plus": "catalog:"
   },
   "engines": {
     "node": ">=22.22.0"
+  },
+  "packageManager": "pnpm@11.18.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "node-pty"
+    ]
   },
   "agent-native": {
     "scaffold": {
@@ -102,13 +109,5 @@
       "coreVersion": "0.133.1",
       "shape": "standalone"
     }
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "esbuild",
-      "node-pty"
-    ]
-  },
-  "packageManager": "pnpm@11.18.0"
+  }
 }

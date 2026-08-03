@@ -3,8 +3,7 @@ const messages = {
     title: "Ajustes",
     description: "Preferencias de idioma y espacio de trabajo para esta app.",
     languageTitle: "Idioma",
-    languageDescription:
-      "Elige el idioma de la interfaz. Esta preferencia se guarda en tu cuenta.",
+    languageDescription: "Elige el idioma de la interfaz. Esta preferencia se guarda en tu cuenta.",
     languageLabel: "Idioma de la interfaz",
     workspaceTitle: "Espacio de trabajo",
     workspaceDescription:
@@ -22,8 +21,7 @@ const messages = {
     chats: "Chats",
     composerPlaceholder: "Pregunta al agente...",
     emptyState: "Pregúntame lo que quieras",
-    heroDescription:
-      "Pide al agente que inspeccione, explique o cambie esta app.",
+    heroDescription: "Pide al agente que inspeccione, explique o cambie esta app.",
     heroTitle: "¿Cómo puedo ayudarte?",
     inspectEmptyState: "Pregúntame cualquier cosa sobre esta app",
     inspectSuggestionAction: "Mostrar acciones disponibles",
@@ -58,8 +56,7 @@ const messages = {
     databaseTitle: "Base de datos",
     observabilityPageTitle: "Observabilidad del agente",
     teamTitle: "Equipo",
-    teamCreateOrgDescription:
-      "Crea una organización para invitar compañeros y compartir esta app.",
+    teamCreateOrgDescription: "Crea una organización para invitar compañeros y compartir esta app.",
   },
   root: {
     commandActions: "Acciones",

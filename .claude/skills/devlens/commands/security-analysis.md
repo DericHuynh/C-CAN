@@ -13,6 +13,7 @@ Produce a thorough, prioritized security review covering the flagged nodes — n
 3. Format per the output template below. The tool already handles enumeration, reach, and ranking — you present them.
 
 ## Output template
+
 1. **Severity summary** — counts: `high: N, medium: N, low: N` (out of total).
 2. **Findings**, grouped **high → medium → low**. For every high and medium finding (and a concise grouped list of lows):
    - **`name`** — `filePath:lines` — **severity** (score).

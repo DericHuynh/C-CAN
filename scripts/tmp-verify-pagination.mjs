@@ -18,7 +18,10 @@ const browser = await chromium.launch({
   headless: true,
   args: ["--no-sandbox"],
 });
-const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, colorScheme: "dark" });
+const context = await browser.newContext({
+  viewport: { width: 1600, height: 1000 },
+  colorScheme: "dark",
+});
 const page = await context.newPage();
 
 const results = [];
@@ -45,38 +48,56 @@ await page.waitForTimeout(1500);
 
 // --- pagination: rows tab ---
 const pagerText = await page.evaluate(() => {
-  const el = [...document.querySelectorAll("span")].find((s) => /Rows \d+–\d+ of \d+/.test(s.textContent ?? ""));
+  const el = [...document.querySelectorAll("span")].find((s) =>
+    /Rows \d+–\d+ of \d+/.test(s.textContent ?? ""),
+  );
   return el?.textContent ?? null;
 });
-check("rows tab shows a pager with range", /Rows 1–20 of 181/.test(pagerText ?? ""), pagerText ?? "none");
+check(
+  "rows tab shows a pager with range",
+  /Rows 1–20 of 181/.test(pagerText ?? ""),
+  pagerText ?? "none",
+);
 
 const rowCards = await page.locator("div.rounded-lg.border.border-border.bg-card").count();
 check("page 1 renders only 20 rows", rowCards === 20, `cards=${rowCards}`);
 
-const rowNumberBadges = await page.evaluate(() =>
-  [...new Set(
+const rowNumberBadges = await page.evaluate(() => [
+  ...new Set(
     [...document.querySelectorAll("span, div")]
       .map((s) => (s.textContent ?? "").trim())
       .filter((t) => /^Row \d+$/.test(t)),
-  )],
+  ),
+]);
+check(
+  "row badges show global numbers 1..20",
+  rowNumberBadges.length === 20 &&
+    rowNumberBadges[0] === "Row 1" &&
+    rowNumberBadges[19] === "Row 20",
+  rowNumberBadges.join(","),
 );
-check("row badges show global numbers 1..20", rowNumberBadges.length === 20 && rowNumberBadges[0] === "Row 1" && rowNumberBadges[19] === "Row 20", rowNumberBadges.join(","));
 
 // Next page
 await page.locator('button:has-text("Next")').first().click();
 await page.waitForTimeout(800);
 const pager2 = await page.evaluate(() => {
-  const el = [...document.querySelectorAll("span")].find((s) => /Rows \d+–\d+ of \d+/.test(s.textContent ?? ""));
+  const el = [...document.querySelectorAll("span")].find((s) =>
+    /Rows \d+–\d+ of \d+/.test(s.textContent ?? ""),
+  );
   return el?.textContent ?? null;
 });
-const badges2 = await page.evaluate(() =>
-  [...new Set(
+const badges2 = await page.evaluate(() => [
+  ...new Set(
     [...document.querySelectorAll("span, div")]
       .map((s) => (s.textContent ?? "").trim())
       .filter((t) => /^Row \d+$/.test(t)),
-  )],
+  ),
+]);
+check(
+  "page 2 shows rows 21-40",
+  /Rows 21–40 of 181/.test(pager2 ?? "") && badges2[0] === "Row 21",
+  `${pager2} first=${badges2[0]}`,
 );
-check("page 2 shows rows 21-40", /Rows 21–40 of 181/.test(pager2 ?? "") && badges2[0] === "Row 21", `${pager2} first=${badges2[0]}`);
 
 // --- selection latency (the original complaint) ---
 const measure = (idx) =>
@@ -130,11 +151,16 @@ const optsAfter = await page.locator('[role="option"]').count();
 check("search filters options", optsAfter === 1, `after=${optsAfter} (custom marker only)`);
 await page.keyboard.press("Escape");
 await page.waitForTimeout(300);
-const optsClosed = await page.evaluate(() => document.querySelectorAll('[role="option"], [data-radix-select-item]').length);
+const optsClosed = await page.evaluate(
+  () => document.querySelectorAll('[role="option"], [data-radix-select-item]').length,
+);
 check("closed select has no mounted options", optsClosed === 0, `mounted=${optsClosed}`);
 
 // --- images tab paginated, 3 columns ---
-await page.goto(`${BASE}/projects/${PROJECT_ID}?tab=images`, { waitUntil: "networkidle", timeout: 60000 });
+await page.goto(`${BASE}/projects/${PROJECT_ID}?tab=images`, {
+  waitUntil: "networkidle",
+  timeout: 60000,
+});
 await page.waitForSelector("text=Add image", { timeout: 60000 });
 await page.waitForTimeout(1200);
 const imgGrid = await page.evaluate(() => {
@@ -149,11 +175,17 @@ const imgGrid = await page.evaluate(() => {
   return { cols: 3, cards, grids: imageGrids.length };
 });
 const imgPager = await page.evaluate(() => {
-  const el = [...document.querySelectorAll("span")].find((s) => /\d+–\d+ of \d+/.test(s.textContent ?? "") && /image/i.test(document.body.innerText));
+  const el = [...document.querySelectorAll("span")].find(
+    (s) => /\d+–\d+ of \d+/.test(s.textContent ?? "") && /image/i.test(document.body.innerText),
+  );
   return el?.textContent ?? null;
 });
 check("images tab is 3 columns", imgGrid.cols === 3, JSON.stringify(imgGrid));
-check("images grid is paginated (27 per page)", imgGrid.cards === 27, `cards=${imgGrid.cards} pager=${imgPager ?? "none"}`);
+check(
+  "images grid is paginated (27 per page)",
+  imgGrid.cards === 27,
+  `cards=${imgGrid.cards} pager=${imgPager ?? "none"}`,
+);
 
 const fails = results.filter((r) => !r.pass);
 console.log(`\n${results.length - fails.length}/${results.length} checks passed`);

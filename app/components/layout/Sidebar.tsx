@@ -9,10 +9,7 @@ import { openCommandMenu } from "@agent-native/core/client/navigation";
 import { OrgSwitcher } from "@agent-native/core/client/org";
 import { FeedbackButton } from "@agent-native/core/client/ui";
 import { SidebarFooterActions } from "@agent-native/toolkit/app-shell";
-import {
-  ChatHistoryRail,
-  type ChatHistoryItem,
-} from "@agent-native/toolkit/chat-history";
+import { ChatHistoryRail, type ChatHistoryItem } from "@agent-native/toolkit/chat-history";
 import {
   IconFolderOpen,
   IconLayoutSidebarLeftCollapse,
@@ -25,11 +22,7 @@ import { useEffect, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { APP_TITLE } from "@/lib/app-config";
 import { cn } from "@/lib/utils";
 
@@ -156,8 +149,7 @@ function ChatThreadsSection({ open }: { open: boolean }) {
     [threads],
   );
   const displayedActiveThreadId =
-    threadIdFromPath(location.pathname) ??
-    (location.pathname === "/" ? null : activeThreadId);
+    threadIdFromPath(location.pathname) ?? (location.pathname === "/" ? null : activeThreadId);
   const chatItems = useMemo<ChatHistoryItem[]>(
     () =>
       visibleThreads.map((thread) => ({
@@ -176,9 +168,7 @@ function ChatThreadsSection({ open }: { open: boolean }) {
   useEffect(() => {
     const refresh = () => refreshThreads();
     const handleRunning = (event: Event) => {
-      const detail = (event as CustomEvent).detail as
-        | { isRunning?: unknown }
-        | undefined;
+      const detail = (event as CustomEvent).detail as { isRunning?: unknown } | undefined;
       if (typeof detail?.isRunning === "boolean") refreshThreads();
     };
 
@@ -195,10 +185,7 @@ function ChatThreadsSection({ open }: { open: boolean }) {
   function openThread(threadId: string, options?: { isNew?: boolean }) {
     switchThread(threadId);
     persistActiveThreadId(threadId);
-    navigateWithAgentChatViewTransition(
-      navigate,
-      options?.isNew ? "/" : chatThreadPath(threadId),
-    );
+    navigateWithAgentChatViewTransition(navigate, options?.isNew ? "/" : chatThreadPath(threadId));
     window.requestAnimationFrame(() => {
       window.dispatchEvent(
         new CustomEvent("agent-chat:open-thread", {
@@ -214,8 +201,7 @@ function ChatThreadsSection({ open }: { open: boolean }) {
   }
 
   async function handleArchiveThread(threadId: string) {
-    const wasActive =
-      threadId === activeThreadId || threadId === persistedActiveThreadId();
+    const wasActive = threadId === activeThreadId || threadId === persistedActiveThreadId();
     const archived = await archiveThread(threadId);
     if (!archived) {
       toast.error(t("chat.archiveFailed"));
@@ -257,10 +243,8 @@ function ChatThreadsSection({ open }: { open: boolean }) {
           onRename={handleRenameThread}
           onDelete={(threadId) => void handleArchiveThread(threadId)}
           labels={{
-            options: (item) =>
-              t("chat.optionsFor", { title: item.titleText ?? "" }),
-            renameInput: (item) =>
-              t("chat.renameThread", { title: item.titleText ?? "" }),
+            options: (item) => t("chat.optionsFor", { title: item.titleText ?? "" }),
+            renameInput: (item) => t("chat.renameThread", { title: item.titleText ?? "" }),
             rename: t("chat.renameChat"),
             pin: t("chat.pinChat"),
             unpin: t("chat.unpinChat"),
@@ -281,11 +265,8 @@ export function Sidebar({
   const location = useLocation();
   const navigate = useNavigate();
   const t = useT();
-  const isChatRoute =
-    location.pathname === "/" || location.pathname.startsWith("/chat/");
-  const ToggleIcon = collapsed
-    ? IconLayoutSidebarLeftExpand
-    : IconLayoutSidebarLeftCollapse;
+  const isChatRoute = location.pathname === "/" || location.pathname.startsWith("/chat/");
+  const ToggleIcon = collapsed ? IconLayoutSidebarLeftExpand : IconLayoutSidebarLeftCollapse;
   const navClass = ({ isActive }: { isActive: boolean }) =>
     cn(
       "flex items-center text-sm transition-colors",
@@ -310,19 +291,13 @@ export function Sidebar({
             "flex shrink-0 items-center justify-center rounded-md text-sidebar-foreground/65 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             collapsed ? "size-8" : "size-7",
           )}
-          aria-label={
-            collapsed
-              ? t("navigation.expandSidebar")
-              : t("navigation.collapseSidebar")
-          }
+          aria-label={collapsed ? t("navigation.expandSidebar") : t("navigation.collapseSidebar")}
         >
           <ToggleIcon className="size-4" />
         </button>
       </TooltipTrigger>
       <TooltipContent side="right">
-        {collapsed
-          ? t("navigation.expandSidebar")
-          : t("navigation.collapseSidebar")}
+        {collapsed ? t("navigation.expandSidebar") : t("navigation.collapseSidebar")}
       </TooltipContent>
     </Tooltip>
   ) : null;
@@ -418,19 +393,12 @@ export function Sidebar({
         </Link>
       </div>
 
-      <nav
-        className={cn(
-          "flex-1 overflow-y-auto",
-          collapsed ? "px-0 py-2" : "px-2 py-3",
-        )}
-      >
+      <nav className={cn("flex-1 overflow-y-auto", collapsed ? "px-0 py-2" : "px-2 py-3")}>
         <div className={cn("grid", collapsed ? "gap-0" : "gap-1")}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
-              item.href === "/"
-                ? isChatRoute
-                : location.pathname.startsWith(item.href);
+              item.href === "/" ? isChatRoute : location.pathname.startsWith(item.href);
             const link = (
               <Link
                 to={item.href}
@@ -452,9 +420,7 @@ export function Sidebar({
                 aria-label={collapsed ? t(item.labelKey) : undefined}
               >
                 <Icon className="size-4 shrink-0" />
-                <span className={collapsed ? "sr-only" : "truncate"}>
-                  {t(item.labelKey)}
-                </span>
+                <span className={collapsed ? "sr-only" : "truncate"}>{t(item.labelKey)}</span>
               </Link>
             );
             return (
@@ -462,9 +428,7 @@ export function Sidebar({
                 {collapsed ? (
                   <Tooltip>
                     <TooltipTrigger asChild>{link}</TooltipTrigger>
-                    <TooltipContent side="right">
-                      {t(item.labelKey)}
-                    </TooltipContent>
+                    <TooltipContent side="right">{t(item.labelKey)}</TooltipContent>
                   </Tooltip>
                 ) : (
                   link
@@ -479,12 +443,7 @@ export function Sidebar({
       </nav>
 
       <div className={cn("mt-auto shrink-0", collapsed && "py-2")}>
-        <nav
-          className={cn(
-            "grid",
-            collapsed ? "gap-0 px-1 py-1" : "gap-1 px-2 py-1",
-          )}
-        >
+        <nav className={cn("grid", collapsed ? "gap-0 px-1 py-1" : "gap-1 px-2 py-1")}>
           {bottomNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname.startsWith(item.href);
@@ -496,9 +455,7 @@ export function Sidebar({
                 aria-label={collapsed ? t(item.labelKey) : undefined}
               >
                 <Icon className="size-4 shrink-0" />
-                <span className={collapsed ? "sr-only" : "truncate"}>
-                  {t(item.labelKey)}
-                </span>
+                <span className={collapsed ? "sr-only" : "truncate"}>{t(item.labelKey)}</span>
               </Link>
             );
             return collapsed ? (

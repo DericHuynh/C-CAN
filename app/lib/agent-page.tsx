@@ -14,10 +14,7 @@ type AgentClientModule = {
   AgentTabsPage?: ComponentType<AgentPageProps>;
 };
 
-const legacyAgentPages = new WeakMap<
-  AgentClientModule,
-  ComponentType<AgentPageProps>
->();
+const legacyAgentPages = new WeakMap<AgentClientModule, ComponentType<AgentPageProps>>();
 
 /**
  * Keep the chat scaffold runnable when its template and core package are

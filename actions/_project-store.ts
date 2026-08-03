@@ -40,7 +40,7 @@ export function parseAppDocument(json: string): App {
     return normalizeApp(JSON.parse(json));
   } catch (err) {
     throw new Error(
-      `Project document is invalid JSON: ${err instanceof Error ? err.message : String(err)}`
+      `Project document is invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 }
@@ -108,7 +108,9 @@ export function reindexChoices(choices: { index: number }[]): void {
 }
 
 /** Values shared by every row insert (create/duplicate/import). */
-export function newProjectRow(overrides: Partial<NewProject> & { id: string; json: string }): Project {
+export function newProjectRow(
+  overrides: Partial<NewProject> & { id: string; json: string },
+): Project {
   const now = new Date().toISOString();
   return {
     id: overrides.id,
@@ -122,4 +124,3 @@ export function newProjectRow(overrides: Partial<NewProject> & { id: string; jso
     isSeed: overrides.isSeed ?? false,
   };
 }
-

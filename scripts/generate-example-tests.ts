@@ -70,7 +70,11 @@ function embeddable(v: unknown): boolean {
 }
 
 /** Build the sample set for one key: distinct values + first-occurrence paths. */
-function samplesFor(items: unknown[], key: string, max = 4): Array<{ path: string; value: unknown }> {
+function samplesFor(
+  items: unknown[],
+  key: string,
+  max = 4,
+): Array<{ path: string; value: unknown }> {
   const out: Array<{ path: string; value: unknown }> = [];
   const seen = new Set<string>();
   items.forEach((item, i) => {
@@ -113,16 +117,40 @@ export default async function generateExampleTests(args: Record<string, unknown>
   const collections: Collection[] = [
     { label: "rows", accessor: "app.rows", items: arr(raw.rows) },
     { label: "backpack rows", accessor: "app.backpack", items: arr(raw.backpack) },
-    { label: "choices", accessor: "app.rows.flatMap((r) => r.objects ?? [])", items: arr(raw.rows).flatMap((r) => arr((r as Record<string, unknown>).objects)) },
-    { label: "addons", accessor: "app.rows.flatMap((r) => r.objects ?? []).flatMap((o) => o.addons ?? [])", items: arr(raw.rows).flatMap((r) => arr((r as Record<string, unknown>).objects).flatMap((o) => arr((o as Record<string, unknown>).addons))) },
+    {
+      label: "choices",
+      accessor: "app.rows.flatMap((r) => r.objects ?? [])",
+      items: arr(raw.rows).flatMap((r) => arr((r as Record<string, unknown>).objects)),
+    },
+    {
+      label: "addons",
+      accessor: "app.rows.flatMap((r) => r.objects ?? []).flatMap((o) => o.addons ?? [])",
+      items: arr(raw.rows).flatMap((r) =>
+        arr((r as Record<string, unknown>).objects).flatMap((o) =>
+          arr((o as Record<string, unknown>).addons),
+        ),
+      ),
+    },
     { label: "pointTypes", accessor: "app.pointTypes", items: arr(raw.pointTypes) },
     { label: "groups", accessor: "app.groups", items: arr(raw.groups) },
-    { label: "globalRequirements", accessor: "app.globalRequirements ?? []", items: arr(raw.globalRequirements) },
+    {
+      label: "globalRequirements",
+      accessor: "app.globalRequirements ?? []",
+      items: arr(raw.globalRequirements),
+    },
     { label: "variables", accessor: "app.variables", items: arr(raw.variables) },
     { label: "words", accessor: "app.words", items: arr(raw.words) },
     { label: "soundEffects", accessor: "app.soundEffects", items: arr(raw.soundEffects) },
-    { label: "rowDesignGroups", accessor: "app.rowDesignGroups ?? []", items: arr(raw.rowDesignGroups) },
-    { label: "objectDesignGroups", accessor: "app.objectDesignGroups", items: arr(raw.objectDesignGroups) },
+    {
+      label: "rowDesignGroups",
+      accessor: "app.rowDesignGroups ?? []",
+      items: arr(raw.rowDesignGroups),
+    },
+    {
+      label: "objectDesignGroups",
+      accessor: "app.objectDesignGroups",
+      items: arr(raw.objectDesignGroups),
+    },
   ];
 
   const srcStyling = (raw.styling as Record<string, unknown> | undefined) ?? {};
@@ -140,10 +168,10 @@ export default async function generateExampleTests(args: Record<string, unknown>
  *
  * Import parity suite for the reference ICCPlus document
  * examples/project.json (${(raw as Record<string, unknown>).version ?? "?"}, ${
-     (raw.rows as unknown[] | undefined)?.length ?? 0
-   } rows, ${
-     arr(raw.rows).flatMap((r) => arr((r as Record<string, unknown>).objects)).length
-   } choices).
+   (raw.rows as unknown[] | undefined)?.length ?? 0
+ } rows, ${
+   arr(raw.rows).flatMap((r) => arr((r as Record<string, unknown>).objects)).length
+ } choices).
  *
  * Pins the aggregate shape of the document and verifies our import path
  * applies it instead of silently dropping it: normalizeApp preserves every
@@ -152,7 +180,7 @@ export default async function generateExampleTests(args: Record<string, unknown>
  * images and buttons.
  */
 import { readFileSync } from "node:fs";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { normalizeApp } from "./cyoa.js";
 import { buildCyoaIndex, createCyoaState } from "./cyoa-engine.js";
@@ -301,7 +329,9 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
         if (samples.length > 0 && samples.every((s) => embeddable(s.value))) {
           push(`    it("${key} sample values survive normalize", () => {`);
           for (const sample of samples) {
-            push(`      expect(valueAt(${accessor}, "${sample.path}")).toEqual(${lit(sample.value)});`);
+            push(
+              `      expect(valueAt(${accessor}, "${sample.path}")).toEqual(${lit(sample.value)});`,
+            );
           }
           push(`    });
 `);
@@ -356,7 +386,11 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     });
 `);
     }
-    if (st.objectBorderIsOn === true && typeof st.objectBorderColor === "string" && st.objectBorderColor) {
+    if (
+      st.objectBorderIsOn === true &&
+      typeof st.objectBorderColor === "string" &&
+      st.objectBorderColor
+    ) {
       push(`    it("applies the object border to the choice card", () => {
       const surface = choiceSurfaceStyle(sampleChoice, sampleRow, idx, state);
       expect(surface.borderColor).toBe(${lit(st.objectBorderColor)});
@@ -365,7 +399,14 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     });
 `);
     }
-    if ([st.objectBorderRadiusTopLeft, st.objectBorderRadiusTopRight, st.objectBorderRadiusBottomRight, st.objectBorderRadiusBottomLeft].some((v) => typeof v === "number" && v !== 0)) {
+    if (
+      [
+        st.objectBorderRadiusTopLeft,
+        st.objectBorderRadiusTopRight,
+        st.objectBorderRadiusBottomRight,
+        st.objectBorderRadiusBottomLeft,
+      ].some((v) => typeof v === "number" && v !== 0)
+    ) {
       const suffix = st.objectBorderRadiusIsPixels === true ? "px" : "%";
       const radius = `${st.objectBorderRadiusTopLeft ?? 0}${suffix} ${st.objectBorderRadiusTopRight ?? 0}${suffix} ${st.objectBorderRadiusBottomRight ?? 0}${suffix} ${st.objectBorderRadiusBottomLeft ?? 0}${suffix}`;
       push(`    it("applies the object border radius to the choice card", () => {
@@ -459,7 +500,14 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     });
 `);
   }
-  if ([st.rowBorderRadiusTopLeft, st.rowBorderRadiusTopRight, st.rowBorderRadiusBottomRight, st.rowBorderRadiusBottomLeft].some((v) => typeof v === "number" && v !== 0)) {
+  if (
+    [
+      st.rowBorderRadiusTopLeft,
+      st.rowBorderRadiusTopRight,
+      st.rowBorderRadiusBottomRight,
+      st.rowBorderRadiusBottomLeft,
+    ].some((v) => typeof v === "number" && v !== 0)
+  ) {
     const suffix = st.rowBorderRadiusIsPixels === true ? "px" : "%";
     const radius = `${st.rowBorderRadiusTopLeft ?? 0}${suffix} ${st.rowBorderRadiusTopRight ?? 0}${suffix} ${st.rowBorderRadiusBottomRight ?? 0}${suffix} ${st.rowBorderRadiusBottomLeft ?? 0}${suffix}`;
     push(`    it("applies the row border radius to the row card", () => {
@@ -522,7 +570,11 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     });
 `);
   }
-  if (typeof st.rowBodyMarginTop === "number" || typeof st.rowBodyMarginBottom === "number" || typeof st.rowBodyMarginSides === "number") {
+  if (
+    typeof st.rowBodyMarginTop === "number" ||
+    typeof st.rowBodyMarginBottom === "number" ||
+    typeof st.rowBodyMarginSides === "number"
+  ) {
     push(`    it("applies the row body margins", () => {
       expect(rowSurfaceStyle(sampleRow, idx, state).margin).toBe(${lit(`${st.rowBodyMarginTop ?? 0}px ${st.rowBodyMarginSides ?? 0}% ${st.rowBodyMarginBottom ?? 0}px`)});
     });
@@ -539,10 +591,12 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
         (() => {
           // mirrors buildFilterString for the unselected prefix using the raw doc
           const parts: string[] = [];
-          const v = (k: string): number | undefined => (typeof st[k] === "number" ? (st[k] as number) : undefined);
+          const v = (k: string): number | undefined =>
+            typeof st[k] === "number" ? (st[k] as number) : undefined;
           const on = (k: string): boolean => st[k] === true;
           if (on("unselFilterBlurIsOn")) parts.push(`blur(${v("unselFilterBlur") ?? 0}px)`);
-          if (on("unselFilterBrightIsOn")) parts.push(`brightness(${v("unselFilterBright") ?? 100}%)`);
+          if (on("unselFilterBrightIsOn"))
+            parts.push(`brightness(${v("unselFilterBright") ?? 100}%)`);
           if (on("unselFilterContIsOn")) parts.push(`contrast(${v("unselFilterCont") ?? 100}%)`);
           if (on("unselFilterGrayIsOn")) parts.push(`grayscale(${v("unselFilterGray") ?? 0}%)`);
           if (on("unselFilterHueIsOn")) parts.push(`hue-rotate(${v("unselFilterHue") ?? 0}deg)`);

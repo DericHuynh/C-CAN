@@ -87,7 +87,7 @@ describe.skipIf(!exampleExists)("viewer render applies examples/project.json sty
     // The bar must come AFTER the rows in the DOM so sticky bottom-0 pins it
     // to the bottom of the scrollport from the start (the original viewer's
     // bottom bar). The rows container is the only direct child with the rows.
-    const barIdx = html.indexOf('sticky bottom-0 z-20');
+    const barIdx = html.indexOf("sticky bottom-0 z-20");
     const rowsIdx = html.indexOf("row-gap-6");
     expect(barIdx).toBeGreaterThan(-1);
     expect(rowsIdx).toBeGreaterThan(-1);

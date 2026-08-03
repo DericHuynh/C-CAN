@@ -120,7 +120,9 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
           return;
         }
         if (before !== afterVal) {
-          mutations.push(`[value change] ${path}: ${JSON.stringify(before)} -> ${JSON.stringify(afterVal)}`);
+          mutations.push(
+            `[value change] ${path}: ${JSON.stringify(before)} -> ${JSON.stringify(afterVal)}`,
+          );
         }
       };
       diffTree(raw, after, "$");
@@ -134,7 +136,7 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
 
   describe("rows", () => {
     it("has 27 items", () => {
-      expect((app.rows).length).toBe(27);
+      expect(app.rows.length).toBe(27);
     });
 
     it("allowedChoices is present on 27/27 items", () => {
@@ -281,7 +283,9 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
 
     it("imageSourceTooltip sample values survive normalize", () => {
       expect(valueAt(app.rows, "$.0.imageSourceTooltip")).toEqual("");
-      expect(valueAt(app.rows, "$.1.imageSourceTooltip")).toEqual("https://www.pinterest.com/pin/39828777961141932/");
+      expect(valueAt(app.rows, "$.1.imageSourceTooltip")).toEqual(
+        "https://www.pinterest.com/pin/39828777961141932/",
+      );
     });
 
     it("index is present on 27/27 items", () => {
@@ -447,12 +451,11 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
       );
       expect(withKey.length).toBe(27);
     });
-
   });
 
   describe("backpack rows", () => {
     it("has 1 items", () => {
-      expect((app.backpack).length).toBe(1);
+      expect(app.backpack.length).toBe(1);
     });
 
     it("allowedChoices is present on 1/1 items", () => {
@@ -747,268 +750,433 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     it("titleText sample values survive normalize", () => {
       expect(valueAt(app.backpack, "$.0.titleText")).toEqual("");
     });
-
   });
 
   describe("choices", () => {
     it("has 150 items", () => {
-      expect((app.rows.flatMap((r) => r.objects ?? [])).length).toBe(150);
+      expect(app.rows.flatMap((r) => r.objects ?? []).length).toBe(150);
     });
 
     it("addonJustify is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "addonJustify" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "addonJustify" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("addonJustify sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.addonJustify")).toEqual("start");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.addonJustify",
+        ),
+      ).toEqual("start");
     });
 
     it("addons is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "addons" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "addons" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("addons sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.addons")).toEqual([]);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.addons",
+        ),
+      ).toEqual([]);
     });
 
     it("debugTitle is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "debugTitle" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "debugTitle" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("debugTitle sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.debugTitle")).toEqual("");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.debugTitle",
+        ),
+      ).toEqual("");
     });
 
     it("groups is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "groups" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "groups" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("groups sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.groups")).toEqual([]);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.groups",
+        ),
+      ).toEqual([]);
     });
 
     it("id is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "id" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "id" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("id sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.id")).toEqual("choice-qox1");
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.1.id")).toEqual("choice-kvl2");
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.2.id")).toEqual("choice-ogf5");
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.3.id")).toEqual("choice-vumd");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.id",
+        ),
+      ).toEqual("choice-qox1");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.1.id",
+        ),
+      ).toEqual("choice-kvl2");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.2.id",
+        ),
+      ).toEqual("choice-ogf5");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.3.id",
+        ),
+      ).toEqual("choice-vumd");
     });
 
     it("image is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "image" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "image" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("imageSourceTooltip is present on 107/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "imageSourceTooltip" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "imageSourceTooltip" in item);
       expect(withKey.length).toBe(107);
     });
 
     it("imageSourceTooltip sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.imageSourceTooltip")).toEqual("https://e621.net/posts/5494744?q=friendship_is_magic+twilight_sparkle_%28mlp%29+rainbow_dash_%28mlp%29+applejack_%28mlp%29+rarity_%28mlp%29+pinkie_pie_%28mlp%29+fluttershy_%28mlp%29");
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.10.imageSourceTooltip")).toEqual("https://www.pinterest.com/pin/15340454975683651/");
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.11.imageSourceTooltip")).toEqual("https://www.pinterest.com/pin/AcvM4IeVYsJjzlx5_Db58RRKM_CQB14e-mKrUJtyLBghwS11vAEVaQY/");
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.12.imageSourceTooltip")).toEqual("https://www.pinterest.com/pin/83949980541678763/");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.imageSourceTooltip",
+        ),
+      ).toEqual(
+        "https://e621.net/posts/5494744?q=friendship_is_magic+twilight_sparkle_%28mlp%29+rainbow_dash_%28mlp%29+applejack_%28mlp%29+rarity_%28mlp%29+pinkie_pie_%28mlp%29+fluttershy_%28mlp%29",
+      );
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.10.imageSourceTooltip",
+        ),
+      ).toEqual("https://www.pinterest.com/pin/15340454975683651/");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.11.imageSourceTooltip",
+        ),
+      ).toEqual(
+        "https://www.pinterest.com/pin/AcvM4IeVYsJjzlx5_Db58RRKM_CQB14e-mKrUJtyLBghwS11vAEVaQY/",
+      );
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.12.imageSourceTooltip",
+        ),
+      ).toEqual("https://www.pinterest.com/pin/83949980541678763/");
     });
 
     it("index is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "index" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "index" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("index sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.index")).toEqual(0);
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.2.index")).toEqual(1);
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.5.index")).toEqual(2);
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.6.index")).toEqual(3);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.index",
+        ),
+      ).toEqual(0);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.2.index",
+        ),
+      ).toEqual(1);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.5.index",
+        ),
+      ).toEqual(2);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.6.index",
+        ),
+      ).toEqual(3);
     });
 
     it("initMultipleTimesMinus is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter(
         (item) => item !== null && typeof item === "object" && "initMultipleTimesMinus" in item,
       );
       expect(withKey.length).toBe(150);
     });
 
     it("initMultipleTimesMinus sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.initMultipleTimesMinus")).toEqual(0);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.initMultipleTimesMinus",
+        ),
+      ).toEqual(0);
     });
 
     it("isActive is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "isActive" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "isActive" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("isActive sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.isActive")).toEqual(false);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.isActive",
+        ),
+      ).toEqual(false);
     });
 
     it("isVisible is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "isVisible" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "isVisible" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("isVisible sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.isVisible")).toEqual(true);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.isVisible",
+        ),
+      ).toEqual(true);
     });
 
     it("multipleUseVariable is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter(
         (item) => item !== null && typeof item === "object" && "multipleUseVariable" in item,
       );
       expect(withKey.length).toBe(150);
     });
 
     it("multipleUseVariable sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.multipleUseVariable")).toEqual(0);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.multipleUseVariable",
+        ),
+      ).toEqual(0);
     });
 
     it("numMultipleTimesMinus is present on 3/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter(
         (item) => item !== null && typeof item === "object" && "numMultipleTimesMinus" in item,
       );
       expect(withKey.length).toBe(3);
     });
 
     it("numMultipleTimesMinus sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.1.numMultipleTimesMinus")).toEqual(0);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.1.numMultipleTimesMinus",
+        ),
+      ).toEqual(0);
     });
 
     it("objectDesignGroups is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "objectDesignGroups" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "objectDesignGroups" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("objectDesignGroups sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.objectDesignGroups")).toEqual([]);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.objectDesignGroups",
+        ),
+      ).toEqual([]);
     });
 
     it("objectWidth is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "objectWidth" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "objectWidth" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("objectWidth sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.objectWidth")).toEqual("");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.objectWidth",
+        ),
+      ).toEqual("");
     });
 
     it("requireds is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "requireds" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "requireds" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("requireds sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.requireds")).toEqual([]);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.requireds",
+        ),
+      ).toEqual([]);
     });
 
     it("scores is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "scores" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "scores" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("scores sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.scores")).toEqual([]);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.scores",
+        ),
+      ).toEqual([]);
     });
 
     it("selectedThisManyTimesProp is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter(
         (item) => item !== null && typeof item === "object" && "selectedThisManyTimesProp" in item,
       );
       expect(withKey.length).toBe(150);
     });
 
     it("selectedThisManyTimesProp sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.selectedThisManyTimesProp")).toEqual(0);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.selectedThisManyTimesProp",
+        ),
+      ).toEqual(0);
     });
 
     it("template is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "template" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "template" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("template sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.template")).toEqual(1);
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.template",
+        ),
+      ).toEqual(1);
     });
 
     it("text is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "text" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "text" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("title is present on 150/150 items", () => {
-      const withKey = (app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]).filter(
-        (item) => item !== null && typeof item === "object" && "title" in item,
-      );
+      const withKey = (
+        app.rows.flatMap((r) => r.objects ?? []) as Record<string, unknown>[]
+      ).filter((item) => item !== null && typeof item === "object" && "title" in item);
       expect(withKey.length).toBe(150);
     });
 
     it("title sample values survive normalize", () => {
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.0.title")).toEqual("");
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.1.title")).toEqual("<p>World Section</p>");
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.2.title")).toEqual("<p>You</p>");
-      expect(valueAt(app.rows.flatMap((r) => r.objects ?? []), "$.3.title")).toEqual("<p>World State</p>");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.0.title",
+        ),
+      ).toEqual("");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.1.title",
+        ),
+      ).toEqual("<p>World Section</p>");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.2.title",
+        ),
+      ).toEqual("<p>You</p>");
+      expect(
+        valueAt(
+          app.rows.flatMap((r) => r.objects ?? []),
+          "$.3.title",
+        ),
+      ).toEqual("<p>World State</p>");
     });
-
   });
 
   describe("addons", () => {
     it("has 0 items", () => {
-      expect((app.rows.flatMap((r) => r.objects ?? []).flatMap((o) => o.addons ?? [])).length).toBe(0);
+      expect(app.rows.flatMap((r) => r.objects ?? []).flatMap((o) => o.addons ?? []).length).toBe(
+        0,
+      );
     });
-
   });
 
   describe("pointTypes", () => {
     it("has 0 items", () => {
-      expect((app.pointTypes).length).toBe(0);
+      expect(app.pointTypes.length).toBe(0);
     });
-
   });
 
   describe("groups", () => {
     it("has 1 items", () => {
-      expect((app.groups).length).toBe(1);
+      expect(app.groups.length).toBe(1);
     });
 
     it("elements is present on 1/1 items", () => {
@@ -1054,51 +1222,43 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     it("rowElements sample values survive normalize", () => {
       expect(valueAt(app.groups, "$.0.rowElements")).toEqual([]);
     });
-
   });
 
   describe("globalRequirements", () => {
     it("has 0 items", () => {
       expect((app.globalRequirements ?? []).length).toBe(0);
     });
-
   });
 
   describe("variables", () => {
     it("has 0 items", () => {
-      expect((app.variables).length).toBe(0);
+      expect(app.variables.length).toBe(0);
     });
-
   });
 
   describe("words", () => {
     it("has 0 items", () => {
-      expect((app.words).length).toBe(0);
+      expect(app.words.length).toBe(0);
     });
-
   });
 
   describe("soundEffects", () => {
     it("has 0 items", () => {
-      expect((app.soundEffects).length).toBe(0);
+      expect(app.soundEffects.length).toBe(0);
     });
-
   });
 
   describe("rowDesignGroups", () => {
     it("has 0 items", () => {
       expect((app.rowDesignGroups ?? []).length).toBe(0);
     });
-
   });
 
   describe("objectDesignGroups", () => {
     it("has 0 items", () => {
-      expect((app.objectDesignGroups).length).toBe(0);
+      expect(app.objectDesignGroups.length).toBe(0);
     });
-
   });
-
 
   /* ------------------------------------------------------------------ */
   /* Styling: every source key keeps its value                            */
@@ -1999,16 +2159,16 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     it("styling.unselFilterSepiaIsOn keeps its value", () => {
       expect(app.styling!["unselFilterSepiaIsOn"]).toEqual(false);
     });
-
   });
 
   /* ------------------------------------------------------------------ */
   /* Styling cascade: the document's styling is applied, not dropped      */
   /* ------------------------------------------------------------------ */
   describe("styling cascade applies the document", () => {
-
     it("applies objectBgColor to the choice card background", () => {
-      expect(choiceSurfaceStyle(sampleChoice, sampleRow, idx, state).backgroundColor).toBe("#9A997BFF");
+      expect(choiceSurfaceStyle(sampleChoice, sampleRow, idx, state).backgroundColor).toBe(
+        "#9A997BFF",
+      );
     });
 
     it("applies the object border to the choice card", () => {
@@ -2019,7 +2179,9 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     });
 
     it("applies the object border radius to the choice card", () => {
-      expect(choiceSurfaceStyle(sampleChoice, sampleRow, idx, state).borderRadius).toBe("40px 40px 10px 10px");
+      expect(choiceSurfaceStyle(sampleChoice, sampleRow, idx, state).borderRadius).toBe(
+        "40px 40px 10px 10px",
+      );
     });
 
     it("applies objectMargin to the choice card", () => {
@@ -2036,7 +2198,9 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     });
 
     it("applies objectTitle font to objectTitle text", () => {
-      expect(textStyle("objectTitle", idx, state, sampleRow, sampleChoice).fontFamily).toBe("Courier");
+      expect(textStyle("objectTitle", idx, state, sampleRow, sampleChoice).fontFamily).toBe(
+        "Courier",
+      );
     });
 
     it("applies objectTitleTextSize to objectTitle text", () => {
@@ -2048,7 +2212,9 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     });
 
     it("applies objectText font to objectText text", () => {
-      expect(textStyle("objectText", idx, state, sampleRow, sampleChoice).fontFamily).toBe("Georgia");
+      expect(textStyle("objectText", idx, state, sampleRow, sampleChoice).fontFamily).toBe(
+        "Georgia",
+      );
     });
 
     it("applies objectTextTextSize to objectText text", () => {
@@ -2060,7 +2226,9 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     });
 
     it("applies scoreText font to scoreText text", () => {
-      expect(textStyle("scoreText", idx, state, sampleRow, sampleChoice).fontFamily).toBe("Courier New");
+      expect(textStyle("scoreText", idx, state, sampleRow, sampleChoice).fontFamily).toBe(
+        "Courier New",
+      );
     });
 
     it("applies scoreTextColor to scoreText text", () => {
@@ -2068,11 +2236,15 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     });
 
     it("applies addonTitle font to addon titles", () => {
-      expect(textStyle("addonTitle", idx, state, sampleRow, sampleChoice).fontFamily).toBe("Courier");
+      expect(textStyle("addonTitle", idx, state, sampleRow, sampleChoice).fontFamily).toBe(
+        "Courier",
+      );
     });
 
     it("applies addonText font to addon text", () => {
-      expect(textStyle("addonText", idx, state, sampleRow, sampleChoice).fontFamily).toBe("Georgia");
+      expect(textStyle("addonText", idx, state, sampleRow, sampleChoice).fontFamily).toBe(
+        "Georgia",
+      );
     });
 
     it("applies rowBgColor to the row card background", () => {
@@ -2097,7 +2269,9 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     });
 
     it("applies the row drop shadow filter to the row card", () => {
-      expect(rowSurfaceStyle(sampleRow, idx, state).filter).toContain("drop-shadow(3px 3px 3px 0px #D64800FF)");
+      expect(rowSurfaceStyle(sampleRow, idx, state).filter).toContain(
+        "drop-shadow(3px 3px 3px 0px #D64800FF)",
+      );
     });
 
     it("applies rowTitle font to rowTitle text", () => {
@@ -2139,6 +2313,5 @@ describe.skipIf(!exampleExists)("examples/project.json import parity", () => {
     it("applies the filter string for the unselected state", () => {
       expect(buildFilterString(app.styling as Record<string, unknown>, "unsel")).toBe("");
     });
-
   });
 });

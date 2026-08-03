@@ -21,7 +21,8 @@ Use cases: "what did we do yesterday / the last few days", "what changed since m
 4. Verify `result.schemaVersion === 1` on any composed tool result.
 
 ## Output template
+
 1. **Range** — the commits/files covered + the human phrase ("since yesterday"), and how many files/nodes changed.
 2. **What changed, by functionality** — grouped by module/feature, describing each changed area from its summary (cover all changed files; don't stop at one). Note new vs modified where visible.
 3. **Impact** — what depends on the changed high-value nodes (blast radius), plus any touched medium/high-`severity` nodes.
-4. **Merge-conflict mode** (when applicable) — for each conflicted node: a side-by-side of what *ours* vs *theirs* does (from summaries) and a recommendation on which functionality to keep or how to combine, flagging risk.
+4. **Merge-conflict mode** (when applicable) — for each conflicted node: a side-by-side of what _ours_ vs _theirs_ does (from summaries) and a recommendation on which functionality to keep or how to combine, flagging risk.

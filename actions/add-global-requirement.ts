@@ -6,10 +6,10 @@ import { getProjectOrThrow, saveProject } from "./_project-store.js";
 
 export default defineAction({
   description:
-    "Add a new global requirement to a project (default name \"Requirement\") and return it.",
+    'Add a new global requirement to a project (default name "Requirement") and return it.',
   schema: z.object({
     projectId: z.string().describe("Project id"),
-    name: z.string().optional().describe("Requirement name; defaults to \"Requirement\""),
+    name: z.string().optional().describe('Requirement name; defaults to "Requirement"'),
   }),
   run: async ({ projectId, name }) => {
     const { app } = await getProjectOrThrow(projectId);

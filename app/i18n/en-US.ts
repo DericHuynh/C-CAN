@@ -12,8 +12,7 @@ const messages = {
     openTeamSettings: "Open team settings",
     openResourceSettings: "Open resource settings",
     agentTitle: "Manage agent",
-    agentDescription:
-      "Manage the agent's model, API keys, automations, voice, and other controls.",
+    agentDescription: "Manage the agent's model, API keys, automations, voice, and other controls.",
     openAgentSettings: "Manage agent",
   },
   chat: {
@@ -57,8 +56,7 @@ const messages = {
     databaseTitle: "Database",
     observabilityPageTitle: "Agent Observability",
     teamTitle: "Team",
-    teamCreateOrgDescription:
-      "Create an organization to invite teammates and share this app.",
+    teamCreateOrgDescription: "Create an organization to invite teammates and share this app.",
   },
   root: {
     commandActions: "Actions",

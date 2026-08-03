@@ -21,7 +21,10 @@ const browser = await chromium.launch({
   headless: true,
   args: ["--no-sandbox"],
 });
-const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, colorScheme: "dark" });
+const context = await browser.newContext({
+  viewport: { width: 1600, height: 1000 },
+  colorScheme: "dark",
+});
 const page = await context.newPage();
 
 const results = [];
@@ -69,7 +72,8 @@ check(
 );
 check(
   "collapsed row has no choice text left",
-  !/Required:|You Don’t Care|choice/i.test(afterCollapse.text) || afterCollapse.text.length < before.text.length,
+  !/Required:|You Don’t Care|choice/i.test(afterCollapse.text) ||
+    afterCollapse.text.length < before.text.length,
   `text=${afterCollapse.text.slice(0, 90)}`,
 );
 
@@ -77,26 +81,36 @@ check(
 await rowNode(0).locator('button[aria-label="Expand row"]').click();
 await page.waitForTimeout(600);
 const afterExpand = await rowCard(0).evaluate((el) => el.getBoundingClientRect().height);
-check("expanding restores children", afterExpand > afterCollapse.h * 1.5, `collapsed=${Math.round(afterCollapse.h)} expanded=${Math.round(afterExpand)}`);
+check(
+  "expanding restores children",
+  afterExpand > afterCollapse.h * 1.5,
+  `collapsed=${Math.round(afterCollapse.h)} expanded=${Math.round(afterExpand)}`,
+);
 
 // --- selection latency ---------------------------------------------------
 const t0 = Date.now();
 await rowNode(0).click(); // row select
-await page.waitForSelector('#row-title', {
+await page.waitForSelector("#row-title", {
   timeout: 10000,
 });
 const rowLatency = Date.now() - t0;
-const stats1 = await page.evaluate(() => ({ t: globalThis.__t ?? { tree: 0, rows: 0, choices: 0 }, re: globalThis.__re ?? { mounts: 0 } }));
+const stats1 = await page.evaluate(() => ({
+  t: globalThis.__t ?? { tree: 0, rows: 0, choices: 0 },
+  re: globalThis.__re ?? { mounts: 0 },
+}));
 console.log(`[stats after row-1 select]`, JSON.stringify(stats1));
 check("row selection opens detail pane quickly", rowLatency < 1500, `${rowLatency}ms`);
 
 // Second selection (warm modules) — should be well under the first.
 const t0b = Date.now();
 await rowNode(2).click();
-await page.waitForFunction(() => document.querySelector('#row-title') !== null, { timeout: 10000 });
+await page.waitForFunction(() => document.querySelector("#row-title") !== null, { timeout: 10000 });
 await page.waitForTimeout(200);
 const rowLatency2 = Date.now() - t0b;
-const stats2 = await page.evaluate(() => ({ t: globalThis.__t ?? { tree: 0, rows: 0, choices: 0 }, re: globalThis.__re ?? { mounts: 0 } }));
+const stats2 = await page.evaluate(() => ({
+  t: globalThis.__t ?? { tree: 0, rows: 0, choices: 0 },
+  re: globalThis.__re ?? { mounts: 0 },
+}));
 console.log(`[stats after row-3 select]`, JSON.stringify(stats2));
 check("subsequent row selection is fast (warm)", rowLatency2 < 800, `${rowLatency2}ms`);
 
@@ -104,12 +118,15 @@ check("subsequent row selection is fast (warm)", rowLatency2 < 800, `${rowLatenc
 const choice = page.locator("div.group.relative.flex.pl-8").first();
 const t1 = Date.now();
 await choice.click();
-await page.waitForSelector('#choice-title', { timeout: 10000 });
+await page.waitForSelector("#choice-title", { timeout: 10000 });
 const choiceLatency = Date.now() - t1;
 check("choice selection opens detail pane quickly", choiceLatency < 1500, `${choiceLatency}ms`);
 
 // --- images triple column ------------------------------------------------
-await page.goto(`${BASE}/projects/${PROJECT_ID}?tab=images`, { waitUntil: "networkidle", timeout: 60000 });
+await page.goto(`${BASE}/projects/${PROJECT_ID}?tab=images`, {
+  waitUntil: "networkidle",
+  timeout: 60000,
+});
 await page.waitForSelector("text=Add image", { timeout: 60000 });
 await page.waitForTimeout(1200);
 const gridInfo = await page.evaluate(() => {
@@ -118,9 +135,18 @@ const gridInfo = await page.evaluate(() => {
   const grid = grids[0];
   const cs = getComputedStyle(grid);
   const cols = cs.gridTemplateColumns.split(" ").length;
-  return { found: true, cols, w: Math.round(grid.getBoundingClientRect().width), tmpl: cs.gridTemplateColumns };
+  return {
+    found: true,
+    cols,
+    w: Math.round(grid.getBoundingClientRect().width),
+    tmpl: cs.gridTemplateColumns,
+  };
 });
-check("images tab is 3 columns by default", gridInfo.found && gridInfo.cols === 3, JSON.stringify(gridInfo));
+check(
+  "images tab is 3 columns by default",
+  gridInfo.found && gridInfo.cols === 3,
+  JSON.stringify(gridInfo),
+);
 
 const fails = results.filter((r) => !r.pass);
 console.log(`\n${results.length - fails.length}/${results.length} checks passed`);

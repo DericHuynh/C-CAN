@@ -307,13 +307,7 @@ interface DesignGroupFormProps {
   onSave: (form: DesignGroupFormData) => void;
 }
 
-function DesignGroupForm({
-  item,
-  mode,
-  busy = false,
-  onCancel,
-  onSave,
-}: DesignGroupFormProps) {
+function DesignGroupForm({ item, mode, busy = false, onCancel, onSave }: DesignGroupFormProps) {
   const [id, setId] = useState(item?.id ?? "");
   const [name, setName] = useState(item?.name ?? "");
   const [activatedId, setActivatedId] = useState(item?.activatedId ?? "");

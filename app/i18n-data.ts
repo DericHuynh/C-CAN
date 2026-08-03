@@ -27,8 +27,7 @@ const enUS = {
     observabilityPageTitle: "Observability",
     databaseTitle: "Database",
     teamTitle: "Team",
-    teamCreateOrgDescription:
-      "Set up a team to share this app with your colleagues.",
+    teamCreateOrgDescription: "Set up a team to share this app with your colleagues.",
   },
   chat: {
     emptyState: "Ask anything, then customize the app when you need more.",
@@ -148,12 +147,10 @@ export const messagesByLocale = {
       observabilityPageTitle: "Observabilidad",
       databaseTitle: "Base de datos",
       teamTitle: "Equipo",
-      teamCreateOrgDescription:
-        "Configura un equipo para compartir esta app con tus compañeros.",
+      teamCreateOrgDescription: "Configura un equipo para compartir esta app con tus compañeros.",
     },
     chat: {
-      emptyState:
-        "Pregunta cualquier cosa y personaliza la app cuando necesites más.",
+      emptyState: "Pregunta cualquier cosa y personaliza la app cuando necesites más.",
       composerPlaceholder: "Mensaje al agente...",
       heroTitle: "¿En qué puedo ayudar?",
       heroDescription:
@@ -202,12 +199,10 @@ export const messagesByLocale = {
       observabilityPageTitle: "Observabilité",
       databaseTitle: "Base de données",
       teamTitle: "Équipe",
-      teamCreateOrgDescription:
-        "Configurez une équipe pour partager cette app avec vos collègues.",
+      teamCreateOrgDescription: "Configurez une équipe pour partager cette app avec vos collègues.",
     },
     chat: {
-      emptyState:
-        "Demandez n'importe quoi, puis personnalisez l'app au besoin.",
+      emptyState: "Demandez n'importe quoi, puis personnalisez l'app au besoin.",
       composerPlaceholder: "Message à l'agent...",
       heroTitle: "Comment puis-je aider ?",
       heroDescription:
@@ -215,8 +210,7 @@ export const messagesByLocale = {
       suggestionCapabilities: "Que peux-tu faire ?",
       suggestionCustomize: "Aide-moi à personnaliser cette app de chat",
       suggestionActions: "Montre-moi les actions et pages que je peux ajouter",
-      inspectEmptyState:
-        "Demandez à l'agent d'inspecter ou modifier cette app.",
+      inspectEmptyState: "Demandez à l'agent d'inspecter ou modifier cette app.",
       inspectSuggestionCapabilities: "Que peux-tu faire ici ?",
       inspectSuggestionHello: "Appelle hello pour Builder",
       inspectSuggestionAction: "Ajoute une action et montre-la dans l'UI",
@@ -257,8 +251,7 @@ export const messagesByLocale = {
       observabilityPageTitle: "Beobachtbarkeit",
       databaseTitle: "Datenbank",
       teamTitle: "Team",
-      teamCreateOrgDescription:
-        "Richte ein Team ein, um diese App mit deinen Kollegen zu teilen.",
+      teamCreateOrgDescription: "Richte ein Team ein, um diese App mit deinen Kollegen zu teilen.",
     },
     chat: {
       emptyState: "Frag alles und passe die App an, wenn du mehr brauchst.",
@@ -268,14 +261,11 @@ export const messagesByLocale = {
         "Chatte über alles. Füge Aktionen, Komponenten, Seiten, Jobs oder dein eigenes Agent-Backend hinzu, wenn die App mehr tun soll.",
       suggestionCapabilities: "Was kannst du tun?",
       suggestionCustomize: "Hilf mir, diese Chat-App anzupassen",
-      suggestionActions:
-        "Zeige mir Aktionen und Seiten, die ich hinzufügen kann",
-      inspectEmptyState:
-        "Bitte den Agenten, diese App zu prüfen oder zu ändern.",
+      suggestionActions: "Zeige mir Aktionen und Seiten, die ich hinzufügen kann",
+      inspectEmptyState: "Bitte den Agenten, diese App zu prüfen oder zu ändern.",
       inspectSuggestionCapabilities: "Was kannst du hier tun?",
       inspectSuggestionHello: "Rufe hello für Builder auf",
-      inspectSuggestionAction:
-        "Füge eine neue Aktion hinzu und zeige sie in der UI",
+      inspectSuggestionAction: "Füge eine neue Aktion hinzu und zeige sie in der UI",
       chats: "Chats",
       newChat: "Neuer Chat",
       renameChat: "Chat umbenennen",
@@ -313,8 +303,7 @@ export const messagesByLocale = {
       observabilityPageTitle: "可観測性",
       databaseTitle: "データベース",
       teamTitle: "チーム",
-      teamCreateOrgDescription:
-        "同僚とこのアプリを共有するためのチームを設定します。",
+      teamCreateOrgDescription: "同僚とこのアプリを共有するためのチームを設定します。",
     },
     chat: {
       emptyState: "何でも質問し、必要になったらアプリをカスタマイズできます。",
@@ -377,8 +366,7 @@ export const messagesByLocale = {
       suggestionCapabilities: "무엇을 할 수 있나요?",
       suggestionCustomize: "이 채팅 앱을 사용자 지정하게 도와줘",
       suggestionActions: "추가할 수 있는 작업과 페이지를 보여줘",
-      inspectEmptyState:
-        "에이전트에게 이 앱을 검사하거나 변경하도록 요청하세요.",
+      inspectEmptyState: "에이전트에게 이 앱을 검사하거나 변경하도록 요청하세요.",
       inspectSuggestionCapabilities: "여기서 무엇을 할 수 있나요?",
       inspectSuggestionHello: "Builder용 hello 호출",
       inspectSuggestionAction: "새 작업을 추가하고 UI에 보여줘",
@@ -419,12 +407,10 @@ export const messagesByLocale = {
       observabilityPageTitle: "Observabilidade",
       databaseTitle: "Banco de dados",
       teamTitle: "Equipe",
-      teamCreateOrgDescription:
-        "Configure uma equipe para compartilhar este app com seus colegas.",
+      teamCreateOrgDescription: "Configure uma equipe para compartilhar este app com seus colegas.",
     },
     chat: {
-      emptyState:
-        "Pergunte qualquer coisa e personalize o app quando precisar.",
+      emptyState: "Pergunte qualquer coisa e personalize o app quando precisar.",
       composerPlaceholder: "Mensagem para o agente...",
       heroTitle: "Como posso ajudar?",
       heroDescription:
@@ -473,8 +459,7 @@ export const messagesByLocale = {
       observabilityPageTitle: "ऑब्जर्वेबिलिटी",
       databaseTitle: "डेटाबेस",
       teamTitle: "टीम",
-      teamCreateOrgDescription:
-        "इस ऐप को अपने सहयोगियों के साथ साझा करने के लिए टीम सेट करें।",
+      teamCreateOrgDescription: "इस ऐप को अपने सहयोगियों के साथ साझा करने के लिए टीम सेट करें।",
     },
     chat: {
       emptyState: "कुछ भी पूछें, फिर जरूरत होने पर ऐप कस्टमाइज़ करें।",

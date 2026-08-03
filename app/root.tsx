@@ -1,28 +1,15 @@
 import { configureTracking } from "@agent-native/core/client/analytics";
 import { appPath } from "@agent-native/core/client/api-path";
 import { useDbSync } from "@agent-native/core/client/hooks";
-import {
-  AppProviders,
-  createAgentNativeQueryClient,
-} from "@agent-native/core/client/hooks";
+import { AppProviders, createAgentNativeQueryClient } from "@agent-native/core/client/hooks";
 import { getLocaleInitScript, useT } from "@agent-native/core/client/i18n";
-import {
-  CommandMenu,
-  useCommandMenuShortcut,
-} from "@agent-native/core/client/navigation";
+import { CommandMenu, useCommandMenuShortcut } from "@agent-native/core/client/navigation";
 import { getThemeInitScript } from "@agent-native/core/client/ui";
 import { IconHierarchy2, IconSun, IconMoon } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { useCallback, useState } from "react";
-import {
-  Links,
-  Meta,
-  Outlet,
-  Scripts,
-  ScrollRestoration,
-  useNavigate,
-} from "react-router";
+import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigate } from "react-router";
 import type { LinksFunction } from "react-router";
 
 import { Layout as AppLayout } from "@/components/layout/Layout";
@@ -44,9 +31,7 @@ configureTracking({
   }),
 });
 
-export const links: LinksFunction = () => [
-  { rel: "stylesheet", href: stylesheet },
-];
+export const links: LinksFunction = () => [{ rel: "stylesheet", href: stylesheet }];
 
 const THEME_INIT_SCRIPT = getThemeInitScript();
 const LOCALE_INIT_SCRIPT = getLocaleInitScript();
@@ -60,10 +45,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           name="viewport"
           content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
         />
-        <script
-          suppressHydrationWarning
-          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
-        />
+        <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <script
           data-agent-native-locale-init
           suppressHydrationWarning
@@ -72,10 +54,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <link rel="manifest" href={appPath("/manifest.json")} />
         <meta name="theme-color" content="#18181B" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta
-          name="apple-mobile-web-app-status-bar-style"
-          content="black-translucent"
-        />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content={APP_TITLE} />
         <link rel="icon" type="image/svg+xml" href={appPath("/favicon.svg")} />
         <link rel="apple-touch-icon" href={appPath("/icon-180.svg")} />
@@ -130,19 +109,10 @@ function AppContent() {
         changelogKey="chat"
       >
         <CommandMenu.Group heading={t("root.commandActions")}>
-          <CommandMenu.Item onSelect={() => {}}>
-            {t("root.commandSearch")}
-          </CommandMenu.Item>
+          <CommandMenu.Item onSelect={() => {}}>{t("root.commandSearch")}</CommandMenu.Item>
           <CommandMenu.Item
             onSelect={() => navigate("/agent")}
-            keywords={[
-              "agent",
-              "context",
-              "files",
-              "connections",
-              "jobs",
-              "access",
-            ]}
+            keywords={["agent", "context", "files", "connections", "jobs", "access"]}
           >
             <IconHierarchy2 size={16} />
             {t("settings.openAgentSettings")}

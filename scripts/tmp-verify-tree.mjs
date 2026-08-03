@@ -50,7 +50,10 @@ const browser = await chromium.launch({
   headless: true,
   args: ["--no-sandbox"],
 });
-const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, colorScheme: "dark" });
+const context = await browser.newContext({
+  viewport: { width: 1600, height: 1000 },
+  colorScheme: "dark",
+});
 const page = await context.newPage();
 
 const results = [];
@@ -79,7 +82,8 @@ const docSnapshotRows = await (async () => {
   const r = await db.execute("SELECT json FROM projects WHERE id = ?", [PROJECT_ID]);
   return JSON.parse(r.rows[0].json).rows ?? [];
 })();
-const rowIdxByTitle = (title) => docSnapshotRows.findIndex((row) => (row.title ?? "").trim() === title.trim());
+const rowIdxByTitle = (title) =>
+  docSnapshotRows.findIndex((row) => (row.title ?? "").trim() === title.trim());
 const findChoiceId = (title) => {
   for (const row of docSnapshotRows) {
     const c = (row.objects ?? []).find((c) => (c.title ?? "").trim() === title.trim());
@@ -99,7 +103,11 @@ try {
   await page.waitForTimeout(1500);
 
   const groupButtons = page.locator('[aria-label="Editor section"] button');
-  check("four group buttons render", (await groupButtons.count()) === 4, `count=${await groupButtons.count()}`);
+  check(
+    "four group buttons render",
+    (await groupButtons.count()) === 4,
+    `count=${await groupButtons.count()}`,
+  );
   const contentLabel = (await groupButtons.first().innerText()).replace(/\s+/g, " ").trim();
   check(
     "Content group shows row/choice counts",
@@ -109,7 +117,10 @@ try {
 
   const tabCount = await page.locator('[role="tab"]').count();
   check("Content group shows 7 tab triggers", tabCount === 7, `count=${tabCount}`);
-  check("Rows tab is active initially", (await page.locator('[role="tab"][aria-selected="true"]').innerText()) === "Rows");
+  check(
+    "Rows tab is active initially",
+    (await page.locator('[role="tab"][aria-selected="true"]').innerText()) === "Rows",
+  );
 
   await groupButtons.filter({ hasText: "Design" }).click();
   await page.waitForTimeout(600);
@@ -122,7 +133,10 @@ try {
   check("Rows trigger is gone in Design group", !designTabs.some((t) => t === "Rows"));
 
   // Deep link: ?tab=json opens the JSON tab directly (Project group).
-  await page.goto(`${BASE}/projects/${PROJECT_ID}?tab=json`, { waitUntil: "networkidle", timeout: 60000 });
+  await page.goto(`${BASE}/projects/${PROJECT_ID}?tab=json`, {
+    waitUntil: "networkidle",
+    timeout: 60000,
+  });
   await page.waitForSelector('[role="tab"]', { timeout: 60000 });
   await page.waitForTimeout(1000);
   const projectGroupOn = await page
@@ -143,7 +157,11 @@ try {
   const rowCard = (idx) => page.locator("div.rounded-lg.border.border-border.bg-card").nth(idx);
   const rowNode = (idx) => rowCard(idx).locator("> div").first();
   const firstRowText = (await rowNode(0).innerText()).replace(/\s+/g, " ").trim();
-  check("tree renders Row 1 badge + title", /Row 1/.test(firstRowText) && /So tired/.test(firstRowText), firstRowText.slice(0, 90));
+  check(
+    "tree renders Row 1 badge + title",
+    /Row 1/.test(firstRowText) && /So tired/.test(firstRowText),
+    firstRowText.slice(0, 90),
+  );
 
   const thumbInfo = await rowNode(0).evaluate((el) => {
     const img = el.querySelector("img");
@@ -156,13 +174,22 @@ try {
   });
   check(
     "row thumbnail is a small cropped icon (size-16 = 64px)",
-    thumbInfo.hasImg && /size-16/.test(thumbInfo.className) && thumbInfo.w <= 128 && thumbInfo.h <= 128,
+    thumbInfo.hasImg &&
+      /size-16/.test(thumbInfo.className) &&
+      thumbInfo.w <= 128 &&
+      thumbInfo.h <= 128,
     `w=${thumbInfo.w} h=${thumbInfo.h} class=${thumbInfo.className.slice(0, 60)}`,
   );
 
-  const actionCount = await rowNode(0).locator('button[title="Delete"], button[title="Add choice"]').count();
+  const actionCount = await rowNode(0)
+    .locator('button[title="Delete"], button[title="Add choice"]')
+    .count();
   const editCount = await page.locator('button[title="Edit"]').count();
-  check("row branch has right-side add/delete actions", actionCount === 2, `actions=${actionCount}`);
+  check(
+    "row branch has right-side add/delete actions",
+    actionCount === 2,
+    `actions=${actionCount}`,
+  );
   check("no edit buttons in the tree (click selects)", editCount === 0, `editButtons=${editCount}`);
 
   const dragHandles = await page.locator("[data-drag-handle]").count();
@@ -173,20 +200,24 @@ try {
   // different set — no windowing or scroll-driven mounting.
   const choiceNodeCount = await page.locator("div.group.relative.flex.pl-8").count();
   const addonBadges = await page.locator("text=Addon").count();
-  check("page mounts a bounded set of choices (not all 1188)", choiceNodeCount > 0 && choiceNodeCount < 600, `choiceNodes=${choiceNodeCount}`);
+  check(
+    "page mounts a bounded set of choices (not all 1188)",
+    choiceNodeCount > 0 && choiceNodeCount < 600,
+    `choiceNodes=${choiceNodeCount}`,
+  );
   check("addon branches render (Addon badges)", addonBadges > 0, `addonBadges=${addonBadges}`);
 
   // Pagination replaces windowing: Next shows a different page of rows.
   const master = page.locator("[data-master-scroll]");
   await page.locator('button:has-text("Next")').first().click();
   await page.waitForTimeout(900);
-  const page2Badges = await page.evaluate(() =>
-    [...new Set(
+  const page2Badges = await page.evaluate(() => [
+    ...new Set(
       [...document.querySelectorAll("span, div")]
         .map((s) => (s.textContent ?? "").trim())
         .filter((t) => /^Row \d+$/.test(t)),
-    )],
-  );
+    ),
+  ]);
   await page.locator('button:has-text("Prev")').first().click();
   await page.waitForTimeout(800);
   check(
@@ -237,14 +268,24 @@ try {
   // Drag row 2 before row 1 (drop on the top edge of row 1's node).
   await manualDrag(rowNode(1), rowNode(0), { x: 150, y: 4 });
   const afterReorder = await snapshotDoc();
-  const reorderApplied = afterReorder.rowsOrder[0] !== before.rowsOrder[0] && afterReorder.rowsOrder[1] === before.rowsOrder[0];
-  check("row drag reordered rows (row 2 now first)", reorderApplied, `first=${afterReorder.rowsOrder[0]}`);
+  const reorderApplied =
+    afterReorder.rowsOrder[0] !== before.rowsOrder[0] &&
+    afterReorder.rowsOrder[1] === before.rowsOrder[0];
+  check(
+    "row drag reordered rows (row 2 now first)",
+    reorderApplied,
+    `first=${afterReorder.rowsOrder[0]}`,
+  );
 
   // Undo: drag the (now first) row back "after" the second row -> index 1.
   const rowNodeHeight = await rowNode(1).evaluate((el) => el.getBoundingClientRect().height);
   await manualDrag(rowNode(0), rowNode(1), { x: 150, y: Math.max(8, rowNodeHeight - 4) });
   const afterUndo = await snapshotDoc();
-  check("row drag undone (original order restored)", same(afterUndo.rowsOrder, before.rowsOrder), "");
+  check(
+    "row drag undone (original order restored)",
+    same(afterUndo.rowsOrder, before.rowsOrder),
+    "",
+  );
 
   // -------------------------------------------------- drag: choice reparent --
   // Move "You Don’t Care" (row 2, index 0) onto the third row header (append).
@@ -254,24 +295,40 @@ try {
   const targetRowIdxNow = curRows.findIndex((id) => id === targetRowId);
   const choiceNodeIn = (rowIdx, title) =>
     rowCard(rowIdx).locator("div.group.relative.flex").filter({ hasText: title }).first();
-  const targetRowHeight = await rowNode(targetRowIdxNow).evaluate((el) => el.getBoundingClientRect().height);
+  const targetRowHeight = await rowNode(targetRowIdxNow).evaluate(
+    (el) => el.getBoundingClientRect().height,
+  );
   await manualDrag(choiceNodeIn(youRunIdxNow, "You Don’t Care"), rowNode(targetRowIdxNow), {
     x: 150,
     y: Math.round(targetRowHeight / 2),
   });
   const afterChoiceMove = await snapshotDoc();
   const targetRowChoices = afterChoiceMove.choicesByRow[targetRowIdxNow];
-  const moved = targetRowChoices.includes(donTCareId) && !afterChoiceMove.choicesByRow[youRunIdxNow].includes(donTCareId);
-  check("choice drag reparents choice to target row", moved, `targetRow=${targetRowChoices.join(",")}`);
+  const moved =
+    targetRowChoices.includes(donTCareId) &&
+    !afterChoiceMove.choicesByRow[youRunIdxNow].includes(donTCareId);
+  check(
+    "choice drag reparents choice to target row",
+    moved,
+    `targetRow=${targetRowChoices.join(",")}`,
+  );
 
   // Undo: drag it back before the first choice ("You’re Lost") of the source row.
-  const backIdx = (await snapshotDoc()).rowsOrder.findIndex((id) => id === docSnapshotRows[youRunIdx].id);
-  await manualDrag(choiceNodeIn(targetRowIdxNow, "You Don’t Care"), choiceNodeIn(backIdx, "You’re Lost"), {
-    x: 150,
-    y: 4,
-  });
+  const backIdx = (await snapshotDoc()).rowsOrder.findIndex(
+    (id) => id === docSnapshotRows[youRunIdx].id,
+  );
+  await manualDrag(
+    choiceNodeIn(targetRowIdxNow, "You Don’t Care"),
+    choiceNodeIn(backIdx, "You’re Lost"),
+    {
+      x: 150,
+      y: 4,
+    },
+  );
   const afterChoiceUndo = await snapshotDoc();
-  const restored = same(afterChoiceUndo.choicesByRow, before.choicesByRow) && same(afterChoiceUndo.rowsOrder, before.rowsOrder);
+  const restored =
+    same(afterChoiceUndo.choicesByRow, before.choicesByRow) &&
+    same(afterChoiceUndo.rowsOrder, before.rowsOrder);
   check("choice drag undone (choice back at original index)", restored, "");
 
   // -------------------------------------------------- drag: addon move -------
@@ -350,10 +407,18 @@ try {
         check("addon drag undone (fingerprint matches)", false, "container vanished after drag");
       }
     } else {
-      check("addon drag exercised (choice with >=2 addons)", false, "container vanished after scroll");
+      check(
+        "addon drag exercised (choice with >=2 addons)",
+        false,
+        "container vanished after scroll",
+      );
     }
   } else {
-    check("addon drag exercised (choice with >=2 addons)", false, "no such choice found after scrolling");
+    check(
+      "addon drag exercised (choice with >=2 addons)",
+      false,
+      "no such choice found after scrolling",
+    );
   }
 
   // Final: the whole document structure (rows, choice membership AND addon

@@ -705,7 +705,9 @@ describe("cyoa-engine groups are namespaces (parity with ICCPlus)", () => {
     const row = makeRow("row_1", [a, b]);
     const app = appWith({
       rows: [row],
-      groups: [{ id: "group_1", name: "G", elements: ["choice_a", "choice_b"], rowElements: [] } as never],
+      groups: [
+        { id: "group_1", name: "G", elements: ["choice_a", "choice_b"], rowElements: [] } as never,
+      ],
     });
     const idx = buildCyoaIndex(app);
     let state = createCyoaState(app);

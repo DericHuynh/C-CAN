@@ -70,10 +70,7 @@ interface UseCyoaOptions {
 }
 
 /** Named slots shown in the save/load dialog. */
-export const BUILD_SLOT_NAMES = Array.from(
-  { length: 99 },
-  (_, i) => `slot-${i + 1}`,
-);
+export const BUILD_SLOT_NAMES = Array.from({ length: 99 }, (_, i) => `slot-${i + 1}`);
 
 export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
   const [state, setState] = useState<CyoaState>(() => {
@@ -84,10 +81,7 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
       for (const choice of row.objects ?? []) {
         if (choice.isAutoActive && !choice.isNotSelectable) {
           initial.activated.set(choice.id, { multiple: 0 });
-          initial.currentChoices.set(
-            row.id,
-            (initial.currentChoices.get(row.id) ?? 0) + 1,
-          );
+          initial.currentChoices.set(row.id, (initial.currentChoices.get(row.id) ?? 0) + 1);
           if (choice.isChangeVariables) {
             for (const variableId of choice.changedVariables ?? []) {
               if (initialIdx.variableMap.has(variableId)) {
@@ -104,14 +98,8 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
   // Rebuild the lookup index whenever runtime duplicate rows change.
   const idx = useMemo(() => buildCyoaIndex(app, state.dupRows), [app, state.dupRows]);
 
-  const totals = useMemo(
-    () => computePointTotals(app, idx, state),
-    [app, idx, state],
-  );
-  const buildCode = useMemo(
-    () => encodeBuildCode(app, idx, state),
-    [app, idx, state],
-  );
+  const totals = useMemo(() => computePointTotals(app, idx, state), [app, idx, state]);
+  const buildCode = useMemo(() => encodeBuildCode(app, idx, state), [app, idx, state]);
 
   // Audio buffer cache for SFX (data URLs only).
   const audioCache = useRef(new Map<string, AudioBuffer>());
@@ -179,11 +167,7 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
   // -------------------------------------------------------------------------
 
   /** Roll random/expression scores for a just-selected choice into state. */
-  function rollScores(
-    next: CyoaState,
-    choice: Choice | SelectableAddon,
-    count: number,
-  ): CyoaState {
+  function rollScores(next: CyoaState, choice: Choice | SelectableAddon, count: number): CyoaState {
     const scores = choice.scores ?? [];
     let rolled = next;
     for (let i = 0; i < scores.length; i++) {
@@ -218,7 +202,11 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
       } else {
         value = changeType === "2" ? true : false;
       }
-      const copy = { ...next, variables: new Map(next.variables), activated: new Map(next.activated) };
+      const copy = {
+        ...next,
+        variables: new Map(next.variables),
+        activated: new Map(next.activated),
+      };
       copy.variables.set(variableId, value);
       if (value) {
         copy.activated.set(variableId, { multiple: 0, isVariable: true });
@@ -289,8 +277,7 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
     row: Row,
     kind: "single" | "less",
   ): CyoaState {
-    const beforeCount =
-      kind === "less" ? (prev.activated.get(choice.id)?.multiple ?? 1) : 1;
+    const beforeCount = kind === "less" ? (prev.activated.get(choice.id)?.multiple ?? 1) : 1;
     let next: CyoaState;
     if (kind === "less") {
       next = selectOneLess(choice, row, prev);
@@ -326,7 +313,7 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
     apply: () => void,
   ): boolean {
     const flag = isSelect ? choice.isSelectDelayed : choice.isDeselectDelayed;
-    const ms = Number(isSelect ? choice.selectDelayTime : choice.deselectDelayTime ?? 0);
+    const ms = Number(isSelect ? choice.selectDelayTime : (choice.deselectDelayTime ?? 0));
     if (!flag || !Number.isFinite(ms) || ms <= 0) {
       apply();
       return false;
@@ -445,9 +432,16 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
           next.currentChoices.set(rowId, (next.currentChoices.get(rowId) ?? 0) + 1);
         }
         const choice = cMap?.choice as
-          | (Choice & { activateOtherChoice?: boolean; activateThisChoice?: string; isAllowDeselect?: boolean; activateAfterReset?: boolean; isActivateRandom?: boolean })
+          | (Choice & {
+              activateOtherChoice?: boolean;
+              activateThisChoice?: string;
+              isAllowDeselect?: boolean;
+              activateAfterReset?: boolean;
+              isActivateRandom?: boolean;
+            })
           | undefined;
-        if (!choice?.activateOtherChoice || typeof choice.activateThisChoice === "undefined") continue;
+        if (!choice?.activateOtherChoice || typeof choice.activateThisChoice === "undefined")
+          continue;
         if (choice.isAllowDeselect && !choice.activateAfterReset) continue;
         // Re-activate linked targets after reset (original `cleanActivated`),
         // replaying the recorded random picks when available.

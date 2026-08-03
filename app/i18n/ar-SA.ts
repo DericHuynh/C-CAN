@@ -6,13 +6,11 @@ const messages = {
     languageDescription: "اختر لغة الواجهة. يتم حفظ هذا التفضيل في حسابك.",
     languageLabel: "لغة الواجهة",
     workspaceTitle: "مساحة العمل",
-    workspaceDescription:
-      "إدارة أعضاء الفريق ووصول المؤسسة وتفضيلات مساحة العمل المشتركة.",
+    workspaceDescription: "إدارة أعضاء الفريق ووصول المؤسسة وتفضيلات مساحة العمل المشتركة.",
     openTeamSettings: "فتح إعدادات الفريق",
     openResourceSettings: "فتح إعدادات الموارد",
     agentTitle: "إدارة الوكيل",
-    agentDescription:
-      "أدر نموذج الوكيل ومفاتيح API والأتمتة والصوت وعناصر التحكم الأخرى.",
+    agentDescription: "أدر نموذج الوكيل ومفاتيح API والأتمتة والصوت وعناصر التحكم الأخرى.",
     openAgentSettings: "إدارة الوكيل",
   },
   chat: {

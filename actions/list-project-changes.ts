@@ -16,7 +16,13 @@ export default defineAction({
   readOnly: true,
   schema: z.object({
     projectId: z.string().describe("Project id"),
-    limit: z.number().int().min(1).max(100).optional().describe("Max entries to return (default 50)"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .optional()
+      .describe("Max entries to return (default 50)"),
   }),
   run: async ({ projectId, limit }) => {
     const db = getDb();

@@ -22,8 +22,7 @@ const messages = {
     chats: "Discussions",
     composerPlaceholder: "Demandez à l’agent...",
     emptyState: "Posez-moi une question",
-    heroDescription:
-      "Demandez à l’agent d’inspecter, d’expliquer ou de modifier cette app.",
+    heroDescription: "Demandez à l’agent d’inspecter, d’expliquer ou de modifier cette app.",
     heroTitle: "Comment puis-je aider ?",
     inspectEmptyState: "Posez-moi une question sur cette app",
     inspectSuggestionAction: "Afficher les actions disponibles",

@@ -269,7 +269,6 @@ export function PointTypePanel({ project }: PointTypePanelProps) {
           }}
         />
       )}
-
     </div>
   );
 
@@ -323,13 +322,7 @@ interface PointTypeDialogProps {
   onSave: (form: PointTypeForm) => void;
 }
 
-function PointTypeDialog({
-  item,
-  images,
-  busy = false,
-  onCancel,
-  onSave,
-}: PointTypeDialogProps) {
+function PointTypeDialog({ item, images, busy = false, onCancel, onSave }: PointTypeDialogProps) {
   const isEdit = Boolean(item);
   const [name, setName] = useState(item?.name ?? "");
   const [startingSum, setStartingSum] = useState(
@@ -340,9 +333,7 @@ function PointTypeDialog({
   );
   const [beforeText, setBeforeText] = useState(item?.beforeText ?? "");
   const [afterText, setAfterText] = useState(item?.afterText ?? "");
-  const [isNotShownPointBar, setIsNotShownPointBar] = useState(
-    item?.isNotShownPointBar ?? false,
-  );
+  const [isNotShownPointBar, setIsNotShownPointBar] = useState(item?.isNotShownPointBar ?? false);
 
   // Gating & limits
   const [belowZeroNotAllowed, setBelowZeroNotAllowed] = useState(
@@ -369,9 +360,7 @@ function PointTypeDialog({
     item?.iconHeight != null ? String(item.iconHeight) : "0",
   );
   const [imageOnSide, setImageOnSide] = useState(item?.imageOnSide ?? false);
-  const [imageSidePlacement, setImageSidePlacement] = useState(
-    item?.imageSidePlacement ?? false,
-  );
+  const [imageSidePlacement, setImageSidePlacement] = useState(item?.imageSidePlacement ?? false);
   const [negativeIconIsOn, setNegativeIconIsOn] = useState(item?.negativeIconIsOn ?? false);
   const [negativeImage, setNegativeImage] = useState(item?.negativeImage ?? "");
   const [negativeIconWidth, setNegativeIconWidth] = useState(
@@ -452,414 +441,414 @@ function PointTypeDialog({
       onSave={handleSave}
     >
       <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="point-type-name">Name</Label>
+          <Input
+            id="point-type-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="e.g. Gold"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="point-type-name">Name</Label>
+            <Label htmlFor="point-type-start">Starting sum</Label>
             <Input
-              id="point-type-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="e.g. Gold"
+              id="point-type-start"
+              type="number"
+              value={startingSum}
+              onChange={(event) => setStartingSum(event.target.value)}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="point-type-start">Starting sum</Label>
-              <Input
-                id="point-type-start"
-                type="number"
-                value={startingSum}
-                onChange={(event) => setStartingSum(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="point-type-init">Init value</Label>
-              <Input
-                id="point-type-init"
-                type="number"
-                value={initValue}
-                onChange={(event) => setInitValue(event.target.value)}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="point-type-init">Init value</Label>
+            <Input
+              id="point-type-init"
+              type="number"
+              value={initValue}
+              onChange={(event) => setInitValue(event.target.value)}
+            />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="point-type-before">Before text</Label>
-              <Input
-                id="point-type-before"
-                value={beforeText}
-                onChange={(event) => setBeforeText(event.target.value)}
-                placeholder="e.g. Cost:"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="point-type-after">After text</Label>
-              <Input
-                id="point-type-after"
-                value={afterText}
-                onChange={(event) => setAfterText(event.target.value)}
-                placeholder="e.g. gold"
-              />
-            </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="point-type-before">Before text</Label>
+            <Input
+              id="point-type-before"
+              value={beforeText}
+              onChange={(event) => setBeforeText(event.target.value)}
+              placeholder="e.g. Cost:"
+            />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="point-type-after">After text</Label>
+            <Input
+              id="point-type-after"
+              value={afterText}
+              onChange={(event) => setAfterText(event.target.value)}
+              placeholder="e.g. gold"
+            />
+          </div>
+        </div>
+        <label
+          htmlFor="point-type-hide-bar"
+          className="flex cursor-pointer items-center gap-2 text-sm"
+        >
+          <Checkbox
+            id="point-type-hide-bar"
+            checked={isNotShownPointBar}
+            onCheckedChange={(checked) => setIsNotShownPointBar(checked === true)}
+          />
+          Hide from the viewer's point bar
+        </label>
+
+        {/* Gating & limits */}
+        <div className="space-y-3 border-t border-border pt-4">
+          <p className="text-sm font-medium">Gating &amp; limits</p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label
+              htmlFor="point-type-below-zero"
+              className="flex cursor-pointer items-center gap-2 text-sm"
+            >
+              <Checkbox
+                id="point-type-below-zero"
+                checked={belowZeroNotAllowed}
+                onCheckedChange={(checked) => setBelowZeroNotAllowed(checked === true)}
+              />
+              Block going below zero
+            </label>
+            <label
+              htmlFor="point-type-hide-objects"
+              className="flex cursor-pointer items-center gap-2 text-sm"
+            >
+              <Checkbox
+                id="point-type-hide-objects"
+                checked={isNotShownObjects}
+                onCheckedChange={(checked) => setIsNotShownObjects(checked === true)}
+              />
+              Hide on choice objects
+            </label>
+            <label
+              htmlFor="point-type-allow-float"
+              className="flex cursor-pointer items-center gap-2 text-sm"
+            >
+              <Checkbox
+                id="point-type-allow-float"
+                checked={allowFloat}
+                onCheckedChange={(checked) => setAllowFloat(checked === true)}
+              />
+              Allow decimal values
+            </label>
+            <label
+              htmlFor="point-type-plus-minus"
+              className="flex cursor-pointer items-center gap-2 text-sm"
+            >
+              <Checkbox
+                id="point-type-plus-minus"
+                checked={plussOrMinusAdded}
+                onCheckedChange={(checked) => setPlussOrMinusAdded(checked === true)}
+              />
+              Show +/- sign
+            </label>
+            <label
+              htmlFor="point-type-plus-minus-inverted"
+              className="flex cursor-pointer items-center gap-2 text-sm"
+            >
+              <Checkbox
+                id="point-type-plus-minus-inverted"
+                checked={plussOrMinusInverted}
+                onCheckedChange={(checked) => setPlussOrMinusInverted(checked === true)}
+              />
+              Invert +/- sign
+            </label>
+          </div>
+          {allowFloat ? (
+            <div className="space-y-2">
+              <Label htmlFor="point-type-decimals">Decimal places</Label>
+              <Input
+                id="point-type-decimals"
+                type="number"
+                min={0}
+                max={10}
+                value={decimalPlaces}
+                onChange={(event) => setDecimalPlaces(event.target.value)}
+              />
+            </div>
+          ) : null}
+          <div className="space-y-2">
+            <Label htmlFor="point-type-activated">
+              Activated by
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                choice / global requirement / variable id
+              </span>
+            </Label>
+            <Input
+              id="point-type-activated"
+              value={activatedId}
+              onChange={(event) => setActivatedId(event.target.value)}
+              placeholder="e.g. choice-abc1 or greq-xyz2"
+            />
+            <p className="text-xs text-muted-foreground">
+              The point only shows in the bar while this id is active.
+            </p>
+          </div>
+        </div>
+
+        {/* Icons */}
+        <div className="space-y-3 border-t border-border pt-4">
           <label
-            htmlFor="point-type-hide-bar"
-            className="flex cursor-pointer items-center gap-2 text-sm"
+            htmlFor="point-type-icon-on"
+            className="flex cursor-pointer items-center gap-2 text-sm font-medium"
           >
             <Checkbox
-              id="point-type-hide-bar"
-              checked={isNotShownPointBar}
-              onCheckedChange={(checked) => setIsNotShownPointBar(checked === true)}
+              id="point-type-icon-on"
+              checked={iconIsOn}
+              onCheckedChange={(checked) => setIconIsOn(checked === true)}
             />
-            Hide from the viewer's point bar
+            Show an icon for this point
           </label>
-
-          {/* Gating & limits */}
-          <div className="space-y-3 border-t border-border pt-4">
-            <p className="text-sm font-medium">Gating &amp; limits</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <label
-                htmlFor="point-type-below-zero"
-                className="flex cursor-pointer items-center gap-2 text-sm"
-              >
-                <Checkbox
-                  id="point-type-below-zero"
-                  checked={belowZeroNotAllowed}
-                  onCheckedChange={(checked) => setBelowZeroNotAllowed(checked === true)}
-                />
-                Block going below zero
-              </label>
-              <label
-                htmlFor="point-type-hide-objects"
-                className="flex cursor-pointer items-center gap-2 text-sm"
-              >
-                <Checkbox
-                  id="point-type-hide-objects"
-                  checked={isNotShownObjects}
-                  onCheckedChange={(checked) => setIsNotShownObjects(checked === true)}
-                />
-                Hide on choice objects
-              </label>
-              <label
-                htmlFor="point-type-allow-float"
-                className="flex cursor-pointer items-center gap-2 text-sm"
-              >
-                <Checkbox
-                  id="point-type-allow-float"
-                  checked={allowFloat}
-                  onCheckedChange={(checked) => setAllowFloat(checked === true)}
-                />
-                Allow decimal values
-              </label>
-              <label
-                htmlFor="point-type-plus-minus"
-                className="flex cursor-pointer items-center gap-2 text-sm"
-              >
-                <Checkbox
-                  id="point-type-plus-minus"
-                  checked={plussOrMinusAdded}
-                  onCheckedChange={(checked) => setPlussOrMinusAdded(checked === true)}
-                />
-                Show +/- sign
-              </label>
-              <label
-                htmlFor="point-type-plus-minus-inverted"
-                className="flex cursor-pointer items-center gap-2 text-sm"
-              >
-                <Checkbox
-                  id="point-type-plus-minus-inverted"
-                  checked={plussOrMinusInverted}
-                  onCheckedChange={(checked) => setPlussOrMinusInverted(checked === true)}
-                />
-                Invert +/- sign
-              </label>
-            </div>
-            {allowFloat ? (
+          {iconIsOn ? (
+            <div className="space-y-3">
               <div className="space-y-2">
-                <Label htmlFor="point-type-decimals">Decimal places</Label>
-                <Input
-                  id="point-type-decimals"
-                  type="number"
-                  min={0}
-                  max={10}
-                  value={decimalPlaces}
-                  onChange={(event) => setDecimalPlaces(event.target.value)}
+                <ImageResourceSelect
+                  id="point-type-image"
+                  label="Image"
+                  images={images}
+                  value={image}
+                  onChange={setImage}
                 />
               </div>
-            ) : null}
-            <div className="space-y-2">
-              <Label htmlFor="point-type-activated">
-                Activated by
-                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                  choice / global requirement / variable id
-                </span>
-              </Label>
-              <Input
-                id="point-type-activated"
-                value={activatedId}
-                onChange={(event) => setActivatedId(event.target.value)}
-                placeholder="e.g. choice-abc1 or greq-xyz2"
-              />
-              <p className="text-xs text-muted-foreground">
-                The point only shows in the bar while this id is active.
-              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="point-type-icon-width">Icon width</Label>
+                  <Input
+                    id="point-type-icon-width"
+                    type="number"
+                    value={iconWidth}
+                    onChange={(event) => setIconWidth(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="point-type-icon-height">Icon height</Label>
+                  <Input
+                    id="point-type-icon-height"
+                    type="number"
+                    value={iconHeight}
+                    onChange={(event) => setIconHeight(event.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="point-type-icon-side">Side</Label>
+                  <Select
+                    value={sideValue(imageOnSide)}
+                    onValueChange={(value) => setImageOnSide(value === "right")}
+                  >
+                    <SelectTrigger id="point-type-icon-side" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">Left</SelectItem>
+                      <SelectItem value="right">Right</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="point-type-icon-placement">Placement</Label>
+                  <Select
+                    value={placementValue(imageSidePlacement)}
+                    onValueChange={(value) => setImageSidePlacement(value === "after")}
+                  >
+                    <SelectTrigger id="point-type-icon-placement" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="before">Before text</SelectItem>
+                      <SelectItem value="after">After text</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : null}
 
-          {/* Icons */}
-          <div className="space-y-3 border-t border-border pt-4">
-            <label
-              htmlFor="point-type-icon-on"
-              className="flex cursor-pointer items-center gap-2 text-sm font-medium"
-            >
-              <Checkbox
-                id="point-type-icon-on"
-                checked={iconIsOn}
-                onCheckedChange={(checked) => setIconIsOn(checked === true)}
-              />
-              Show an icon for this point
-            </label>
-            {iconIsOn ? (
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <ImageResourceSelect
-                    id="point-type-image"
-                    label="Image"
-                    images={images}
-                    value={image}
-                    onChange={setImage}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="point-type-icon-width">Icon width</Label>
-                    <Input
-                      id="point-type-icon-width"
-                      type="number"
-                      value={iconWidth}
-                      onChange={(event) => setIconWidth(event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="point-type-icon-height">Icon height</Label>
-                    <Input
-                      id="point-type-icon-height"
-                      type="number"
-                      value={iconHeight}
-                      onChange={(event) => setIconHeight(event.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="point-type-icon-side">Side</Label>
-                    <Select
-                      value={sideValue(imageOnSide)}
-                      onValueChange={(value) => setImageOnSide(value === "right")}
-                    >
-                      <SelectTrigger id="point-type-icon-side" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="left">Left</SelectItem>
-                        <SelectItem value="right">Right</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="point-type-icon-placement">Placement</Label>
-                    <Select
-                      value={placementValue(imageSidePlacement)}
-                      onValueChange={(value) => setImageSidePlacement(value === "after")}
-                    >
-                      <SelectTrigger id="point-type-icon-placement" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="before">Before text</SelectItem>
-                        <SelectItem value="after">After text</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+          <label
+            htmlFor="point-type-negative-icon-on"
+            className="flex cursor-pointer items-center gap-2 text-sm font-medium"
+          >
+            <Checkbox
+              id="point-type-negative-icon-on"
+              checked={negativeIconIsOn}
+              onCheckedChange={(checked) => setNegativeIconIsOn(checked === true)}
+            />
+            Show a separate negative icon
+          </label>
+          {negativeIconIsOn ? (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <ImageResourceSelect
+                  id="point-type-negative-image"
+                  label="Negative image"
+                  images={images}
+                  value={negativeImage}
+                  onChange={setNegativeImage}
+                />
               </div>
-            ) : null}
-
-            <label
-              htmlFor="point-type-negative-icon-on"
-              className="flex cursor-pointer items-center gap-2 text-sm font-medium"
-            >
-              <Checkbox
-                id="point-type-negative-icon-on"
-                checked={negativeIconIsOn}
-                onCheckedChange={(checked) => setNegativeIconIsOn(checked === true)}
-              />
-              Show a separate negative icon
-            </label>
-            {negativeIconIsOn ? (
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <ImageResourceSelect
-                    id="point-type-negative-image"
-                    label="Negative image"
-                    images={images}
-                    value={negativeImage}
-                    onChange={setNegativeImage}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="point-type-neg-icon-width">Icon width</Label>
-                    <Input
-                      id="point-type-neg-icon-width"
-                      type="number"
-                      value={negativeIconWidth}
-                      onChange={(event) => setNegativeIconWidth(event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="point-type-neg-icon-height">Icon height</Label>
-                    <Input
-                      id="point-type-neg-icon-height"
-                      type="number"
-                      value={negativeIconHeight}
-                      onChange={(event) => setNegativeIconHeight(event.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="point-type-neg-icon-side">Side</Label>
-                    <Select
-                      value={sideValue(negativeImageOnSide)}
-                      onValueChange={(value) => setNegativeImageOnSide(value === "right")}
-                    >
-                      <SelectTrigger id="point-type-neg-icon-side" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="left">Left</SelectItem>
-                        <SelectItem value="right">Right</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="point-type-neg-icon-placement">Placement</Label>
-                    <Select
-                      value={placementValue(negativeImageSidePlacement)}
-                      onValueChange={(value) => setNegativeImageSidePlacement(value === "after")}
-                    >
-                      <SelectTrigger id="point-type-neg-icon-placement" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="before">Before text</SelectItem>
-                        <SelectItem value="after">After text</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Colors */}
-          <div className="space-y-3 border-t border-border pt-4">
-            <label
-              htmlFor="point-type-colors-on"
-              className="flex cursor-pointer items-center gap-2 text-sm font-medium"
-            >
-              <Checkbox
-                id="point-type-colors-on"
-                checked={pointColorsIsOn}
-                onCheckedChange={(checked) => setPointColorsIsOn(checked === true)}
-              />
-              Color the point value
-            </label>
-            {pointColorsIsOn ? (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="point-type-pos-color">Positive color</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="point-type-pos-color"
-                      type="color"
-                      className="size-10 w-16 shrink-0 cursor-pointer p-1"
-                      value={positiveColor}
-                      onChange={(event) => setPositiveColor(event.target.value)}
-                    />
-                    <span className="font-mono text-xs text-muted-foreground">{positiveColor}</span>
-                  </div>
+                  <Label htmlFor="point-type-neg-icon-width">Icon width</Label>
+                  <Input
+                    id="point-type-neg-icon-width"
+                    type="number"
+                    value={negativeIconWidth}
+                    onChange={(event) => setNegativeIconWidth(event.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="point-type-neg-color">Negative color</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="point-type-neg-color"
-                      type="color"
-                      className="size-10 w-16 shrink-0 cursor-pointer p-1"
-                      value={negativeColor}
-                      onChange={(event) => setNegativeColor(event.target.value)}
-                    />
-                    <span className="font-mono text-xs text-muted-foreground">{negativeColor}</span>
-                  </div>
+                  <Label htmlFor="point-type-neg-icon-height">Icon height</Label>
+                  <Input
+                    id="point-type-neg-icon-height"
+                    type="number"
+                    value={negativeIconHeight}
+                    onChange={(event) => setNegativeIconHeight(event.target.value)}
+                  />
                 </div>
               </div>
-            ) : null}
-
-            <label
-              htmlFor="point-type-private-colors-on"
-              className="flex cursor-pointer items-center gap-2 text-sm font-medium"
-            >
-              <Checkbox
-                id="point-type-private-colors-on"
-                checked={pointPrivateColorIsOn}
-                onCheckedChange={(checked) => setPointPrivateColorIsOn(checked === true)}
-              />
-              Use separate private colors
-            </label>
-            {pointPrivateColorIsOn ? (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="point-type-private-color">Private color</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="point-type-private-color"
-                      type="color"
-                      className="size-10 w-16 shrink-0 cursor-pointer p-1"
-                      value={privateColor}
-                      onChange={(event) => setPrivateColor(event.target.value)}
-                    />
-                    <span className="font-mono text-xs text-muted-foreground">{privateColor}</span>
-                  </div>
+                  <Label htmlFor="point-type-neg-icon-side">Side</Label>
+                  <Select
+                    value={sideValue(negativeImageOnSide)}
+                    onValueChange={(value) => setNegativeImageOnSide(value === "right")}
+                  >
+                    <SelectTrigger id="point-type-neg-icon-side" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">Left</SelectItem>
+                      <SelectItem value="right">Right</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="point-type-private-neg-color">Private negative color</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="point-type-private-neg-color"
-                      type="color"
-                      className="size-10 w-16 shrink-0 cursor-pointer p-1"
-                      value={privateNegativeColor}
-                      onChange={(event) => setPrivateNegativeColor(event.target.value)}
-                    />
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {privateNegativeColor}
-                    </span>
-                  </div>
+                  <Label htmlFor="point-type-neg-icon-placement">Placement</Label>
+                  <Select
+                    value={placementValue(negativeImageSidePlacement)}
+                    onValueChange={(value) => setNegativeImageSidePlacement(value === "after")}
+                  >
+                    <SelectTrigger id="point-type-neg-icon-placement" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="before">Before text</SelectItem>
+                      <SelectItem value="after">After text</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
+        </div>
 
-          <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            Preview:{" "}
-            <span className="text-foreground">
-              {[beforeText, startingSum, afterText]
-                .map((part) => part.trim())
-                .filter(Boolean)
-                .join(" ") || "—"}
-            </span>
-          </p>
+        {/* Colors */}
+        <div className="space-y-3 border-t border-border pt-4">
+          <label
+            htmlFor="point-type-colors-on"
+            className="flex cursor-pointer items-center gap-2 text-sm font-medium"
+          >
+            <Checkbox
+              id="point-type-colors-on"
+              checked={pointColorsIsOn}
+              onCheckedChange={(checked) => setPointColorsIsOn(checked === true)}
+            />
+            Color the point value
+          </label>
+          {pointColorsIsOn ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="point-type-pos-color">Positive color</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="point-type-pos-color"
+                    type="color"
+                    className="size-10 w-16 shrink-0 cursor-pointer p-1"
+                    value={positiveColor}
+                    onChange={(event) => setPositiveColor(event.target.value)}
+                  />
+                  <span className="font-mono text-xs text-muted-foreground">{positiveColor}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="point-type-neg-color">Negative color</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="point-type-neg-color"
+                    type="color"
+                    className="size-10 w-16 shrink-0 cursor-pointer p-1"
+                    value={negativeColor}
+                    onChange={(event) => setNegativeColor(event.target.value)}
+                  />
+                  <span className="font-mono text-xs text-muted-foreground">{negativeColor}</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <label
+            htmlFor="point-type-private-colors-on"
+            className="flex cursor-pointer items-center gap-2 text-sm font-medium"
+          >
+            <Checkbox
+              id="point-type-private-colors-on"
+              checked={pointPrivateColorIsOn}
+              onCheckedChange={(checked) => setPointPrivateColorIsOn(checked === true)}
+            />
+            Use separate private colors
+          </label>
+          {pointPrivateColorIsOn ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="point-type-private-color">Private color</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="point-type-private-color"
+                    type="color"
+                    className="size-10 w-16 shrink-0 cursor-pointer p-1"
+                    value={privateColor}
+                    onChange={(event) => setPrivateColor(event.target.value)}
+                  />
+                  <span className="font-mono text-xs text-muted-foreground">{privateColor}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="point-type-private-neg-color">Private negative color</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="point-type-private-neg-color"
+                    type="color"
+                    className="size-10 w-16 shrink-0 cursor-pointer p-1"
+                    value={privateNegativeColor}
+                    onChange={(event) => setPrivateNegativeColor(event.target.value)}
+                  />
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {privateNegativeColor}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          Preview:{" "}
+          <span className="text-foreground">
+            {[beforeText, startingSum, afterText]
+              .map((part) => part.trim())
+              .filter(Boolean)
+              .join(" ") || "—"}
+          </span>
+        </p>
       </div>
     </EditorPane>
   );

@@ -62,7 +62,12 @@ export function RequirementListEditor({
   // renders lazily and searchably — mounting thousands of SelectItems per
   // requirement made opening any editor take seconds.
   const choiceItems = useMemo(
-    () => choices.map((choice) => ({ value: choice.id, label: choice.label, searchText: choice.label })),
+    () =>
+      choices.map((choice) => ({
+        value: choice.id,
+        label: choice.label,
+        searchText: choice.label,
+      })),
     [choices],
   );
   const pointTypeItems = useMemo(
@@ -125,7 +130,9 @@ export function RequirementListEditor({
                       items={choiceItems}
                       placeholder="Select a choice"
                       searchable
-                      renderValue={(reqId) => choices.find((choice) => choice.id === reqId)?.label ?? reqId}
+                      renderValue={(reqId) =>
+                        choices.find((choice) => choice.id === reqId)?.label ?? reqId
+                      }
                     />
                   </div>
                   <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm">

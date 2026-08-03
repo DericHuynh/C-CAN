@@ -36,7 +36,10 @@ const url = page.url();
 const signedIn = !url.includes("sign-in");
 console.log("after submit url:", url, "signedIn:", signedIn);
 if (!signedIn) {
-  const body = await page.locator("body").innerText().catch(() => "");
+  const body = await page
+    .locator("body")
+    .innerText()
+    .catch(() => "");
   console.log("page snippet:", body.replace(/\n+/g, " ").slice(0, 300));
 }
 await browser.close();

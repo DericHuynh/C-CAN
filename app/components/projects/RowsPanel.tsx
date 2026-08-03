@@ -194,7 +194,8 @@ export function RowsPanel({ project }: RowsPanelProps) {
         { projectId, rowId: row.id },
         {
           onSuccess: () => toast.success("Choice added"),
-          onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to add choice"),
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Failed to add choice"),
         },
       );
     },
@@ -223,10 +224,7 @@ export function RowsPanel({ project }: RowsPanelProps) {
         onSuccess: () => {
           toast.success("Choice deleted");
           setDeleteChoiceTarget(null);
-          if (
-            selection?.kind === "choice" &&
-            selection.choice.id === choice.id
-          ) {
+          if (selection?.kind === "choice" && selection.choice.id === choice.id) {
             setSelection(null);
           }
         },
@@ -283,8 +281,7 @@ export function RowsPanel({ project }: RowsPanelProps) {
             // Reveal the page that now contains the new row.
             setPage(Math.floor(insertAt / ROW_PAGE_SIZE));
           },
-          onError: (err) =>
-            toast.error(err instanceof Error ? err.message : "Failed to add row"),
+          onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to add row"),
         },
       );
     },
@@ -330,8 +327,7 @@ export function RowsPanel({ project }: RowsPanelProps) {
           onSuccess: (data) => {
             if (data?.choice) setSelection({ kind: "addon", choice: data.choice, row });
           },
-          onError: (err) =>
-            toast.error(err instanceof Error ? err.message : "Failed to add addon"),
+          onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to add addon"),
         },
       );
     },

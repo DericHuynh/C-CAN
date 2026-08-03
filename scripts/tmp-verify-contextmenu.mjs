@@ -25,7 +25,10 @@ const browser = await chromium.launch({
   headless: true,
   args: ["--no-sandbox"],
 });
-const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, colorScheme: "dark" });
+const context = await browser.newContext({
+  viewport: { width: 1600, height: 1000 },
+  colorScheme: "dark",
+});
 const page = await context.newPage();
 
 const results = [];
@@ -60,7 +63,11 @@ const before = await docRows();
 await rowNode(0).click({ button: "right" });
 await page.waitForSelector("text=Add row above", { timeout: 5000 });
 const rowItems = await menuButtons().allInnerTexts();
-check("row context menu offers above/below", rowItems.join("|") === "Add row above|Add row below", rowItems.join("|"));
+check(
+  "row context menu offers above/below",
+  rowItems.join("|") === "Add row above|Add row below",
+  rowItems.join("|"),
+);
 
 // Close with Escape.
 await page.keyboard.press("Escape");
@@ -79,7 +86,11 @@ const inserted =
   rowsAfterAdd[0] === rowsBeforeAdd[0] &&
   rowsAfterAdd[2] === rowsBeforeAdd[1] &&
   !rowsBeforeAdd.includes(rowsAfterAdd[1]);
-check("add row above inserts before the target", inserted, `${rowsAfterAdd.length} rows, new=${rowsAfterAdd[1]?.slice(0, 12)}`);
+check(
+  "add row above inserts before the target",
+  inserted,
+  `${rowsAfterAdd.length} rows, new=${rowsAfterAdd[1]?.slice(0, 12)}`,
+);
 // New row selected in the detail pane.
 const rowTitle = await page.locator("#row-title").count();
 check("new row selected in detail pane", rowTitle === 1, "");
@@ -88,7 +99,11 @@ check("new row selected in detail pane", rowTitle === 1, "");
 await page.locator("div.group.relative.flex.pl-8").first().click({ button: "right" });
 await page.waitForSelector("text=Add choice above", { timeout: 5000 });
 const choiceItems = await menuButtons().allInnerTexts();
-check("choice context menu offers above/below", choiceItems.join("|") === "Add choice above|Add choice below", choiceItems.join("|"));
+check(
+  "choice context menu offers above/below",
+  choiceItems.join("|") === "Add choice above|Add choice below",
+  choiceItems.join("|"),
+);
 await page.keyboard.press("Escape");
 await page.waitForTimeout(300);
 
@@ -106,15 +121,25 @@ if (addonContainer) {
   await addonContainer.locator("div.group.relative.flex.pl-16").first().click({ button: "right" });
   await page.waitForSelector("text=Add addon above", { timeout: 5000 });
   const addonItems = await menuButtons().allInnerTexts();
-  check("addon context menu offers above/below", addonItems.join("|") === "Add addon above|Add addon below", addonItems.join("|"));
+  check(
+    "addon context menu offers above/below",
+    addonItems.join("|") === "Add addon above|Add addon below",
+    addonItems.join("|"),
+  );
   await menuButtons().filter({ hasText: "Add addon below" }).click();
   await page.waitForTimeout(1200);
   const rowsNow = await docRows();
   const addonCounts = rowsNow.flatMap((r) => (r.objects ?? []).map((c) => (c.addons ?? []).length));
-  const beforeAddonCounts = before.flatMap((r) => (r.objects ?? []).map((c) => (c.addons ?? []).length));
+  const beforeAddonCounts = before.flatMap((r) =>
+    (r.objects ?? []).map((c) => (c.addons ?? []).length),
+  );
   const totalBefore = beforeAddonCounts.reduce((s, n) => s + n, 0);
   const totalNow = addonCounts.reduce((s, n) => s + n, 0);
-  check("add addon below increments addon count", totalNow === totalBefore + 1, `${totalBefore} -> ${totalNow}`);
+  check(
+    "add addon below increments addon count",
+    totalNow === totalBefore + 1,
+    `${totalBefore} -> ${totalNow}`,
+  );
 } else {
   check("addon context menu (no addon on page 1)", false, "no addon node mounted on page 1");
 }

@@ -113,11 +113,7 @@ function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
   return `data:${mime};base64,${btoa(binary)}`;
 }
 
-function replaceFields(
-  obj: unknown,
-  keys: string[],
-  images: Map<string, string>,
-): void {
+function replaceFields(obj: unknown, keys: string[], images: Map<string, string>): void {
   if (!obj || typeof obj !== "object") return;
   const record = obj as Record<string, unknown>;
   for (const key of keys) {
@@ -151,7 +147,10 @@ function inlineRowImages(row: Record<string, unknown>, images: Map<string, strin
  * Replaces `images/…` paths inside an ICCPlus document with their data URLs
  * (port of the original `replaceImages`). Mutates and returns the document.
  */
-export function inlineZipImages(doc: Record<string, unknown>, files: Map<string, Uint8Array>): Record<string, unknown> {
+export function inlineZipImages(
+  doc: Record<string, unknown>,
+  files: Map<string, Uint8Array>,
+): Record<string, unknown> {
   const images = new Map<string, string>();
   for (const [name, bytes] of files) {
     if (!name.startsWith("images/") || name.endsWith("/")) continue;

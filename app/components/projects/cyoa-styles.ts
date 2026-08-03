@@ -674,7 +674,12 @@ function rowBodyBackground(
   row: Row,
   idx: CyoaIndex,
   state: CyoaState,
-): { backgroundImage: string; backgroundRepeat: string; backgroundSize: string; backgroundColor: string } {
+): {
+  backgroundImage: string;
+  backgroundRepeat: string;
+  backgroundSize: string;
+  backgroundColor: string;
+} {
   const rowData = row as Row & {
     styling?: Record<string, unknown>;
     isPrivateStyling?: boolean;
@@ -719,7 +724,9 @@ function rowBodyBackground(
     backgroundRepeat: isOn(styling, "isBackgroundRepeat") ? "repeat" : "",
     backgroundSize: isOn(styling, "isBackgroundFitIn") ? "100% 100%" : "cover",
     backgroundColor:
-      isOn(styling, "bgColorIsOn") && str(styling, "backgroundColor") ? str(styling, "backgroundColor") : "",
+      isOn(styling, "bgColorIsOn") && str(styling, "backgroundColor")
+        ? str(styling, "backgroundColor")
+        : "",
   };
 }
 
