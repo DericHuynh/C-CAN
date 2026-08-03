@@ -1,6 +1,6 @@
 import { agentNative } from "@agent-native/core/vite";
 import { reactRouter } from "@react-router/dev/vite";
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 
 const reactRouterPlugins = reactRouter as unknown as () => any[];
 const agentNativePlugins = agentNative as unknown as (

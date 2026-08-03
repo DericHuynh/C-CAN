@@ -21,3 +21,6 @@ data/
 .DS_Store
 
 .generated/
+.output/
+.deploy-tmp/
+.react-router/types/

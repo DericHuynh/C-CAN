@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vite-plus/test";
 
 import { DEEPSEEK_API_KEY_ENV } from "../agent/deepseek-engine.js";
 

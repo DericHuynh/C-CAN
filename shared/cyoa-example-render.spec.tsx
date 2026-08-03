@@ -10,7 +10,7 @@
  */
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { normalizeApp } from "./cyoa";
 import { CyoaViewer } from "../app/components/projects/CyoaViewer";

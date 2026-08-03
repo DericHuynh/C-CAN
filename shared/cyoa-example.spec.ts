@@ -13,7 +13,7 @@
  * images and buttons.
  */
 import { readFileSync } from "node:fs";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { normalizeApp } from "./cyoa.js";
 import { buildCyoaIndex, createCyoaState } from "./cyoa-engine.js";
