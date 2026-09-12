@@ -1,11 +1,14 @@
+import { parseArgs } from "node:util";
 /**
  * Screenshots of the paginated editor for visual confirmation.
- * Usage: PROJECT_ID=<copy> node scripts/tmp-screenshot.mjs
+ * Usage: node scripts/tmp-screenshot.mjs --project-id <copy>
  */
 import { chromium } from "../node_modules/.pnpm/playwright@1.62.1/node_modules/playwright/index.mjs";
 
 const BASE = "http://localhost:8080";
-const PROJECT_ID = process.env.PROJECT_ID;
+const { values } = parseArgs({ options: { "project-id": { type: "string" } } });
+const PROJECT_ID = values["project-id"];
+if (!PROJECT_ID) throw new Error("Pass --project-id for a throwaway copy.");
 const EMAIL = "viewer-check@local.test";
 const PASSWORD = "Testpass123!";
 

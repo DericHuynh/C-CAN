@@ -160,7 +160,7 @@ export function PointTypePanel({ project }: PointTypePanelProps) {
       <Card>
         <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
           <p className="max-w-sm text-sm text-muted-foreground">
-            Select a point type to edit it here, or add a new one — no more dialogs.
+            Select a point type to edit it here, or add a new one.
           </p>
         </CardContent>
       </Card>

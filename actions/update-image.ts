@@ -1,9 +1,14 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
+
+import { generateImagePreview } from "./_image-previews.js";
+import { getImagePreview } from "../shared/image-preview.js";
 
 import { assertFound, getProjectOrThrow, saveProject } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description:
     "Shallow-merge a patch into an image resource's fields (id is preserved). Returns the updated resource.",
   schema: z.object({
@@ -19,8 +24,29 @@ export default defineAction({
     if (typeof merged.image === "string") {
       merged.imageIsURL = !merged.image.startsWith("data:");
     }
-    app.images[app.images.indexOf(image)] = merged;
-    await saveProject(projectId, app);
-    return { image: merged };
+    if (merged.image !== image.image) {
+      delete merged.preview;
+      await generateImagePreview(merged);
+    } else if (!getImagePreview(merged)) {
+      delete merged.preview;
+    }
+    // Preserve edits made while the remote image was downloading.
+    const latest = await getProjectOrThrow(projectId);
+    const index = latest.app.images.findIndex((entry) => entry.id === imageId);
+    assertFound(index >= 0, `Image "${imageId}" no longer exists`);
+    assertFound(
+      latest.app.images[index].image === image.image,
+      "Image changed while its preview was generated. Please retry.",
+    );
+    const updated = {
+      ...latest.app.images[index],
+      ...patch,
+      id: image.id,
+      preview: merged.preview,
+      imageIsURL: merged.imageIsURL,
+    };
+    latest.app.images[index] = updated;
+    await saveProject(projectId, latest.app);
+    return { image: updated };
   },
 });

@@ -14,10 +14,8 @@ import { useLocation, useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { APP_TITLE } from "@/lib/app-config";
 import { TAB_ID } from "@/lib/tab-id";
 
-import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 
 interface LayoutProps {
@@ -25,20 +23,6 @@ interface LayoutProps {
 }
 
 const SIDEBAR_COLLAPSE_KEY = "chat.sidebar.collapsed";
-
-/**
- * Routes whose page renders its own toolbar. Layout still wraps these with the
- * left Sidebar and agent surfaces but skips the global Header so they don't
- * double-stack chrome.
- */
-function routeOwnsToolbar(pathname: string): boolean {
-  return (
-    pathname === "/" ||
-    pathname.startsWith("/chat/") ||
-    pathname === "/database" ||
-    pathname.startsWith("/extensions")
-  );
-}
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
@@ -88,7 +72,6 @@ export function Layout({ children }: LayoutProps) {
     }
   }, [sidebarCollapsed]);
 
-  const ownsToolbar = routeOwnsToolbar(location.pathname);
   function openAskAgentFullscreen() {
     focusAgentChat();
     navigateWithAgentChatViewTransition(navigate, "/");
@@ -96,34 +79,17 @@ export function Layout({ children }: LayoutProps) {
 
   const contentFrame = (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-      {isChatRoute ? (
-        <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-3 md:hidden">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setMobileSidebarOpen(true)}
-            aria-label={t("navigation.openNavigation")}
-          >
-            <IconMenu2 className="size-4" />
-          </Button>
-          <span className="truncate text-sm font-semibold">{APP_TITLE}</span>
-        </div>
-      ) : ownsToolbar ? (
-        <div className="flex h-12 shrink-0 items-center border-b border-border px-4 md:hidden">
-          <button
-            type="button"
-            onClick={() => setMobileSidebarOpen(true)}
-            aria-label={t("navigation.openNavigation")}
-            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            <IconMenu2 className="h-4 w-4" />
-          </button>
-        </div>
-      ) : (
-        <Header onOpenMobileSidebar={() => setMobileSidebarOpen(true)} />
-      )}
-      <main className="agent-native-app-main min-w-0 flex-1 overflow-y-auto overscroll-contain">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="fixed bottom-3 left-3 z-40 bg-background shadow-sm md:hidden"
+        onClick={() => setMobileSidebarOpen(true)}
+        aria-label={t("navigation.openNavigation")}
+      >
+        <IconMenu2 className="size-4" />
+      </Button>
+      <main className="agent-native-app-main min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
         {children}
       </main>
     </div>
@@ -131,7 +97,7 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <HeaderActionsProvider>
-      <div className="agent-layout-shell flex h-screen w-full overflow-hidden bg-background text-foreground">
+      <div className="agent-layout-shell flex h-dvh w-full overflow-hidden bg-background text-foreground">
         <div className="agent-layout-left-drawer hidden md:block">
           <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
         </div>

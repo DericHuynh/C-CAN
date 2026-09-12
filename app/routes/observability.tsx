@@ -12,8 +12,9 @@ export default function ObservabilityPage() {
   const t = useT();
   useSetPageTitle(t("pages.observabilityPageTitle"));
   return (
-    <div className="p-6">
-      <ObservabilityDashboard />
+    <div className="p-4 lg:p-6">
+      {/* Keep the framework tab strip reachable in narrow containers. */}
+      <ObservabilityDashboard className="[&>div:first-child>div:first-child]:max-w-full [&>div:first-child>div:first-child]:flex-wrap" />
     </div>
   );
 }

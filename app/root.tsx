@@ -9,7 +9,15 @@ import { IconHierarchy2, IconSun, IconMoon } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { useCallback, useState } from "react";
-import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigate } from "react-router";
+import {
+  Links,
+  Meta,
+  Outlet,
+  ScrollRestoration,
+  Scripts,
+  useLocation,
+  useNavigate,
+} from "react-router";
 import type { LinksFunction } from "react-router";
 
 import { Layout as AppLayout } from "@/components/layout/Layout";
@@ -41,10 +49,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
-        />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <script
           data-agent-native-locale-init
@@ -80,6 +85,17 @@ function DbSyncSetup() {
   return null;
 }
 
+/**
+ * CYOA share links (`/projects/{id}/viewer`) must open for recipients
+ * without an account: bypass the app's RequireSession redirect on project
+ * pages. The project access checks still gate the data — private projects 403
+ * and every mutation requires the owner/editor role — so signed-out visitors
+ * only ever see public CYOAs read-only.
+ */
+function isPublicPathname(pathname: string): boolean {
+  return pathname.startsWith("/projects/");
+}
+
 function ThemeToggleItem() {
   const { resolvedTheme, setTheme } = useTheme();
   const t = useT();
@@ -98,6 +114,7 @@ function ThemeToggleItem() {
 function AppContent() {
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const t = useT();
   useCommandMenuShortcut(useCallback(() => setCmdkOpen(true), []));
   return (
@@ -109,7 +126,38 @@ function AppContent() {
         changelogKey="chat"
       >
         <CommandMenu.Group heading={t("root.commandActions")}>
-          <CommandMenu.Item onSelect={() => {}}>{t("root.commandSearch")}</CommandMenu.Item>
+          {(
+            [
+              ["/projects", "navigation.projects"],
+              ["/", "navigation.chat"],
+              ["/settings", "navigation.settings"],
+              ["/extensions", "navigation.extensions"],
+              ["/database", "navigation.database"],
+              ["/observability", "navigation.observability"],
+            ] as const
+          ).map(([path, label]) => (
+            <CommandMenu.Item key={path} onSelect={() => navigate(path)}>
+              {t(label)}
+            </CommandMenu.Item>
+          ))}
+          {/^\/projects\/[^/]+(?:\/(?:editor|visual-editor|viewer))?\/?$/.test(
+            location.pathname,
+          ) && (
+            <CommandMenu.Item
+              onSelect={() => {
+                const params = new URLSearchParams(location.search);
+                params.set("tab", "plan");
+                params.delete("mode");
+                const projectBase = location.pathname
+                  .replace(/\/(?:editor|visual-editor|viewer)\/?$/, "")
+                  .replace(/\/$/, "");
+                navigate(`${projectBase}/editor?${params}`);
+              }}
+              keywords={["plan", "outline", "draft", "write", "notes"]}
+            >
+              {t("planning.command")}
+            </CommandMenu.Item>
+          )}
           <CommandMenu.Item
             onSelect={() => navigate("/agent")}
             keywords={["agent", "context", "files", "connections", "jobs", "access"]}
@@ -133,11 +181,30 @@ export default function Root() {
   const [queryClient] = useState(() => createAgentNativeQueryClient());
   return (
     <AppToolkitProvider>
-      <AppProviders queryClient={queryClient} i18n={{ catalog: i18nCatalog }}>
-        <DbSyncSetup />
-        <AppContent />
-      </AppProviders>
+      <SessionAwareProviders queryClient={queryClient} />
     </AppToolkitProvider>
+  );
+}
+
+function SessionAwareProviders({
+  queryClient,
+}: {
+  queryClient: ReturnType<typeof createAgentNativeQueryClient>;
+}) {
+  const location = useLocation();
+  return (
+    <AppProviders
+      queryClient={queryClient}
+      // sessionBypass (not isPublicPath): keeps the ClientOnly SSR shell and
+      // only skips RequireSession's redirect, so the app shell stays
+      // SSR-safe and signed-out visitors land on project pages instead of
+      // the sign-in form.
+      sessionBypass={isPublicPathname(location.pathname)}
+      i18n={{ catalog: i18nCatalog }}
+    >
+      <DbSyncSetup />
+      <AppContent />
+    </AppProviders>
   );
 }
 

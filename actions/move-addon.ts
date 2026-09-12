@@ -1,9 +1,11 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { assertFound, getProjectOrThrow, saveProject } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description:
     "Move an addon (by its array index) from one choice to another, or reorder it within the same choice. The addon's parentId is rewritten to the target choice id.",
   schema: z.object({

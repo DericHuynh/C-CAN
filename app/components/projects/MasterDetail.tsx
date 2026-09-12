@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  *
  * The left column holds the master list (tree, card list, grid…); the right
  * column holds the editor for the selected item. On wide screens the master
- * column is ~twice as wide as before (like the images grid) and scrolls in a
+ * and right columns share the available width. The master list scrolls in a
  * bounded area so the top navigation and the detail pane stay in view; the
  * detail pane is sticky. On narrow screens the panes stack (master first,
  * detail below) and the page scrolls normally.
@@ -23,10 +23,7 @@ export function MasterDetail({
 }) {
   return (
     <div
-      className={cn(
-        "grid items-start gap-4 lg:grid-cols-[minmax(420px,720px)_minmax(0,1fr)]",
-        className,
-      )}
+      className={cn("grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]", className)}
     >
       <div
         data-master-scroll

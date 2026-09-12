@@ -1,3 +1,4 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
@@ -5,6 +6,7 @@ import { createDefaultChoice } from "../shared/cyoa.js";
 import { assertFound, getProjectOrThrow, reindexChoices, saveProject } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description:
     "Add a new choice to a row at the given index (default: end) and return it. Accepts optional `fields` so the choice is created fully-formed in one call: title, text, image, template, objectWidth, scores, groups, requireds, imageVariants, styling, addons, and any ChoiceFunc keys — no follow-up update-choice needed. `scores` entries are { id: <pointTypeId>, value: <number> }.",
   schema: z.object({

@@ -1,1 +1,4 @@
-export const TAB_ID = Math.random().toString(36).slice(2, 10);
+import { getBrowserTabId } from "@agent-native/core/client/hooks";
+
+// Share the same tab identity as the chat, navigation, and viewer capture bridge.
+export const TAB_ID = getBrowserTabId();

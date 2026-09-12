@@ -1,3 +1,4 @@
+import { parseArgs } from "node:util";
 /**
  * Headless browser verification of the master-detail editor rework:
  *  - the editor route is full width (no max-w-5xl cap) like the viewer
@@ -6,7 +7,7 @@
  *  - lazy windowing: only nearby rows mount their choice branches
  *  - Groups / Images / Points tabs render master + inline detail forms
  *
- * Usage: node scripts/tmp-verify-master-detail.mjs
+ * Usage: node scripts/tmp-verify-master-detail.mjs --project-id <copy>
  */
 import { chromium } from "../node_modules/.pnpm/playwright@1.62.1/node_modules/playwright/index.mjs";
 import { createClient } from "../node_modules/@libsql/client/lib-esm/node.js";
@@ -14,9 +15,10 @@ import { createClient } from "../node_modules/@libsql/client/lib-esm/node.js";
 const BASE = "http://localhost:8080";
 // Run against a throwaway copy (see tmp-make-copy.mjs) — this script mutates
 // a choice's title (then restores it), so never point it at a real project.
-const PROJECT_ID = process.env.PROJECT_ID;
+const { values } = parseArgs({ options: { "project-id": { type: "string" } } });
+const PROJECT_ID = values["project-id"];
 if (!PROJECT_ID) {
-  console.error("Set PROJECT_ID to a throwaway copy (node scripts/tmp-make-copy.mjs).");
+  console.error("Pass --project-id for a throwaway copy (node scripts/tmp-make-copy.mjs).");
   process.exit(1);
 }
 const EMAIL = "viewer-check@local.test";

@@ -810,12 +810,36 @@ export function createDefaultApp(): App {
  * The document keeps any extra keys it carries (the format is intentionally
  * forward-compatible).
  */
+export function parseProjectDocument(raw: unknown): Record<string, unknown> {
+  let parsed = raw;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw.replace(/^\uFEFF/, ""));
+    } catch {
+      throw new Error("Invalid JSON provided for import: could not parse the supplied string.");
+    }
+  }
+  if (!isPlainObject(parsed)) throw new Error("The imported JSON must be a CYOA document object.");
+  for (const key of ["rows", "backpack", "pointTypes"]) {
+    if (parsed[key] != null && !Array.isArray(parsed[key])) {
+      throw new Error(`The CYOA document's ${key} field must be an array.`);
+    }
+  }
+  return parsed;
+}
+
 export function normalizeApp(raw: unknown): App {
   const defaults = createDefaultApp();
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     return defaults;
   }
-  const source = raw as Record<string, unknown>;
+  // Migrations must never modify the caller's document (including cached
+  // project data). In particular, repeated loads must not rescale old radii.
+  const source = cloneDeep(raw) as Record<string, unknown>;
+  const oldVersion = source.version == null || source.version === "2.0.0-beta";
+  for (const key of Object.keys(defaults)) {
+    if (source[key] === null) delete source[key];
+  }
 
   const merged: Record<string, unknown> = { ...defaults, ...source };
 
@@ -848,9 +872,109 @@ export function normalizeApp(raw: unknown): App {
   if (!Array.isArray(merged.objectDesignGroups)) merged.objectDesignGroups = [];
   if (!Array.isArray(merged.images)) merged.images = [];
 
+  for (const key of [
+    "rows",
+    "backpack",
+    "pointTypes",
+    "groups",
+    "globalRequirements",
+    "variables",
+    "words",
+    "categories",
+    "soundEffects",
+    "rowDesignGroups",
+    "objectDesignGroups",
+    "images",
+  ]) {
+    merged[key] = (Array.isArray(merged[key]) ? merged[key] : []).filter(isPlainObject);
+  }
+  // Clean known nested collections before migration; ICCPlus exports may
+  // omit optional fields or contain nulls from earlier editor versions.
+  const cleanList = (record: Record<string, unknown>, key: string) => {
+    const items = (Array.isArray(record[key]) ? record[key] : []).filter(isPlainObject);
+    record[key] = items;
+    return items;
+  };
+  const cleanRequirements = (record: Record<string, unknown>) => {
+    for (const key of ["requireds", "orRequireds"]) {
+      if (key === "orRequireds" && record[key] == null) {
+        delete record[key]; // preserve the legacy migration trigger
+        continue;
+      }
+      for (const req of cleanList(record, key)) cleanRequirements(req);
+    }
+  };
+  for (const row of [
+    ...(merged.rows as Record<string, unknown>[]),
+    ...(merged.backpack as Record<string, unknown>[]),
+  ]) {
+    cleanRequirements(row);
+    for (const choice of cleanList(row, "objects")) {
+      cleanRequirements(choice);
+      for (const score of cleanList(choice, "scores")) cleanRequirements(score);
+      for (const variant of cleanList(choice, "imageVariants")) cleanRequirements(variant);
+      for (const addon of cleanList(choice, "addons")) {
+        cleanRequirements(addon);
+        if (addon.isSelectable) {
+          for (const score of cleanList(addon, "scores")) cleanRequirements(score);
+        }
+      }
+    }
+  }
+  for (const req of merged.globalRequirements as Record<string, unknown>[]) cleanRequirements(req);
+
   // Apply the same legacy-document migrations the original ICCPlus editor
   // runs in `initializeApp()`, so imported documents behave identically.
+  if (oldVersion) merged.version = "2.0.0-beta";
   migrateApp(merged as App);
+  if (oldVersion) merged.version = appVersion;
+
+  const withDefaults = <T extends object>(value: T, fallback: T): T => {
+    const present = Object.fromEntries(Object.entries(value).filter(([, v]) => v != null));
+    return { ...fallback, ...present };
+  };
+  const app = merged as App;
+  const normalizeRow = (row: Row, i: number): Row => {
+    const {
+      id,
+      index,
+      title,
+      titleText,
+      objectWidth,
+      image,
+      template,
+      allowedChoices,
+      currentChoices,
+      requireds,
+      objects,
+      defaultAspectWidth,
+      defaultAspectHeight,
+    } = createDefaultRow(app, i);
+    const normalized = withDefaults(row, {
+      id,
+      index,
+      title,
+      titleText,
+      objectWidth,
+      image,
+      template,
+      allowedChoices,
+      currentChoices,
+      requireds,
+      objects,
+      defaultAspectWidth,
+      defaultAspectHeight,
+    });
+    normalized.objects = row.objects.map((choice, j) => {
+      const result = withDefaults(choice, createDefaultChoice(app, j));
+      result.index = j;
+      result.addons = choice.addons.map((addon) => withDefaults(addon, createDefaultAddon(app)));
+      return result;
+    });
+    return normalized;
+  };
+  app.rows = app.rows.map(normalizeRow);
+  app.backpack = app.backpack.map(normalizeRow);
 
   return merged as App;
 }
@@ -1004,6 +1128,7 @@ function migrateRequireds(requireds: Requireds[] | undefined): void {
   for (const req of requireds) {
     migrateOrRequireds(req);
     migrateRequireds(req.requireds);
+    migrateRequireds(req.orRequireds);
   }
 }
 
@@ -1027,12 +1152,41 @@ function migrateAddon(addon: Addon, parentId: string): void {
     delete record.sfxId;
   }
   migrateRequireds(addon.requireds);
+  if (addon.isSelectable) migrateRequireds(addon.scores?.flatMap((score) => score.requireds ?? []));
+}
+
+/** Legacy projects infer section switches from the private styling keys. */
+function migratePrivateStyling(data: Row | Choice): void {
+  if (!data.isPrivateStyling || !data.styling) return;
+  const record = data as unknown as Record<string, unknown>;
+  const style = data.styling as Record<string, unknown>;
+  const sections = {
+    privateFilterIsOn: filterStyling,
+    privateTextIsOn: textStyling,
+    privateObjectImageIsOn: objectImageStyling,
+    privateObjectIsOn: objectStyling,
+    privateAddonImageIsOn: addonImageStyling,
+    privateAddonIsOn: addonStyling,
+    privateBackgroundIsOn: backgroundStyling,
+    ...("objects" in data
+      ? { privateRowImageIsOn: rowImageStyling, privateRowIsOn: rowStyling }
+      : {}),
+  };
+  for (const [flag, defaults] of Object.entries(sections)) {
+    if (record[flag] == null)
+      record[flag] = Object.keys(defaults).some((key) =>
+        Object.prototype.hasOwnProperty.call(style, key),
+      );
+  }
+  if (record.privateAddonIsOn && style.useAddonDesign == null) style.useAddonDesign = true;
+  if (record.privateAddonImageIsOn && style.useAddonImage == null) style.useAddonImage = true;
 }
 
 /** Migrate a choice (matches `initializeApp`'s object pass). */
 function migrateChoice(choice: Choice, oldVersion: boolean, defaultAddonJustify: string): void {
   const record = choice as unknown as Record<string, unknown>;
 
+  migratePrivateStyling(choice);
   if (choice.styling) initStylingMigration(choice.styling, oldVersion);
   if (choice.multiplyPointtypeIsOn) {
     if (typeof choice.pointTypeToMultiply === "string")
@@ -1054,7 +1208,10 @@ function migrateChoice(choice: Choice, oldVersion: boolean, defaultAddonJustify:
   }
 
   // Old single fade-time -> in/out pair.
-  if (choice.isFadeTransition && typeof record.fadeTransitionTime !== "undefined") {
+  if (
+    (choice.isFadeTransition || record.fadeTransitionIsOn) &&
+    typeof record.fadeTransitionTime !== "undefined"
+  ) {
     const time = record.fadeTransitionTime as number;
     record.fadeInTransitionTime = time;
     record.fadeOutTransitionTime = time;
@@ -1102,12 +1259,14 @@ function migrateChoice(choice: Choice, oldVersion: boolean, defaultAddonJustify:
 
   migrateRequireds(choice.scores?.flatMap((score) => score.requireds ?? []));
   migrateRequireds(choice.requireds);
+  for (const variant of choice.imageVariants ?? []) migrateRequireds(variant.requireds);
   for (const addon of choice.addons ?? []) migrateAddon(addon, choice.id);
 }
 
 /** Migrate a row (matches `initializeApp`'s row pass). */
 function migrateRow(row: Row, oldVersion: boolean, defaultAddonJustify: string): void {
   const record = row as unknown as Record<string, unknown>;
+  migratePrivateStyling(row);
   if (row.styling) initStylingMigration(row.styling, oldVersion);
   if (Array.isArray(row.rowDesignGroups)) row.rowDesignGroups = row.rowDesignGroups.map(toId);
   if (typeof record.width === "string") record.width = false;
@@ -1164,10 +1323,10 @@ export function migrateApp(app: App): App {
         record[key] = color.hexa;
       }
     }
-    if (typeof point.isNotShownObjects === "undefined" && point.activatedId !== "") {
+    if (typeof point.isNotShownObjects === "undefined" && point.activatedId) {
       point.isNotShownObjects = true;
     }
-    if (typeof point.isNotShownPointBar === "undefined" && point.activatedId !== "") {
+    if (typeof point.isNotShownPointBar === "undefined" && point.activatedId) {
       point.isNotShownPointBar = true;
     }
   }
@@ -1218,6 +1377,43 @@ export function resolveImageRef(app: App, ref: string | undefined): string | und
   return resource?.image ? resource.image : ref;
 }
 
+/** Image-bearing fields shared by ICCPlus JSON and ZIP import. */
+export function visitAppImageFields(
+  document: unknown,
+  visit: (record: Record<string, unknown>, key: string) => void,
+  includeResources = false,
+): void {
+  const imageKeys = new Set([
+    "image",
+    "negativeImage",
+    "bgImage",
+    "defaultImage",
+    "defaultBgImage",
+    "backgroundImage",
+    "rowBackgroundImage",
+    "objectBackgroundImage",
+    "addonBackgroundImage",
+    "rowBorderImage",
+    "objectBorderImage",
+    "addonBorderImage",
+    "backpackBgImage",
+    "loadingBgImage",
+  ]);
+  const walk = (value: unknown) => {
+    if (Array.isArray(value)) {
+      value.forEach(walk);
+      return;
+    }
+    if (!isPlainObject(value)) return;
+    for (const [key, child] of Object.entries(value)) {
+      if (imageKeys.has(key) && typeof child === "string") visit(value, key);
+      else if (key !== "preview" && key !== "planning" && (includeResources || key !== "images"))
+        walk(child);
+    }
+  };
+  walk(document);
+}
+
 /**
  * ACL import translation for the image-resource system.
  *
@@ -1265,39 +1461,9 @@ export function aclImportImages(app: App): App {
     return id;
   };
 
-  const rows = [...(app.rows ?? []), ...(app.backpack ?? [])];
-  for (const row of rows) {
-    row.image = ensure(row.image) as string;
-    for (const choice of row.objects ?? []) {
-      choice.image = ensure(choice.image, choice.imageSourceTooltip) as string;
-      for (const addon of choice.addons ?? []) {
-        addon.image = ensure(addon.image) as string;
-      }
-      for (const variant of choice.imageVariants ?? []) {
-        variant.image = ensure(variant.image) as string;
-      }
-    }
-  }
-  for (const point of app.pointTypes ?? []) {
-    const record = point as unknown as Record<string, unknown>;
-    record.image = ensure(record.image) as string;
-    record.negativeImage = ensure(record.negativeImage) as string;
-  }
-
-  // Styling background images (app / row / choice / addon / backpack) are
-  // images too — rewrite them to resource ids so the design tab can reference
-  // them like every other image. Idempotent: already-translated values pass
-  // through `ensure` untouched.
-  const styling = (app.styling ?? {}) as Record<string, unknown>;
-  for (const key of [
-    "backgroundImage",
-    "rowBackgroundImage",
-    "objectBackgroundImage",
-    "addonBackgroundImage",
-    "backpackBgImage",
-  ]) {
-    styling[key] = ensure(styling[key]);
-  }
+  visitAppImageFields(app, (record, key) => {
+    record[key] = ensure(record[key], record.imageSourceTooltip ?? record.sourceTooltip);
+  });
 
   app.images = images;
   return app;

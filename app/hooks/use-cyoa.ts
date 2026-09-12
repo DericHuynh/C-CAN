@@ -1,23 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { projectStoragePath } from "@shared/project-routes";
 
 import {
   activateRowButton,
+  activateAutomaticChoices,
   applyActivateOther,
+  applyChoiceVariables,
   applyDeactivateOther,
   applyDeselectActivateOther,
   applyDuplicateRow,
+  applyMissingReqCascade,
   buildCyoaIndex,
   computePointTotals,
+  countsTowardLimit,
   createCyoaState,
   deselectChoice,
   encodeBuildCode,
   isEnabled,
   loadBuildCode,
   rollScoreValue,
+  recordScoreActivations,
   selectChoice,
   selectOneLess,
   selectOneMore,
-  toggleSelectableAddon,
   type CyoaIndex,
   type CyoaState,
 } from "@shared/cyoa-engine";
@@ -25,7 +30,8 @@ import type { App, Choice, Row, SelectableAddon } from "@shared/types";
 
 /** Key under which build slots are persisted (path-scoped like the original). */
 function storageKey(slot: string): string {
-  const path = typeof window !== "undefined" ? window.location.pathname : "cyoa";
+  const path =
+    typeof window !== "undefined" ? projectStoragePath(window.location.pathname) : "cyoa";
   return `iccplus-build:${path}:${slot}`;
 }
 
@@ -57,12 +63,15 @@ export interface UseCyoaResult {
   /** Import a build code (replaces the session). */
   importBuildCode: (code: string) => void;
   /** Persist the current build code to a slot. */
-  saveSlot: (slot: string, name: string) => void;
+  saveSlot: (slot: string, name: string) => boolean;
+  storageError: boolean;
   loadSlot: (slot: string) => string | null;
   deleteSlot: (slot: string) => void;
   listSlots: () => Array<{ slot: string } & BuildSlot>;
   /** Play the choice's select/deselect sound effect (data-URL audio). */
   playSfx: (choice: Choice | SelectableAddon, isSelect: boolean) => void;
+  setUploadedImage: (id: string, image: string) => void;
+  requestImage?: (id: string) => void;
 }
 
 interface UseCyoaOptions {
@@ -73,28 +82,10 @@ interface UseCyoaOptions {
 export const BUILD_SLOT_NAMES = Array.from({ length: 99 }, (_, i) => `slot-${i + 1}`);
 
 export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
-  const [state, setState] = useState<CyoaState>(() => {
-    const initial = createCyoaState(app);
-    // Auto-active choices: seed the session with their selection.
-    const initialIdx = buildCyoaIndex(app);
-    for (const row of app.rows ?? []) {
-      for (const choice of row.objects ?? []) {
-        if (choice.isAutoActive && !choice.isNotSelectable) {
-          initial.activated.set(choice.id, { multiple: 0 });
-          initial.currentChoices.set(row.id, (initial.currentChoices.get(row.id) ?? 0) + 1);
-          if (choice.isChangeVariables) {
-            for (const variableId of choice.changedVariables ?? []) {
-              if (initialIdx.variableMap.has(variableId)) {
-                initial.variables.set(variableId, true);
-                initial.activated.set(variableId, { multiple: 0, isVariable: true });
-              }
-            }
-          }
-        }
-      }
-    }
-    return initial;
-  });
+  const [storageError, setStorageError] = useState(false);
+  const [state, setState] = useState<CyoaState>(() =>
+    activateAutomaticChoices(createCyoaState(app), buildCyoaIndex(app), true),
+  );
   // Rebuild the lookup index whenever runtime duplicate rows change.
   const idx = useMemo(() => buildCyoaIndex(app, state.dupRows), [app, state.dupRows]);
 
@@ -104,6 +95,19 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
   // Audio buffer cache for SFX (data URLs only).
   const audioCache = useRef(new Map<string, AudioBuffer>());
   const audioCtx = useRef<AudioContext | null>(null);
+  const pendingSelections = useRef(new Set<number>());
+  const cursorBeforeDelay = useRef<string | null>(null);
+
+  const cancelPendingSelections = useCallback(() => {
+    for (const timer of pendingSelections.current) window.clearTimeout(timer);
+    pendingSelections.current.clear();
+    if (cursorBeforeDelay.current !== null) {
+      document.body.style.cursor = cursorBeforeDelay.current;
+      cursorBeforeDelay.current = null;
+    }
+  }, []);
+
+  useEffect(() => cancelPendingSelections, [cancelPendingSelections]);
 
   const playSfx = useCallback(
     (choice: Choice | SelectableAddon, isSelect: boolean) => {
@@ -148,13 +152,20 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
           playBuffer(cached);
           return;
         }
-        const base64 = audio.split(",")[1];
-        if (!base64) return;
-        const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-        void ctx.decodeAudioData(bytes.buffer).then((buffer) => {
-          audioCache.current.set(audio, buffer);
-          playBuffer(buffer);
-        });
+        // Imported sound effects are blob URLs; fetch supports both those
+        // and legacy data URLs. Resume browsers' suspended audio contexts.
+        void ctx.resume().catch(() => {});
+        void fetch(audio)
+          .then((response) => {
+            if (!response.ok) throw new Error("Sound effect could not be loaded");
+            return response.arrayBuffer();
+          })
+          .then((bytes) => ctx.decodeAudioData(bytes))
+          .then((buffer) => {
+            audioCache.current.set(audio, buffer);
+            playBuffer(buffer);
+          })
+          .catch(() => {});
       } catch {
         // Audio is a nicety — never break the play experience over it.
       }
@@ -167,9 +178,14 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
   // -------------------------------------------------------------------------
 
   /** Roll random/expression scores for a just-selected choice into state. */
-  function rollScores(next: CyoaState, choice: Choice | SelectableAddon, count: number): CyoaState {
+  function rollScores(
+    next: CyoaState,
+    choice: Choice | SelectableAddon,
+    count: number,
+    before = next,
+  ): CyoaState {
     const scores = choice.scores ?? [];
-    let rolled = next;
+    let rolled = recordScoreActivations(next, choice, idx, count, before);
     for (let i = 0; i < scores.length; i++) {
       const score = scores[i];
       if (!score.isRandom && !score.useExpression) continue;
@@ -185,58 +201,39 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
     return rolled;
   }
 
-  function applyChoiceVariables(
-    next: CyoaState,
-    choice: Choice | SelectableAddon,
-    isSelect: boolean,
-  ): CyoaState {
-    if (!choice.isChangeVariables) return next;
-    const changeType = choice.changeType ?? "1";
-    for (const variableId of choice.changedVariables ?? []) {
-      if (!idx.variableMap.has(variableId)) continue;
-      let value: boolean | undefined;
-      if (changeType === "3") {
-        value = !(next.variables.get(variableId) === true);
-      } else if (isSelect) {
-        value = changeType === "2" ? false : true;
-      } else {
-        value = changeType === "2" ? true : false;
-      }
-      const copy = {
-        ...next,
-        variables: new Map(next.variables),
-        activated: new Map(next.activated),
-      };
-      copy.variables.set(variableId, value);
-      if (value) {
-        copy.activated.set(variableId, { multiple: 0, isVariable: true });
-      } else {
-        copy.activated.delete(variableId);
-      }
-      next = copy;
-    }
-    return next;
-  }
-
   function selectProcess(
     prev: CyoaState,
     choice: Choice | SelectableAddon,
     row: Row,
     kind: "single" | "more",
   ): CyoaState {
-    if (choice.isNotSelectable) return prev;
-    if (kind === "single" && !isEnabled(choice.requireds, idx, prev)) return prev;
+    if (choice.isNotSelectable || row.isInfoRow || !isEnabled(row.requireds, idx, prev))
+      return prev;
+    const original = prev;
+    const parent = idx.addonParentMap.get(choice.id);
+    if (parent && !prev.activated.has(parent.id)) {
+      // Use the full pipeline so the parent's requirements, prompts, scores,
+      // and effects behave exactly as if the player selected it directly.
+      prev = selectProcess(prev, parent, row, parent.isSelectableMultiple ? "more" : "single");
+      if (!prev.activated.has(parent.id)) return original;
+    }
+    // Both single and multi selection are gated on requirements at select time
+    // (the original `checkSelectable`): multi-select counters must not start a
+    // choice whose requirements are unmet.
+    if (!isEnabled(choice.requireds, idx, prev)) return original;
     if (choice.confirmIsOn) {
       const ok = window.confirm(choice.wordPromptText || "Confirm selection?");
-      if (!ok) return prev;
+      if (!ok) return original;
     }
-    let wordValue: string | undefined;
+    let wordValue: string | undefined = choice.textfieldIsOn
+      ? (choice.wordChangeSelect ?? "")
+      : undefined;
     if (choice.textfieldIsOn && choice.customTextfieldIsOn) {
       const value = window.prompt(
         choice.wordPromptText || `Enter text for "${choice.title}":`,
         choice.wordChangeDeselect ?? "",
       );
-      if (value === null) return prev;
+      if (value === null) return original;
       wordValue = value;
     }
 
@@ -246,29 +243,45 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
     } else {
       next = selectChoice(choice, row, idx, prev);
     }
-    if (next === prev) return prev;
+    if (next === prev) return original;
 
     const count = kind === "more" ? (next.activated.get(choice.id)?.multiple ?? 0) : 1;
-    next = rollScores(next, choice, count);
+    next = rollScores(next, choice, count, prev);
 
-    if (choice.isImageUpload && !next.uploadedImages.has(choice.id)) {
-      const url = window.prompt("Image URL", choice.image || "");
-      if (url) {
-        next = { ...next, uploadedImages: new Map(next.uploadedImages) };
-        next.uploadedImages.set(choice.id, url);
-      }
-    }
     if (wordValue !== undefined && choice.idOfTheTextfieldWord) {
       next = { ...next, wordValues: new Map(next.wordValues) };
       next.wordValues.set(choice.idOfTheTextfieldWord, wordValue);
     }
-    next = applyChoiceVariables(next, choice, true);
+    // selectChoice already applies single-selection variable effects.
+    if (kind === "more") next = applyChoiceVariables(next, choice, idx, true);
     // Runtime choice effects, in the original's order: duplicate row, then the
-    // linked activation chain (activateOtherChoice / deactivateOtherChoice).
+    // linked activation chain (activateOtherChoice / deactivateOtherChoice),
+    // then the missing-requirement cascade.
     next = applyDuplicateRow(next, choice, idx);
     next = applyActivateOther(next, choice, idx);
     next = applyDeactivateOther(next, choice, idx);
-    return next;
+    // `deselectMissingReq` skips the local choice during the pass, but the
+    // original re-checks it at the end of `selectObject`/`selectedOneMore` and
+    // removes it when the selection itself un-met its requirements (e.g.
+    // `cleanACtivatedOnSelect` or `deactivateOtherChoice` dropped a
+    // prerequisite). Run the cascade once with the local skipped, then once
+    // more without the skip to mirror that self-check.
+    next = applyMissingReqCascade(next, idx, choice.id);
+    next = applyMissingReqCascade(next, idx);
+    if (parent && (!next.activated.has(parent.id) || !next.activated.has(choice.id)))
+      return original;
+    if (!canAffordChange(original, next)) return original;
+    return activateAutomaticChoices(next, idx);
+  }
+
+  function canAffordChange(before: CyoaState, after: CyoaState): boolean {
+    const previous = computePointTotals(app, idx, before);
+    return [...computePointTotals(app, idx, after).values()].every(
+      ({ pointType, total }) =>
+        !pointType.belowZeroNotAllowed ||
+        total >= 0 ||
+        total >= (previous.get(pointType.id)?.total ?? 0),
+    );
   }
 
   function deselectProcess(
@@ -277,29 +290,70 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
     row: Row,
     kind: "single" | "less",
   ): CyoaState {
-    const beforeCount = kind === "less" ? (prev.activated.get(choice.id)?.multiple ?? 1) : 1;
+    if (
+      row.isInfoRow ||
+      choice.selectOnce ||
+      choice.forcedActivated ||
+      prev.activated.get(choice.id)?.forcedFrom
+    )
+      return prev;
+    const beforeCount = kind === "less" ? (prev.activated.get(choice.id)?.multiple ?? 0) : 1;
     let next: CyoaState;
     if (kind === "less") {
-      next = selectOneLess(choice, row, prev);
+      next = selectOneLess(choice, row, prev, idx);
     } else {
       next = deselectChoice(choice, row, prev);
     }
     if (next === prev) return prev;
+    if (kind === "less" && beforeCount <= 0) {
+      next = rollScores(next, choice, next.activated.get(choice.id)?.multiple ?? 0, prev);
+    }
     if (choice.textfieldIsOn && choice.idOfTheTextfieldWord) {
       next = { ...next, wordValues: new Map(next.wordValues) };
       next.wordValues.set(choice.idOfTheTextfieldWord, choice.wordChangeDeselect ?? "");
     }
     // Release linked activations started by this choice (per-count picks for
-    // random activators).
+    // random activators), then the missing-requirement cascade (the original
+    // runs `deselectMissingReq` right after removing the local choice).
     next = applyDeselectActivateOther(next, choice, idx, beforeCount);
-    // Remove rolled scores for this choice.
+    next = applyChoiceVariables(next, choice, idx, false);
+    // Remove only the rolls belonging to copies that were deselected. The
+    // remaining copies must retain the values they originally rolled.
+    const remaining = next.activated.get(choice.id)?.multiple ?? 0;
+    const prefix = `${choice.id}:`;
     next = {
       ...next,
+      scoreActivations: new Map(
+        [...(next.scoreActivations ?? [])].filter(
+          ([key]) =>
+            !key.startsWith(prefix) ||
+            (remaining !== 0 &&
+              Number(key.slice(prefix.length).split(":")[1]) <= Math.abs(remaining)),
+        ),
+      ),
       rolledScores: new Map(
-        [...next.rolledScores].filter(([key]) => !key.startsWith(`${choice.id}:`)),
+        [...next.rolledScores].filter(([key]) => {
+          if (!key.startsWith(prefix)) return true;
+          if (remaining === 0) return false;
+          const [, count] = key.slice(prefix.length).split(":");
+          return count === undefined || Number(count) <= Math.abs(remaining);
+        }),
       ),
     };
-    return applyChoiceVariables(next, choice, false);
+    // Variable-dependent choices must see the updated variable values.
+    next = applyMissingReqCascade(next, idx);
+    const parent = idx.addonParentMap.get(choice.id);
+    if (
+      parent &&
+      !next.activated.has(choice.id) &&
+      next.activated.has(parent.id) &&
+      (choice.deselectParent || choice.deselectWhenNoAddon || parent.deselectWhenNoAddon) &&
+      !(parent.addons ?? []).some((addon) => addon.isSelectable && next.activated.has(addon.id))
+    ) {
+      next = deselectProcess(next, parent, row, "single");
+    }
+    if (!canAffordChange(prev, next)) return prev;
+    return activateAutomaticChoices(next, idx);
   }
 
   /**
@@ -318,12 +372,19 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
       apply();
       return false;
     }
-    const previous = document.body.style.cursor;
+    if (pendingSelections.current.size === 0) {
+      cursorBeforeDelay.current = document.body.style.cursor;
+    }
     document.body.style.cursor = "none";
-    window.setTimeout(() => {
-      document.body.style.cursor = previous;
+    const timer = window.setTimeout(() => {
+      pendingSelections.current.delete(timer);
+      if (pendingSelections.current.size === 0) {
+        document.body.style.cursor = cursorBeforeDelay.current ?? "";
+        cursorBeforeDelay.current = null;
+      }
       apply();
     }, ms);
+    pendingSelections.current.add(timer);
     return true;
   }
 
@@ -395,6 +456,10 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
 
   const toggleAddon = useCallback(
     (addon: SelectableAddon, choice: Choice, row: Row) => {
+      if (addon.isSelectableMultiple) {
+        if (addon.allowSelectByClick) more(addon, row);
+        return;
+      }
       setState((prev) => {
         const willSelect = !prev.activated.has(addon.id);
         let next = prev;
@@ -403,23 +468,34 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
         } else {
           next = deselectProcess(prev, addon, row, "single");
         }
-        // Parent auto-selection handled inside the engine's toggle; re-apply
-        // parent requirements before selecting the addon.
         if (next !== prev) playSfx(addon, willSelect);
         return next;
+      });
+    },
+    [idx, playSfx, more],
+  );
+
+  const rowButton = useCallback(
+    (row: Row) => {
+      setState((prev) => {
+        const next = activateRowButton(row, idx, prev, (choice, current) => {
+          const selected = selectProcess(
+            current,
+            choice,
+            row,
+            choice.isSelectableMultiple ? "more" : "single",
+          );
+          if (selected !== current) playSfx(choice, true);
+          return selected;
+        });
+        return next === prev ? prev : applyMissingReqCascade(next, idx);
       });
     },
     [idx, playSfx],
   );
 
-  const rowButton = useCallback(
-    (row: Row) => {
-      setState((prev) => activateRowButton(row, idx, prev));
-    },
-    [idx],
-  );
-
   const clean = useCallback(() => {
+    cancelPendingSelections();
     setState((prev) => {
       const next = createCyoaState(app);
       const reActivate: Array<{ choice: Choice | SelectableAddon; picks?: string[] }> = [];
@@ -427,9 +503,26 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
         if (entry.isRowButton || entry.isVariable) continue;
         const cMap = idx.choiceMap.get(id);
         if (cMap?.choice.notDeselectedByClean) {
+          if (!next.activated.has(id) && countsTowardLimit(cMap.choice)) {
+            const rowId = cMap.row.id;
+            next.currentChoices.set(rowId, (next.currentChoices.get(rowId) ?? 0) + 1);
+          }
           next.activated.set(id, entry);
-          const rowId = cMap.row.id;
-          next.currentChoices.set(rowId, (next.currentChoices.get(rowId) ?? 0) + 1);
+          // Retaining the selection also retains the values the player chose
+          // or rolled for it. Otherwise reset silently changes its score/build.
+          for (const [key, value] of prev.rolledScores) {
+            if (key.startsWith(`${id}:`)) next.rolledScores.set(key, value);
+          }
+          for (const [key, value] of prev.scoreActivations ?? []) {
+            if (key.startsWith(`${id}:`)) next.scoreActivations!.set(key, value);
+          }
+          const wordId = cMap.choice.idOfTheTextfieldWord;
+          if (wordId && prev.wordValues.has(wordId)) {
+            next.wordValues.set(wordId, prev.wordValues.get(wordId)!);
+          }
+          if (prev.uploadedImages.has(id)) {
+            next.uploadedImages.set(id, prev.uploadedImages.get(id)!);
+          }
         }
         const choice = cMap?.choice as
           | (Choice & {
@@ -453,15 +546,20 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
       for (const { choice, picks } of reActivate) {
         result = applyActivateOther(result, choice, idx, picks);
       }
-      return result;
+      // Reset re-activates linked targets, then sanitizes requirements exactly
+      // like the original `cleanActivated` -> `activateProc` chain.
+      return activateAutomaticChoices(applyMissingReqCascade(result, idx), idx);
     });
-  }, [app, idx]);
+  }, [app, idx, cancelPendingSelections]);
 
   const importBuildCode = useCallback(
     (code: string) => {
-      setState(loadBuildCode(code, app, idx));
+      cancelPendingSelections();
+      // Loaded builds are sanitized by the missing-requirement cascade, like
+      // the original `loadActivated` -> `activateProc` -> `deselectMissingReq`.
+      setState(applyMissingReqCascade(loadBuildCode(code, app, idx), idx));
     },
-    [app, idx],
+    [app, idx, cancelPendingSelections],
   );
 
   const saveSlot = useCallback(
@@ -469,8 +567,11 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
       const entry: BuildSlot = { name, code: buildCode, updatedAt: Date.now() };
       try {
         localStorage.setItem(storageKey(slot), JSON.stringify(entry));
+        setStorageError(false);
+        return true;
       } catch {
-        // Storage may be unavailable (private mode) — non-fatal.
+        setStorageError(true);
+        return false;
       }
     },
     [buildCode],
@@ -510,20 +611,33 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
     return out;
   }, []);
 
+  // Keep the latest committed build without restarting the autosave clock on
+  // every selection (continuous play must not postpone saving indefinitely).
+  const latestBuildCode = useRef(buildCode);
+  useEffect(() => {
+    latestBuildCode.current = buildCode;
+  }, [buildCode]);
+
   // Autosave to the buildAutoSave slot when enabled.
   useEffect(() => {
     if (!app.buildAutoSaveIsOn) return;
-    const interval = Math.max(1, Number(app.buildAutoSaveInterval ?? 60)) * 1000;
+    const minutes = Number(app.buildAutoSaveInterval ?? 10);
+    const interval = Math.max(1, Number.isFinite(minutes) ? minutes : 10) * 60_000;
     const timer = setInterval(() => {
-      const entry: BuildSlot = { name: "Auto save", code: buildCode, updatedAt: Date.now() };
+      const entry: BuildSlot = {
+        name: "Auto save",
+        code: latestBuildCode.current,
+        updatedAt: Date.now(),
+      };
       try {
         localStorage.setItem(storageKey("buildAutoSave"), JSON.stringify(entry));
+        setStorageError(false);
       } catch {
-        // ignore
+        setStorageError(true);
       }
     }, interval);
     return () => clearInterval(timer);
-  }, [app.buildAutoSaveIsOn, app.buildAutoSaveInterval, buildCode]);
+  }, [app.buildAutoSaveIsOn, app.buildAutoSaveInterval]);
 
   return {
     app,
@@ -539,9 +653,18 @@ export function useCyoa({ app }: UseCyoaOptions): UseCyoaResult {
     rowButton,
     importBuildCode,
     saveSlot,
+    storageError,
     loadSlot,
     deleteSlot,
     listSlots,
     playSfx,
+    setUploadedImage: (id, image) => {
+      setState((prev) => {
+        if (!prev.activated.has(id) || !idx.choiceMap.get(id)?.choice.isImageUpload) return prev;
+        const uploadedImages = new Map(prev.uploadedImages);
+        uploadedImages.set(id, image);
+        return { ...prev, uploadedImages };
+      });
+    },
   };
 }

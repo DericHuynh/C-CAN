@@ -1,4 +1,4 @@
-import { Navigate } from "react-router";
+import { ExtensionsListPage } from "@agent-native/core/client/extensions";
 
 import { APP_TITLE } from "@/lib/app-config";
 
@@ -7,5 +7,5 @@ export function meta() {
 }
 
 export default function ExtensionsRoute() {
-  return <Navigate to="/settings#extensions" replace />;
+  return <ExtensionsListPage />;
 }

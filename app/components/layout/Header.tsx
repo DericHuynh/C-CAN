@@ -1,5 +1,6 @@
 import { AgentToggleButton } from "@agent-native/core/client/agent-chat";
 import { useT } from "@agent-native/core/client/i18n";
+import { NotificationsBell } from "@agent-native/core/client/notifications";
 import { useHeaderTitle, useHeaderActions } from "@agent-native/toolkit/app-shell";
 import { IconMenu2 } from "@tabler/icons-react";
 import { useLocation } from "react-router";
@@ -50,6 +51,7 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {actions}
+        <NotificationsBell />
         <AgentToggleButton />
       </div>
     </header>

@@ -1,14 +1,16 @@
+import { parseArgs } from "node:util";
 /**
  * Verify right-click context menus on row/choice/addon tree nodes.
- * Usage: PROJECT_ID=<copy> node scripts/tmp-verify-contextmenu.mjs
+ * Usage: node scripts/tmp-verify-contextmenu.mjs --project-id <copy>
  */
 import { chromium } from "../node_modules/.pnpm/playwright@1.62.1/node_modules/playwright/index.mjs";
 import { createClient } from "../node_modules/@libsql/client/lib-esm/node.js";
 
 const BASE = "http://localhost:8080";
-const PROJECT_ID = process.env.PROJECT_ID;
+const { values } = parseArgs({ options: { "project-id": { type: "string" } } });
+const PROJECT_ID = values["project-id"];
 if (!PROJECT_ID) {
-  console.error("Set PROJECT_ID to a throwaway copy.");
+  console.error("Pass --project-id for a throwaway copy.");
   process.exit(1);
 }
 const EMAIL = "viewer-check@local.test";

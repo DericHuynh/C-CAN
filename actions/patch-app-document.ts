@@ -1,9 +1,11 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { getProjectOrThrow, saveProject } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description:
     "Apply a large, whole-document patch to a project in one call: every top-level key in `patch` REPLACES the corresponding app field wholesale (rows, images, pointTypes, groups, backpack, variables, words, soundEffects, viewerConfig, …). This is the sanctioned way to rewrite a big chunk of the document (e.g. replace the full `rows` array with a rebuilt section) without hundreds of small mutations. Pass complete arrays — existing rows/choices you want to keep must be included verbatim (their `styling` objects included). `viewerConfig` is shallow-merged; `title` sets the viewer title.",
   schema: z.object({

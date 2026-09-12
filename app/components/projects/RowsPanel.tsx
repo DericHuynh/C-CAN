@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
+import { planningUrl } from "@shared/planning";
+import { useT } from "@agent-native/core/client/i18n";
 import { toast } from "sonner";
-import { IconPlus, IconSearch, IconArrowUpRight } from "@tabler/icons-react";
+import { IconPlus, IconSearch, IconArrowUpRight, IconX } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +31,7 @@ import { MasterDetail } from "./MasterDetail";
 import { RowEditor } from "./RowEditor";
 import { RowTree } from "./RowTree";
 import { sortedRows } from "./project-utils";
+import { filterEditorRows } from "./editor-search";
 
 interface RowsPanelProps {
   project: ProjectDetail;
@@ -41,17 +45,21 @@ interface ChoiceTarget {
 type Selection =
   | { kind: "row"; row: Row }
   | { kind: "choice"; choice: Choice; row: Row }
-  | { kind: "addon"; choice: Choice; row: Row };
+  | { kind: "addon"; choice: Choice; row: Row; addonIndex: number };
 
 /** Stable node key used by the tree to highlight the selection. */
 function selectionKey(selection: Selection): string {
   if (selection.kind === "row") return `row:${selection.row.id}`;
   if (selection.kind === "choice") return `choice:${selection.choice.id}`;
-  return `addon:${selection.choice.id}`;
+  return `addon:${selection.choice.id}:${selection.addonIndex}`;
 }
 
 export function RowsPanel({ project }: RowsPanelProps) {
   const { app } = project;
+  const [params, setParams] = useSearchParams();
+  const setParamsRef = useRef(setParams);
+  setParamsRef.current = setParams;
+  const t = useT();
   const projectId = project.id;
   // Stable identities so the memoized tree doesn't re-render on every
   // selection change (sortedRows copies; app/pointTypes/groups are stable
@@ -74,7 +82,26 @@ export function RowsPanel({ project }: RowsPanelProps) {
   const { mutate: moveAddonMutate } = useMoveAddon();
   const { mutate: deleteAddonMutate, isPending: deleteAddonPending } = useDeleteAddon();
 
-  const [selection, setSelection] = useState<Selection | null>(null);
+  const [selection, setSelectionState] = useState<Selection | null>(null);
+  const setSelection = useCallback((next: Selection | null) => {
+    setSelectionState(next);
+    setParamsRef.current(
+      (current) => {
+        const params = new URLSearchParams(current);
+        for (const key of ["rowId", "choiceId", "addonId"]) params.delete(key);
+        if (next) {
+          params.set("rowId", next.row.id);
+          if (next.kind !== "row") params.set("choiceId", next.choice.id);
+          if (next.kind === "addon") {
+            const id = next.choice.addons[next.addonIndex]?.id;
+            if (id) params.set("addonId", id);
+          }
+        }
+        return params;
+      },
+      { replace: true },
+    );
+  }, []);
   // Latest selection for the stable save callbacks (the editors are memoized
   // and must not re-render when RowsPanel re-renders with a new selection
   // object for the same item).
@@ -89,22 +116,7 @@ export function RowsPanel({ project }: RowsPanelProps) {
   } | null>(null);
   const [query, setQuery] = useState("");
 
-  // Filter rows by title/text or by any contained choice's title/text/id so
-  // a long project doesn't require scrolling every row to find one.
-  const filteredRows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((row) => {
-      if ((row.title ?? "").toLowerCase().includes(q)) return true;
-      if ((row.titleText ?? "").toLowerCase().includes(q)) return true;
-      return (row.objects ?? []).some(
-        (choice) =>
-          (choice.title ?? "").toLowerCase().includes(q) ||
-          (choice.text ?? "").toLowerCase().includes(q) ||
-          choice.id.toLowerCase().includes(q),
-      );
-    });
-  }, [rows, query]);
+  const filteredRows = useMemo(() => filterEditorRows(rows, query), [rows, query]);
 
   // Pagination: the tree shows one page of rows at a time (fully rendered —
   // no windowing), so even a 180-row / 1,200-choice project stays snappy.
@@ -119,12 +131,37 @@ export function RowsPanel({ project }: RowsPanelProps) {
   const pageStart = safePage * ROW_PAGE_SIZE;
   const pageEnd = Math.min(pageStart + ROW_PAGE_SIZE, filteredRows.length);
 
-  // Filtering changes the result set -> back to the first page. Edits that
-  // refetch the project keep the current page (the clamp below bounds it).
+  const targetRowId = params.get("rowId");
+  const targetChoiceId = params.get("choiceId");
+  const targetAddonId = params.get("addonId");
   useEffect(() => {
-    setPage(0);
-  }, [query]);
-
+    if (!targetRowId) {
+      setSelectionState(null);
+      return;
+    }
+    const current = selectionRef.current;
+    if (
+      current &&
+      current.row.id === targetRowId &&
+      (current.kind !== "row" ? current.choice.id : null) === targetChoiceId &&
+      (current.kind === "addon" ? current.choice.addons[current.addonIndex]?.id : null) ===
+        targetAddonId
+    )
+      return;
+    const row = rows.find((item) => item.id === targetRowId);
+    if (!row) return;
+    const choice = row.objects.find((item) => item.id === targetChoiceId);
+    const addonIndex = choice?.addons.findIndex((item) => item.id === targetAddonId) ?? -1;
+    setQuery("");
+    setPage(Math.floor(rows.indexOf(row) / ROW_PAGE_SIZE));
+    setSelectionState(
+      choice
+        ? addonIndex >= 0
+          ? { kind: "addon", row, choice, addonIndex }
+          : { kind: "choice", row, choice }
+        : { kind: "row", row },
+    );
+  }, [targetRowId, targetChoiceId, targetAddonId]);
   // While filtering, force-expand the matching rows so the result is visible.
   const autoExpandIds = useMemo(
     () => (query.trim() ? new Set(filteredRows.map((row) => row.id)) : undefined),
@@ -132,10 +169,16 @@ export function RowsPanel({ project }: RowsPanelProps) {
   );
 
   function handleAddRow() {
+    if (addRowPending) return;
     addRowMutate(
       { projectId },
       {
-        onSuccess: () => toast.success("Row added"),
+        onSuccess: (data) => {
+          toast.success("Row added");
+          setQuery("");
+          setPage(Math.floor(rows.length / ROW_PAGE_SIZE));
+          if (data.row) setSelection({ kind: "row", row: data.row });
+        },
         onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to add row"),
       },
     );
@@ -162,7 +205,7 @@ export function RowsPanel({ project }: RowsPanelProps) {
         onSuccess: () => {
           toast.success("Row deleted");
           setDeleteRowTarget(null);
-          if (selection?.kind === "row" && selection.row.id === target.id) setSelection(null);
+          if (selectionRef.current?.row.id === target.id) setSelection(null);
         },
         onError: (err) => {
           toast.error(err instanceof Error ? err.message : "Failed to delete row");
@@ -193,13 +236,20 @@ export function RowsPanel({ project }: RowsPanelProps) {
       addChoiceMutate(
         { projectId, rowId: row.id },
         {
-          onSuccess: () => toast.success("Choice added"),
+          onSuccess: (data) => {
+            toast.success("Choice added");
+            setQuery("");
+            setPage(
+              Math.max(0, Math.floor(rows.findIndex((item) => item.id === row.id) / ROW_PAGE_SIZE)),
+            );
+            if (data.choice) setSelection({ kind: "choice", choice: data.choice, row });
+          },
           onError: (err) =>
             toast.error(err instanceof Error ? err.message : "Failed to add choice"),
         },
       );
     },
-    [addChoiceMutate, projectId],
+    [addChoiceMutate, projectId, rows],
   );
 
   const handleMoveChoice = useCallback(
@@ -224,7 +274,8 @@ export function RowsPanel({ project }: RowsPanelProps) {
         onSuccess: () => {
           toast.success("Choice deleted");
           setDeleteChoiceTarget(null);
-          if (selection?.kind === "choice" && selection.choice.id === choice.id) {
+          const current = selectionRef.current;
+          if (current && current.kind !== "row" && current.choice.id === choice.id) {
             setSelection(null);
           }
         },
@@ -278,6 +329,7 @@ export function RowsPanel({ project }: RowsPanelProps) {
         {
           onSuccess: (data) => {
             if (data?.row) setSelection({ kind: "row", row: data.row });
+            setQuery("");
             // Reveal the page that now contains the new row.
             setPage(Math.floor(insertAt / ROW_PAGE_SIZE));
           },
@@ -300,6 +352,13 @@ export function RowsPanel({ project }: RowsPanelProps) {
         {
           onSuccess: (data) => {
             if (data?.choice) setSelection({ kind: "choice", choice: data.choice, row });
+            setQuery("");
+            setPage(
+              Math.max(
+                0,
+                Math.floor(sortedRows(app).findIndex((item) => item.id === row.id) / ROW_PAGE_SIZE),
+              ),
+            );
           },
           onError: (err) =>
             toast.error(err instanceof Error ? err.message : "Failed to add choice"),
@@ -325,7 +384,8 @@ export function RowsPanel({ project }: RowsPanelProps) {
         { projectId, rowId: row.id, choiceId, patch: { addons: next } },
         {
           onSuccess: (data) => {
-            if (data?.choice) setSelection({ kind: "addon", choice: data.choice, row });
+            if (data?.choice)
+              setSelection({ kind: "addon", choice: data.choice, row, addonIndex: insertAt });
           },
           onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to add addon"),
         },
@@ -343,6 +403,9 @@ export function RowsPanel({ project }: RowsPanelProps) {
         onSuccess: () => {
           toast.success("Addon deleted");
           setDeleteAddonTarget(null);
+          const current = selectionRef.current;
+          if (current && current.kind !== "row" && current.choice.id === choiceId)
+            setSelection(null);
         },
         onError: (err) => {
           toast.error(err instanceof Error ? err.message : "Failed to delete addon");
@@ -362,7 +425,8 @@ export function RowsPanel({ project }: RowsPanelProps) {
     [],
   );
   const handleSelectAddon = useCallback(
-    (choice: Choice, row: Row) => setSelection({ kind: "addon", choice, row }),
+    (choice: Choice, row: Row, addonIndex: number) =>
+      setSelection({ kind: "addon", choice, row, addonIndex }),
     [],
   );
   const handleCancelSelection = useCallback(() => setSelection(null), []);
@@ -400,7 +464,7 @@ export function RowsPanel({ project }: RowsPanelProps) {
       />
     ) : selection?.kind === "addon" ? (
       <ChoiceEditor
-        key={`addon:${selection.choice.id}`}
+        key={`addon:${selection.choice.id}:${selection.addonIndex}`}
         choice={selection.choice}
         app={app}
         pointTypes={pointTypes}
@@ -415,8 +479,8 @@ export function RowsPanel({ project }: RowsPanelProps) {
         <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
           <IconArrowUpRight className="size-6 text-muted-foreground/50" />
           <p className="max-w-sm text-sm text-muted-foreground">
-            Select a row, choice, or addon from the tree to edit it here — no more dialogs. Drag
-            branches to reorder or move them between parents.
+            Select a row, choice, or addon from the tree to edit it here. Drag branches to reorder
+            or move them between parents.
           </p>
         </CardContent>
       </Card>
@@ -433,20 +497,38 @@ export function RowsPanel({ project }: RowsPanelProps) {
               ? ` · ${filteredRows.length} matching`
               : ""}
           </p>
-          <Button type="button" size="sm" onClick={handleAddRow}>
+          <Button type="button" size="sm" onClick={handleAddRow} disabled={addRowPending}>
             <IconPlus className="mr-1.5 size-4" />
-            Add row
+            {addRowPending ? "Adding…" : "Add row"}
           </Button>
         </div>
         <div className="relative">
           <IconSearch className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter rows or choices…"
-            aria-label="Filter rows or choices"
-            className="h-8 w-full pl-8"
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(0);
+            }}
+            placeholder="Find rows, choices, or addons…"
+            aria-label="Find rows, choices, or addons"
+            className="h-8 w-full pl-8 pr-9"
           />
+          {query ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-0 top-0 size-8"
+              aria-label="Clear search"
+              onClick={() => {
+                setQuery("");
+                setPage(0);
+              }}
+            >
+              <IconX className="size-3.5" />
+            </Button>
+          ) : null}
         </div>
         {filteredRows.length > ROW_PAGE_SIZE ? (
           <div className="flex items-center justify-between gap-2">
@@ -482,16 +564,27 @@ export function RowsPanel({ project }: RowsPanelProps) {
               No rows yet. Rows hold the choices readers pick from — add your first row to get
               started.
             </p>
-            <Button type="button" onClick={handleAddRow}>
+            <Button type="button" onClick={handleAddRow} disabled={addRowPending}>
               <IconPlus className="mr-1.5 size-4" />
-              Add row
+              {addRowPending ? "Adding…" : "Add row"}
             </Button>
           </CardContent>
         </Card>
       ) : filteredRows.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center">
-            <p className="text-sm text-muted-foreground">No rows match “{query.trim()}”.</p>
+            <p className="text-sm text-muted-foreground">No content matches “{query.trim()}”.</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-3"
+              onClick={() => {
+                setQuery("");
+                setPage(0);
+              }}
+            >
+              Clear search
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -502,6 +595,7 @@ export function RowsPanel({ project }: RowsPanelProps) {
           pointTypes={pointTypes}
           groups={groups}
           autoExpandIds={autoExpandIds}
+          revealRowId={selection?.row.id}
           selectedKey={selection ? selectionKey(selection) : null}
           onEditRow={handleSelectRow}
           onAddChoice={handleAddChoice}
@@ -523,7 +617,28 @@ export function RowsPanel({ project }: RowsPanelProps) {
 
   return (
     <>
-      <MasterDetail master={master} detail={detail} />
+      <MasterDetail
+        master={master}
+        detail={
+          <div className="flex min-w-0 flex-col gap-2">
+            {selection && (
+              <Link
+                className="self-end text-sm underline"
+                to={planningUrl(project.id, {
+                  rowId: selection.row.id,
+                  ...(selection.kind !== "row" ? { choiceId: selection.choice.id } : {}),
+                  ...(selection.kind === "addon"
+                    ? { addonId: selection.choice.addons[selection.addonIndex].id }
+                    : {}),
+                })}
+              >
+                {t("planning.openPlan")}
+              </Link>
+            )}
+            {detail}
+          </div>
+        }
+      />
       <ConfirmDeleteDialog
         open={Boolean(deleteRowTarget)}
         onOpenChange={(open) => {

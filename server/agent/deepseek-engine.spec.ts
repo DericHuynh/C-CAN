@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vite-plus/test";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 import {
   createDeepSeekEngine,
@@ -7,8 +7,14 @@ import {
   DEEPSEEK_CAPABILITIES,
   DEEPSEEK_DEFAULT_MODEL,
   DEEPSEEK_MAX_OUTPUT_TOKENS,
+  DEEPSEEK_SUPPORTED_MODELS,
+  resolveMaxOutputTokens,
 } from "./deepseek-engine.js";
 import type { EngineStreamOptions } from "@agent-native/core/agent/engine";
+
+// Do not inherit developer credentials, or leak a test's env into another test.
+beforeEach(() => vi.stubEnv(DEEPSEEK_API_KEY_ENV, undefined));
+afterEach(() => vi.unstubAllEnvs());
 
 // Helper to collect all events from an async iterable
 async function collectEvents(iterable: AsyncIterable<any>) {
@@ -23,31 +29,47 @@ async function collectEvents(iterable: AsyncIterable<any>) {
 // SSE / fetch mocks
 // ---------------------------------------------------------------------------
 
-function dataLine(payload: unknown): string {
-  return `data: ${JSON.stringify(payload)}\n\n`;
+/** Response whose body is a web ReadableStream of DeepSeek SSE chunks. The
+ * AI SDK provider reads `response.body.getReader()`, so a plain async
+ * generator would not work here. */
+function sseResponse(payloads: unknown[]): Response {
+  const encoder = new TextEncoder();
+  const chunks: string[] = [
+    ...payloads.map((p) => `data: ${JSON.stringify(p)}\n\n`),
+    "data: [DONE]\n\n",
+  ];
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: { "content-type": "text/event-stream" },
+  });
 }
 
-const DONE = "data: [DONE]\n\n";
-
-/** Response whose body is an async iterable of SSE text chunks. */
-function streamResponse(lines: string[]): any {
+function textChunk(content: string): unknown {
   return {
-    ok: true,
-    status: 200,
-    body: (async function* () {
-      for (const line of lines) yield new TextEncoder().encode(line);
-    })(),
+    choices: [{ index: 0, delta: { role: "assistant", content }, finish_reason: null }],
   };
 }
 
+function finishChunk(): unknown {
+  return { choices: [{ index: 0, delta: {}, finish_reason: "stop" }] };
+}
+
 /** Run one stream() call against a canned SSE body and collect events. */
-async function runStream(opts: EngineStreamOptions, lines: string[]) {
+async function runStream(opts: EngineStreamOptions, payloads: unknown[]) {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => streamResponse(lines)),
+    vi.fn(async (_url: string, _init: RequestInit) => sseResponse(payloads)),
   );
   try {
-    return await collectEvents(createDeepSeekEngine({ apiKey: "test" }).stream(opts));
+    return await collectEvents(createDeepSeekEngine({ apiKey: "test-key" }).stream(opts));
   } finally {
     vi.unstubAllGlobals();
   }
@@ -58,30 +80,33 @@ async function runStream(opts: EngineStreamOptions, lines: string[]) {
  * engine handed to fetch — used to assert wire-format details without
  * depending on the response content.
  */
-async function captureRequest(opts: EngineStreamOptions): Promise<any> {
-  const fetchSpy = vi.fn(async (_url: string, init: any) =>
-    streamResponse([
-      dataLine({
-        choices: [
-          {
-            index: 0,
-            delta: { role: "assistant", content: "ok" },
-            finish_reason: "stop",
-          },
-        ],
-      }),
-      DONE,
+async function captureRequest(
+  opts: EngineStreamOptions,
+  engineConfig: Record<string, unknown> = { apiKey: "test-key" },
+): Promise<{ url: string; body: any; headers: Headers }> {
+  const fetchSpy = vi.fn(async (_url: string, init: RequestInit) =>
+    sseResponse([
+      {
+        choices: [{ index: 0, delta: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+      },
     ]),
   );
   vi.stubGlobal("fetch", fetchSpy);
   try {
-    await collectEvents(createDeepSeekEngine({ apiKey: "test" }).stream(opts));
+    await collectEvents(createDeepSeekEngine(engineConfig).stream(opts));
   } finally {
     vi.unstubAllGlobals();
   }
   expect(fetchSpy).toHaveBeenCalledTimes(1);
   const [url, init] = fetchSpy.mock.calls[0];
-  return { url, body: JSON.parse(init.body), headers: init.headers };
+  return {
+    url: String(url),
+    body: JSON.parse(init.body as string),
+    headers:
+      init.headers instanceof Headers
+        ? init.headers
+        : new Headers(init.headers as Record<string, string>),
+  };
 }
 
 function baseOpts(overrides: Partial<EngineStreamOptions> = {}): EngineStreamOptions {
@@ -96,611 +121,211 @@ function baseOpts(overrides: Partial<EngineStreamOptions> = {}): EngineStreamOpt
 }
 
 // ---------------------------------------------------------------------------
-// createDeepSeekEngine
+// createDeepSeekEngine — metadata
 // ---------------------------------------------------------------------------
 
 describe("createDeepSeekEngine", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.unstubAllGlobals();
-  });
-
-  it("creates engine with correct metadata", () => {
+  it("exposes DeepSeek metadata on the engine", () => {
     const engine = createDeepSeekEngine({ apiKey: "test-key" });
     expect(engine.name).toBe("deepseek");
+    expect(engine.label).toBe("DeepSeek");
     expect(engine.defaultModel).toBe(DEEPSEEK_DEFAULT_MODEL);
-    expect(engine.defaultModel).toBe("deepseek-v4-flash");
-    // deepseek-v4-flash is the only supported model — the picker's sole
-    // selection and the fallback for any other id.
-    expect(engine.supportedModels).toEqual(["deepseek-v4-flash"]);
-    expect(engine.capabilities).toMatchObject(DEEPSEEK_CAPABILITIES);
+    expect(engine.supportedModels).toEqual(DEEPSEEK_SUPPORTED_MODELS);
+    // The generic OpenAI capability table declares vision:true; DeepSeek's
+    // current models are text-only, so the wrapper must pin the flag off.
+    expect(engine.capabilities).toEqual(DEEPSEEK_CAPABILITIES);
+    expect(engine.capabilities.vision).toBe(false);
+    expect(engine.capabilities.thinking).toBe(true);
+    // Custom base URL ⇒ provider-defined model ids pass through verbatim.
+    expect(engine.preserveCustomModels).toBe(true);
   });
 
-  it("stream emits text-delta events from SSE chunks", async () => {
-    const events = await runStream(baseOpts(), [
-      dataLine({
-        choices: [
-          {
-            index: 0,
-            delta: { role: "assistant", content: "Hello, " },
-            finish_reason: null,
-          },
-        ],
-      }),
-      dataLine({
-        choices: [{ index: 0, delta: { content: "world!" }, finish_reason: null }],
-      }),
-      dataLine({
-        choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
-      }),
-      DONE,
-    ]);
+  it("fails closed with missing_credentials when no key is available", async () => {
+    const engine = createDeepSeekEngine({});
+    const events = await collectEvents(engine.stream(baseOpts()));
+    const stop = events.find((e) => e.type === "stop");
+    expect(stop).toBeDefined();
+    expect(stop.reason).toBe("error");
+    expect(stop.errorCode).toBe("missing_credentials");
+  });
+});
 
-    const texts = events
-      .filter((e) => e.type === "text-delta")
-      .map((e: any) => e.text)
-      .join("");
-    expect(texts).toBe("Hello, world!");
+// ---------------------------------------------------------------------------
+// resolveMaxOutputTokens
+// ---------------------------------------------------------------------------
 
-    const stopEvent = events.find((e) => e.type === "stop");
-    expect(stopEvent?.reason).toBe("end_turn");
-
-    const assistant = events.find((e) => e.type === "assistant-content");
-    expect(assistant?.parts).toEqual([{ type: "text", text: "Hello, world!" }]);
+describe("resolveMaxOutputTokens", () => {
+  it("clamps values above DeepSeek's 8192 ceiling", () => {
+    expect(resolveMaxOutputTokens(32_000)).toBe(DEEPSEEK_MAX_OUTPUT_TOKENS);
+    expect(resolveMaxOutputTokens(9_000)).toBe(DEEPSEEK_MAX_OUTPUT_TOKENS);
   });
 
-  it("surfaces reasoning_content deltas as thinking-delta events", async () => {
-    const events = await runStream(baseOpts({ model: "deepseek-reasoner" }), [
-      dataLine({
-        choices: [
-          {
-            index: 0,
-            delta: { role: "assistant", reasoning_content: "Let me think" },
-            finish_reason: null,
-          },
-        ],
-      }),
-      dataLine({
-        choices: [{ index: 0, delta: { reasoning_content: " carefully" }, finish_reason: null }],
-      }),
-      dataLine({
-        choices: [{ index: 0, delta: { content: "Answer." }, finish_reason: null }],
-      }),
-      dataLine({
-        choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
-      }),
-      DONE,
-    ]);
-
-    const thinking = events
-      .filter((e) => e.type === "thinking-delta")
-      .map((e: any) => e.text)
-      .join("");
-    expect(thinking).toBe("Let me think carefully");
-
-    // The final turn keeps the stream's order — thinking before text — so the
-    // persisted message matches the live preview instead of jumping the answer
-    // above the "Thought" cell on completion.
-    const assistant = events.find((e) => e.type === "assistant-content");
-    expect(assistant?.parts).toEqual([
-      { type: "thinking", text: "Let me think carefully" },
-      { type: "text", text: "Answer." },
-    ]);
+  it("honors explicit values at or below the ceiling", () => {
+    expect(resolveMaxOutputTokens(512)).toBe(512);
+    expect(resolveMaxOutputTokens(8_192)).toBe(8_192);
   });
 
-  it("emits a usage event from the final include_usage chunk", async () => {
-    const events = await runStream(baseOpts(), [
-      dataLine({
-        choices: [{ index: 0, delta: { role: "assistant", content: "Hi" }, finish_reason: null }],
-      }),
-      dataLine({
-        choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
-      }),
-      dataLine({
-        choices: [],
-        usage: {
-          prompt_tokens: 15,
-          completion_tokens: 7,
-          total_tokens: 22,
-          completion_tokens_details: { reasoning_tokens: 3 },
-        },
-      }),
-      DONE,
-    ]);
+  it("falls back to the full ceiling for unset or invalid values", () => {
+    expect(resolveMaxOutputTokens(undefined)).toBe(DEEPSEEK_MAX_OUTPUT_TOKENS);
+    expect(resolveMaxOutputTokens(0)).toBe(DEEPSEEK_MAX_OUTPUT_TOKENS);
+    expect(resolveMaxOutputTokens(-5)).toBe(DEEPSEEK_MAX_OUTPUT_TOKENS);
+    expect(resolveMaxOutputTokens(Number.NaN)).toBe(DEEPSEEK_MAX_OUTPUT_TOKENS);
+    expect(resolveMaxOutputTokens("lots" as unknown)).toBe(DEEPSEEK_MAX_OUTPUT_TOKENS);
+  });
+});
 
-    const usage = events.find((e) => e.type === "usage");
-    expect(usage).toEqual({
-      type: "usage",
-      inputTokens: 15,
-      outputTokens: 7,
-      totalTokens: 22,
-      reasoningTokens: 3,
+// ---------------------------------------------------------------------------
+// Key handling — stored secret wins, deploy env is the gated shared default
+// ---------------------------------------------------------------------------
+
+describe("createDeepSeekEngine key handling", () => {
+  const withEnvKey = async (value: string | undefined, fn: () => Promise<void>) => {
+    vi.stubEnv(DEEPSEEK_API_KEY_ENV, value);
+    await fn();
+  };
+
+  it("uses the deployment-level DEEPSEEK_API_KEY as the shared default", async () => {
+    await withEnvKey("deploy-key", async () => {
+      const { headers } = await captureRequest(baseOpts(), {});
+      expect(headers.get("authorization")).toBe("Bearer deploy-key");
     });
   });
 
-  it("posts an OpenAI-compatible chat request to the DeepSeek endpoint", async () => {
-    const { url, body, headers } = await captureRequest(
+  it("lets a user's stored secret override the deployment env var", async () => {
+    await withEnvKey("deploy-key", async () => {
+      const { headers } = await captureRequest(baseOpts(), { apiKey: "user-key" });
+      expect(headers.get("authorization")).toBe("Bearer user-key");
+    });
+  });
+
+  it("blocks the deploy env fallback when allowEnvFallback is false", async () => {
+    await withEnvKey("deploy-key", async () => {
+      const engine = createDeepSeekEngine({ allowEnvFallback: false });
+      const events = await collectEvents(engine.stream(baseOpts()));
+      const stop = events.find((e) => e.type === "stop");
+      expect(stop.errorCode).toBe("missing_credentials");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wire format — posts an OpenAI-compatible request to the DeepSeek endpoint
+// ---------------------------------------------------------------------------
+
+describe("createDeepSeekEngine wire format", () => {
+  it("posts to the DeepSeek chat completions endpoint with Bearer auth", async () => {
+    const { url, headers } = await captureRequest(baseOpts());
+    expect(url).toBe(`${DEEPSEEK_BASE_URL}/chat/completions`);
+    expect(headers.get("authorization")).toBe("Bearer test-key");
+    expect(headers.get("content-type")).toContain("application/json");
+  });
+
+  it("sends the model id and OpenAI-compatible stream options", async () => {
+    const { body } = await captureRequest(baseOpts());
+    expect(body.model).toBe(DEEPSEEK_DEFAULT_MODEL);
+    expect(body.stream).toBe(true);
+    expect(body.stream_options).toEqual({ include_usage: true });
+  });
+
+  it("clamps max_tokens to DeepSeek's 8192 ceiling for the interactive-chat 32K default", async () => {
+    const { body } = await captureRequest(baseOpts({ maxOutputTokens: 32_000 }));
+    expect(body.max_tokens).toBe(DEEPSEEK_MAX_OUTPUT_TOKENS);
+  });
+
+  it("defaults max_tokens to the ceiling when the caller leaves it unset", async () => {
+    const { body } = await captureRequest(baseOpts({ maxOutputTokens: undefined }));
+    expect(body.max_tokens).toBe(DEEPSEEK_MAX_OUTPUT_TOKENS);
+  });
+
+  it("never sends top-level reasoning_effort (DeepSeek configures effort via its thinking object)", async () => {
+    const { body } = await captureRequest(baseOpts());
+    expect(body).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("passes custom deepseek model ids through verbatim", async () => {
+    const { body } = await captureRequest(baseOpts({ model: "deepseek-v4-pro" }));
+    expect(body.model).toBe("deepseek-v4-pro");
+  });
+
+  it("serializes system + user messages for the DeepSeek surface", async () => {
+    const { body } = await captureRequest(baseOpts());
+    expect(body.messages).toHaveLength(2);
+    expect(body.messages[0]).toEqual({ role: "system", content: "You are helpful." });
+    expect(body.messages[1]).toEqual({ role: "user", content: "Hi" });
+  });
+
+  it("serializes tools in the OpenAI function format without reasoning_effort", async () => {
+    const { body } = await captureRequest(
       baseOpts({
-        messages: [
-          { role: "user", content: [{ type: "text", text: "Hi" }] },
-          {
-            role: "assistant",
-            content: [
-              { type: "text", text: "Let me look." },
-              {
-                type: "tool-call",
-                id: "call_1",
-                name: "get_weather",
-                input: { city: "SF" },
-              },
-            ],
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "tool-result",
-                toolCallId: "call_1",
-                toolName: "get_weather",
-                toolInput: "{}",
-                content: "72F",
-              },
-              { type: "text", text: "Thanks" },
-            ],
-          },
-        ],
         tools: [
           {
             name: "get_weather",
-            description: "Get weather",
+            description: "Get the weather",
             inputSchema: {
               type: "object",
               properties: { city: { type: "string" } },
+              required: ["city"],
             },
           },
         ],
-        temperature: 0.7,
       }),
     );
+    expect(body.tools).toHaveLength(1);
+    expect(body.tools[0].type).toBe("function");
+    expect(body.tools[0].function.name).toBe("get_weather");
+    expect(body.tools[0].function.parameters.properties.city.type).toBe("string");
+    // The OpenAI provider's reasoning_effort-with-tools workaround must stay
+    // inert for DeepSeek: the field is only emitted for known OpenAI/Claude/
+    // Gemini reasoning families, and deepseek models are not one of them.
+    expect(body).not.toHaveProperty("reasoning_effort");
+  });
+});
 
-    expect(url).toBe(`${DEEPSEEK_BASE_URL}/chat/completions`);
-    expect(headers.Authorization).toBe("Bearer test");
-    expect(headers["Content-Type"]).toBe("application/json");
-    expect(headers.Accept).toBe("text/event-stream");
+// ---------------------------------------------------------------------------
+// Stream behavior — events flow through the AI SDK engine
+// ---------------------------------------------------------------------------
 
-    expect(body.model).toBe("deepseek-v4-flash");
-    expect(body.stream).toBe(true);
-    expect(body.stream_options).toEqual({ include_usage: true });
-    expect(body.temperature).toBe(0.7);
-    // The system prompt rides as the leading system message.
-    expect(body.messages[0]).toEqual({
-      role: "system",
-      content: "You are helpful.",
-    });
-    // Tool results become their own `tool` messages; tool calls render as
-    // OpenAI `tool_calls` with JSON-string arguments.
-    expect(body.messages).toContainEqual({ role: "user", content: "Hi" });
-    expect(body.messages).toContainEqual({
-      role: "assistant",
-      content: "Let me look.",
-      tool_calls: [
-        {
-          id: "call_1",
-          type: "function",
-          function: { name: "get_weather", arguments: '{"city":"SF"}' },
-        },
-      ],
-    });
-    expect(body.messages).toContainEqual({
-      role: "tool",
-      tool_call_id: "call_1",
-      content: "72F",
-    });
-    expect(body.tools).toEqual([
+describe("createDeepSeekEngine stream", () => {
+  it("emits text-delta events followed by assistant-content and a terminal stop", async () => {
+    const events = await runStream(baseOpts(), [textChunk("Hel"), textChunk("lo"), finishChunk()]);
+    const texts = events.filter((e) => e.type === "text-delta").map((e) => e.text);
+    expect(texts.join("")).toBe("Hello");
+    expect(events.some((e) => e.type === "assistant-content")).toBe(true);
+    expect(events[events.length - 1]).toMatchObject({ type: "stop" });
+  });
+
+  it("emits a usage event from the include_usage chunk", async () => {
+    const events = await runStream(baseOpts(), [
+      textChunk("ok"),
+      finishChunk(),
       {
-        type: "function",
-        function: {
-          name: "get_weather",
-          description: "Get weather",
-          parameters: {
-            type: "object",
-            properties: { city: { type: "string" } },
-          },
-        },
+        choices: [],
+        usage: { prompt_tokens: 17, completion_tokens: 9, total_tokens: 26 },
       },
     ]);
+    const usage = events.find((e) => e.type === "usage");
+    expect(usage).toBeDefined();
+    expect(usage.inputTokens).toBe(17);
+    expect(usage.outputTokens).toBe(9);
+    expect(usage.totalTokens).toBe(26);
   });
 
-  it("sends content for reasoning-only assistant messages (no 400)", async () => {
-    // A previous turn that streamed chain-of-thought but no text and no tool
-    // call must not round-trip as an empty assistant message — DeepSeek
-    // rejects that with HTTP 400 "content or tool_calls must be set". The
-    // thinking text becomes the content fallback.
-    const { body } = await captureRequest(
-      baseOpts({
-        messages: [
-          { role: "user", content: [{ type: "text", text: "Hi" }] },
-          {
-            role: "assistant",
-            content: [{ type: "thinking", text: "Let me think about this" }],
-          },
-        ],
-      }),
-    );
-    expect(body.messages).toContainEqual({
-      role: "assistant",
-      content: "Let me think about this",
-    });
-  });
-
-  it("drops a fully-empty assistant message instead of sending it", async () => {
-    const { body } = await captureRequest(
-      baseOpts({
-        messages: [
-          { role: "user", content: [{ type: "text", text: "Hi" }] },
-          { role: "assistant", content: [] },
-        ],
-      }),
-    );
-    const assistantMessages = body.messages.filter((m: any) => m.role === "assistant");
-    expect(assistantMessages).toHaveLength(0);
-  });
-
-  it("clamps max_tokens to the DeepSeek 8192 ceiling", async () => {
-    // The interactive-chat 32K default must not become a provider 400.
-    const high = await captureRequest(baseOpts({ maxOutputTokens: 64_000 }));
-    expect(high.body.max_tokens).toBe(DEEPSEEK_MAX_OUTPUT_TOKENS);
-
-    // Small explicit caps are honored as-is.
-    const small = await captureRequest(baseOpts({ maxOutputTokens: 512 }));
-    expect(small.body.max_tokens).toBe(512);
-
-    // Unset falls back to the full ceiling.
-    const none = await captureRequest(baseOpts());
-    expect(none.body.max_tokens).toBe(DEEPSEEK_MAX_OUTPUT_TOKENS);
-  });
-
-  it("defaults to medium reasoning effort for deepseek-v4-flash", async () => {
-    const { body } = await captureRequest(baseOpts());
-    expect(body.reasoning_effort).toBe("medium");
-  });
-
-  it("uses explicit reasoning effort when provided", async () => {
-    const { body } = await captureRequest(baseOpts({ reasoningEffort: "high" }));
-    expect(body.reasoning_effort).toBe("high");
-  });
-
-  it("maps xhigh/max effort down to DeepSeek's high tier", async () => {
-    const { body } = await captureRequest(baseOpts({ reasoningEffort: "max" }));
-    expect(body.reasoning_effort).toBe("high");
-  });
-
-  it("omits reasoning_effort when effort is explicitly none", async () => {
-    const { body } = await captureRequest(baseOpts({ reasoningEffort: "none" }));
-    expect(body.reasoning_effort).toBeUndefined();
-  });
-
-  it("omits reasoning_effort for a non-reasoning model", async () => {
-    const { body } = await captureRequest(baseOpts({ model: "deepseek-chat" }));
-    expect(body.reasoning_effort).toBeUndefined();
-  });
-
-  it("stream emits stop with error when API key is missing", async () => {
-    const engine = createDeepSeekEngine({});
-    const events = await collectEvents(engine.stream(baseOpts()));
-    const stopEvent = events.find((e) => e.type === "stop");
-    expect(stopEvent?.reason).toBe("error");
-    expect(stopEvent?.error).toContain("Settings → Secrets");
-    // Never leaks the raw key name into the message.
-    expect(stopEvent?.error).not.toContain(DEEPSEEK_API_KEY_ENV);
-    expect(stopEvent?.errorCode).toBe("missing_credentials");
-  });
-
-  it("does not use deploy-level DeepSeek keys", async () => {
-    vi.stubEnv(DEEPSEEK_API_KEY_ENV, "sk-deploy");
-    const engine = createDeepSeekEngine({});
-    const events = await collectEvents(engine.stream(baseOpts()));
-    const stopEvent = events.find((e) => e.type === "stop");
-    expect(stopEvent?.reason).toBe("error");
-    expect(stopEvent?.errorCode).toBe("missing_credentials");
-  });
-
-  it.each([429, 503])("tags upstream %i backpressure with a structured status", async (status) => {
-    const mockFetch = vi.fn(async () => ({
-      ok: false,
-      status,
-      json: async () => ({ error: { message: "Rate limit exceeded" } }),
-    }));
-    vi.stubGlobal("fetch", mockFetch);
-    try {
-      // The engine yields the terminal stop event and then rethrows, so
-      // collect events defensively.
-      const events: any[] = [];
-      await expect(async () => {
-        for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()))
-          events.push(e);
-      }).rejects.toThrow();
-
-      const stopEvent = events.find((e) => e.type === "stop");
-      expect(stopEvent?.reason).toBe("error");
-      expect(stopEvent?.error).toContain("Rate limit exceeded");
-      expect(stopEvent?.errorCode).toBe(`http_${status}`);
-      expect(stopEvent?.statusCode).toBe(status);
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("reports a 401 as a structured http_401 stop error", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({
-        ok: false,
-        status: 401,
-        json: async () => ({ error: { message: "Authentication Fails" } }),
-      })),
-    );
-    try {
-      const events: any[] = [];
-      await expect(async () => {
-        for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()))
-          events.push(e);
-      }).rejects.toThrow();
-
-      const stopEvent = events.find((e) => e.type === "stop");
-      expect(stopEvent?.reason).toBe("error");
-      expect(stopEvent?.error).toContain("Authentication Fails");
-      expect(stopEvent?.errorCode).toBe("http_401");
-      expect(stopEvent?.statusCode).toBe(401);
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("falls back to the status line when the error body is empty", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({
-        ok: false,
-        status: 429,
-        json: async () => {
-          throw new Error("no body");
-        },
-      })),
-    );
-    try {
-      const events: any[] = [];
-      await expect(async () => {
-        for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()))
-          events.push(e);
-      }).rejects.toThrow();
-
-      const stopEvent = events.find((e) => e.type === "stop");
-      expect(stopEvent?.error).toContain("HTTP 429");
-      expect(stopEvent?.errorCode).toBe("http_429");
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("tags fetch connection failures as provider_network_error", async () => {
-    const socket = Object.assign(new Error("other side closed"), {
-      code: "UND_ERR_SOCKET",
-    });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        throw Object.assign(new Error("fetch failed"), { cause: socket });
-      }),
-    );
-    try {
-      const events: any[] = [];
-      await expect(async () => {
-        for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()))
-          events.push(e);
-      }).rejects.toThrow("fetch failed");
-
-      const stopEvent = events.find((e) => e.type === "stop");
-      expect(stopEvent?.reason).toBe("error");
-      // The cause chain survives into the recorded message so the real
-      // transport failure is diagnosable after the fact.
-      expect(stopEvent?.error).toBe("fetch failed (cause: UND_ERR_SOCKET other side closed)");
-      expect(stopEvent?.errorCode).toBe("provider_network_error");
-      expect(stopEvent?.providerRetryable).toBe(true);
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// First-event deadline
-// ---------------------------------------------------------------------------
-
-describe("createDeepSeekEngine first-event deadline", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
-  });
-
-  it("aborts with a retryable network error when the stream produces no data within 120s", async () => {
-    let capturedSignal: AbortSignal | undefined;
-    const mockFetch = vi.fn(async (_url: string, init: any) => {
-      capturedSignal = init?.signal;
-      return {
-        ok: true,
-        status: 200,
-        body: (async function* () {
-          await new Promise((_resolve, reject) => {
-            if (capturedSignal?.aborted) {
-              reject(capturedSignal.reason ?? new Error("aborted"));
-              return;
-            }
-            capturedSignal?.addEventListener(
-              "abort",
-              () => reject(capturedSignal!.reason ?? new Error("aborted")),
-              { once: true },
-            );
-          });
-        })(),
-      };
-    });
-    vi.stubGlobal("fetch", mockFetch);
-    vi.useFakeTimers();
-
-    const events: any[] = [];
-    let settledEarly = false;
-    const runPromise = (async () => {
-      for await (const e of createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()))
-        events.push(e);
-    })();
-    void runPromise
-      .catch(() => {})
-      .then(() => {
-        settledEarly = true;
-      });
-
-    await vi.advanceTimersByTimeAsync(119_000);
-    expect(settledEarly).toBe(false);
-
-    await vi.advanceTimersByTimeAsync(1_000);
-    await expect(runPromise).rejects.toThrow();
-
-    const stop = events.find((e) => e.type === "stop");
-    expect(stop?.reason).toBe("error");
-    expect(stop?.errorCode).toBe("provider_network_error");
-    expect(stop?.providerRetryable).toBe(true);
-    expect(stop?.error).toContain("120s");
-  });
-
-  it("does not abort once the stream has produced a data line", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        streamResponse([
-          dataLine({
-            choices: [
-              {
-                index: 0,
-                delta: { role: "assistant", content: "Hello" },
-                finish_reason: null,
-              },
-            ],
-          }),
-          dataLine({
-            choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
-          }),
-          DONE,
-        ]),
-      ),
-    );
-
-    const events = await collectEvents(createDeepSeekEngine({ apiKey: "test" }).stream(baseOpts()));
-
-    const stop = events.find((e) => e.type === "stop");
-    expect(stop?.reason).toBe("end_turn");
-    expect(stop?.errorCode).toBeUndefined();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Streamed tool-input reconciliation
-// ---------------------------------------------------------------------------
-
-describe("createDeepSeekEngine streamed tool-input reconciliation", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  async function runToolInputStream(argsDeltas: string[], finishReason = "tool_calls") {
-    const lines: string[] = [
-      dataLine({
+  it("tolerates DeepSeek's reasoning_content deltas (thinking mode) without crashing", async () => {
+    const events = await runStream(baseOpts(), [
+      {
         choices: [
           {
             index: 0,
-            delta: { role: "assistant", content: "" },
+            delta: { role: "assistant", reasoning_content: "thinking..." },
             finish_reason: null,
           },
         ],
-      }),
-      dataLine({
-        choices: [
-          {
-            index: 0,
-            delta: {
-              tool_calls: [
-                {
-                  index: 0,
-                  id: "call_01",
-                  type: "function",
-                  function: { name: "create_document", arguments: "" },
-                },
-              ],
-            },
-            finish_reason: null,
-          },
-        ],
-      }),
-      ...argsDeltas.map((args) =>
-        dataLine({
-          choices: [
-            {
-              index: 0,
-              delta: { tool_calls: [{ index: 0, function: { arguments: args } }] },
-              finish_reason: null,
-            },
-          ],
-        }),
-      ),
-      dataLine({
-        choices: [{ index: 0, delta: {}, finish_reason: finishReason }],
-      }),
-      DONE,
-    ];
-    return runStream(baseOpts(), lines);
-  }
-
-  it("assembles a tool call from multiple argument deltas", async () => {
-    const events = await runToolInputStream(['{"title":"Q', '3 plan"', "}"]);
-
-    expect(events.find((e) => e.type === "tool-call")).toEqual({
-      type: "tool-call",
-      id: "call_01",
-      name: "create_document",
-      input: { title: "Q3 plan" },
-    });
-    expect(events.find((e) => e.type === "assistant-content")?.parts).toContainEqual({
-      type: "tool-call",
-      id: "call_01",
-      name: "create_document",
-      input: { title: "Q3 plan" },
-    });
-    expect(events.find((e) => e.type === "stop")?.reason).toBe("tool_use");
-  });
-
-  it("yields tool-input progress events carrying the call id and name", async () => {
-    const events = await runToolInputStream(['{"a":', "1}"]);
-
-    const start = events.find((e) => e.type === "tool-input-start");
-    expect(start).toEqual({
-      type: "tool-input-start",
-      id: "call_01",
-      name: "create_document",
-    });
-
-    const deltas = events.filter((e) => e.type === "tool-input-delta");
-    expect(deltas.map((e: any) => e.text).join("")).toBe('{"a":1}');
-    expect(deltas.every((e: any) => e.id === "call_01" && e.name === "create_document")).toBe(true);
-  });
-
-  it("reports a tool call truncated mid-arguments as an in-band tool-call error", async () => {
-    const events = await runToolInputStream(['{"title":"Q']);
-
-    expect(events.find((e) => e.type === "tool-call-error")).toMatchObject({
-      id: "call_01",
-      name: "create_document",
-      input: '{"title":"Q',
-    });
-    expect(events.some((e) => e.type === "tool-call")).toBe(false);
+      },
+      textChunk("Answer"),
+      finishChunk(),
+    ]);
+    const texts = events.filter((e) => e.type === "text-delta").map((e) => e.text);
+    expect(texts.join("")).toBe("Answer");
+    expect(events[events.length - 1]).toMatchObject({ type: "stop" });
   });
 });

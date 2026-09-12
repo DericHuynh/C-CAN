@@ -24,6 +24,7 @@ export default function ProjectsIndexRoute() {
   const [importOpen, setImportOpen] = useState(false);
 
   function handleNewProject() {
+    if (createProject.isPending) return;
     createProject.mutate(
       {},
       {
@@ -31,7 +32,7 @@ export default function ProjectsIndexRoute() {
           toast.success("Project created");
           const id = extractProjectId(result);
           if (id) {
-            navigate(`/projects/${encodeURIComponent(id)}`);
+            navigate(`/projects/${encodeURIComponent(id)}/editor`);
           }
         },
         onError: (err) =>
@@ -54,9 +55,9 @@ export default function ProjectsIndexRoute() {
             <IconFileImport className="mr-1.5 size-4" />
             Import JSON
           </Button>
-          <Button type="button" onClick={handleNewProject}>
+          <Button type="button" onClick={handleNewProject} disabled={createProject.isPending}>
             <IconPlus className="mr-1.5 size-4" />
-            New CYOA
+            {createProject.isPending ? "Creating…" : "New CYOA"}
           </Button>
         </div>
       </div>
@@ -94,9 +95,9 @@ export default function ProjectsIndexRoute() {
               document from JSON.
             </p>
             <div className="flex items-center gap-2">
-              <Button type="button" onClick={handleNewProject}>
+              <Button type="button" onClick={handleNewProject} disabled={createProject.isPending}>
                 <IconPlus className="mr-1.5 size-4" />
-                New CYOA
+                {createProject.isPending ? "Creating…" : "New CYOA"}
               </Button>
               <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
                 Import JSON

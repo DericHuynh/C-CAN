@@ -1,9 +1,11 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { assertFound, getProjectOrThrow, reindexRows, saveProject } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description: "Move a row to a new 0-based index in its project and re-index all rows.",
   schema: z.object({
     projectId: z.string().describe("Project id"),

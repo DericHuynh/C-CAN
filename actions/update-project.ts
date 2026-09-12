@@ -1,3 +1,4 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
@@ -8,6 +9,7 @@ import { projects, type NewProject } from "../server/db/schema.js";
 import { getProjectOrThrow, toProjectSummary } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description:
     "Update a project's metadata only (title/description). The CYOA document itself is left untouched.",
   schema: z.object({

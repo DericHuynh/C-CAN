@@ -1,3 +1,4 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
@@ -20,6 +21,7 @@ const choiceSpec = z.object({
 });
 
 export default defineAction({
+  audit: projectAudit,
   description:
     "Bulk-create many choices inside one row in a single call (much cheaper than repeated add-choice calls). Each spec inserts one choice at `index` (or the end) with the given `fields` — ideal for filling a row with a full set of options at once. Returns all created choices.",
   schema: z.object({

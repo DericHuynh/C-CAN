@@ -198,7 +198,7 @@ export function SoundEffectsPanel({ project }: SoundEffectsPanelProps) {
         <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
           <IconMusic className="size-6 text-muted-foreground/50" />
           <p className="max-w-sm text-sm text-muted-foreground">
-            Select a sound effect to edit it here, or add a new one — no more dialogs.
+            Select a sound effect to edit it here, or add a new one.
           </p>
         </CardContent>
       </Card>

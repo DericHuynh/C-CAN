@@ -20,11 +20,21 @@ export default defineAction({
   description:
     "Lightweight project structure read (no embedded images, no choice/row bodies): the project title, every row with its id / index / title / choice count / addon count / requirement targets, every choice's id / index / title / requirement targets, plus point type and group id/name lists. Use this to plan rows, choices and requireds wiring without loading the full document.",
   readOnly: true,
+  // Authenticated read exposure for external MCP/A2A hosts.
+  publicAgent: { expose: true, readOnly: true, requiresAuth: true },
+  // Render the result as a native data-table widget in Agent-Native chat.
+  // The widget reads the additive `table` key below; the existing shape
+  // (pointTypes / groups / rows) stays untouched for other consumers.
+  chatUI: {
+    renderer: "core.data-table",
+    title: "Project structure",
+    description: "Rows → choices, with requirement targets",
+  },
   schema: z.object({
     projectId: z.string().describe("Project id"),
   }),
-  run: async ({ projectId }) => {
-    const { row, app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId }, ctx) => {
+    const { row, app } = await getProjectOrThrow(projectId, ctx, "viewer");
     const pointTypes = (app.pointTypes ?? []).map((pt) => ({ id: pt.id, name: pt.name }));
     const groups = (app.groups ?? []).map((g) => ({ id: g.id, name: g.name }));
     const rows = (app.rows ?? []).map((r) => ({
@@ -53,6 +63,20 @@ export default defineAction({
       pointTypes,
       groups,
       rows,
+      // Data-widget table for the chat renderer (additive).
+      table: {
+        title: `${row.title || "Untitled"} — structure`,
+        columns: [
+          { key: "row", label: "Row" },
+          { key: "choices", label: "Choices", align: "right" },
+          { key: "addons", label: "Addons", align: "right" },
+        ],
+        rows: rows.map((r) => ({
+          row: r.title || `Row ${r.index}`,
+          choices: r.choiceCount,
+          addons: r.addonCount,
+        })),
+      },
     };
   },
 });

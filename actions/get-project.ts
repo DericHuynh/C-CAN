@@ -10,8 +10,17 @@ export default defineAction({
     id: z.string().describe("Project id"),
   }),
   http: { method: "GET" },
-  run: async ({ id }) => {
-    const { row, app } = await getProjectOrThrow(id);
+  readOnly: true,
+  // Authenticated read exposure for external MCP/A2A hosts.
+  publicAgent: { expose: true, readOnly: true, requiresAuth: true },
+  // Deep link surfaced by MCP/A2A surfaces: "Open in editor →".
+  link: ({ args }) => ({
+    url: `/projects/${encodeURIComponent(String(args.id ?? ""))}/editor`,
+    label: "Open in editor",
+    view: "projects",
+  }),
+  run: async ({ id }, ctx) => {
+    const { row, app } = await getProjectOrThrow(id, ctx, "viewer");
     return toProjectDetail(row, app);
   },
 });

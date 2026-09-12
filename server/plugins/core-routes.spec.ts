@@ -32,4 +32,19 @@ describe("core-routes plugin envKeys", () => {
       helpText: expect.any(String),
     });
   });
+
+  it("enables extension creation and brands the MCP connect flow", async () => {
+    const createSpy = vi.fn((opts: any) => opts);
+    vi.doMock("@agent-native/core/server", () => ({
+      createCoreRoutesPlugin: createSpy,
+    }));
+    vi.resetModules();
+    await import("./core-routes.js");
+
+    const options = createSpy.mock.calls[0][0] as Record<string, unknown>;
+    expect(options.extensionTools).toBe(true);
+    expect(options.mcpConnectAppId).toBe("iccplus-agent-native");
+    expect(options.mcpConnectServerName).toBe("iccplus-agent-native");
+    expect(options.mcpConnectAppName).toBe("ICCPlus CYOA Studio");
+  });
 });

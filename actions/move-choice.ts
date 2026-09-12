@@ -1,9 +1,11 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { assertFound, getProjectOrThrow, reindexChoices, saveProject } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description:
     "Move a choice to a new 0-based index in the target row (its current row when reordering, or another row to reparent it) and re-index both rows' choices.",
   schema: z.object({

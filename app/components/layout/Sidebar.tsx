@@ -7,6 +7,9 @@ import { appPath } from "@agent-native/core/client/api-path";
 import { useT } from "@agent-native/core/client/i18n";
 import { openCommandMenu } from "@agent-native/core/client/navigation";
 import { OrgSwitcher } from "@agent-native/core/client/org";
+import { NotificationsBell } from "@agent-native/core/client/notifications";
+import { RunsTray } from "@agent-native/core/client/progress";
+import { AgentToggleButton } from "@agent-native/core/client/agent-chat";
 import { FeedbackButton } from "@agent-native/core/client/ui";
 import { SidebarFooterActions } from "@agent-native/toolkit/app-shell";
 import { ChatHistoryRail, type ChatHistoryItem } from "@agent-native/toolkit/chat-history";
@@ -443,6 +446,15 @@ export function Sidebar({
       </nav>
 
       <div className={cn("mt-auto shrink-0", collapsed && "py-2")}>
+        <div className={cn("flex items-center gap-2 p-2", collapsed && "flex-col")}>
+          {!/^\/projects\/[^/]+(?:\/|$)/.test(location.pathname) ? (
+            <>
+              <RunsTray />
+              <NotificationsBell />
+            </>
+          ) : null}
+          {!isChatRoute ? <AgentToggleButton /> : null}
+        </div>
         <nav className={cn("grid", collapsed ? "gap-0 px-1 py-1" : "gap-1 px-2 py-1")}>
           {bottomNavItems.map((item) => {
             const Icon = item.icon;

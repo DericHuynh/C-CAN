@@ -1,3 +1,4 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
@@ -20,6 +21,7 @@ const rowSpec = z.object({
 });
 
 export default defineAction({
+  audit: projectAudit,
   description:
     "Bulk-create many rows in one call (much cheaper than repeated add-row calls). Each spec inserts one row at `index` (or the end) with the given `fields`, so a whole CYOA section can be scaffolded in a single action. Returns all created rows. Use add-choices (or `fields.objects` with pre-built choices) to fill them.",
   schema: z.object({

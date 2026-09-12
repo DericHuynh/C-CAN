@@ -24,3 +24,4 @@ data/
 .output/
 .deploy-tmp/
 .react-router/types/
+patches/

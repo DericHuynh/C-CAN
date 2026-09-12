@@ -14,6 +14,12 @@ type Pages = {
   "/": {
     params: {};
   };
+  "/projects/:id/:mode": {
+    params: {
+      "id": string;
+      "mode": string;
+    };
+  };
   "/projects": {
     params: {};
   };
@@ -61,7 +67,11 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/projects" | "/chat/:threadId" | "/observability" | "/projects/:id" | "/extensions" | "/extensions/:id" | "/extensions/:id/:slug" | "/database" | "/settings" | "/agent" | "/team";
+    page: "/" | "/projects/:id/:mode" | "/projects" | "/chat/:threadId" | "/observability" | "/projects/:id" | "/extensions" | "/extensions/:id" | "/extensions/:id/:slug" | "/database" | "/settings" | "/agent" | "/team";
+  };
+  "routes/projects.$id_.$mode.tsx": {
+    id: "routes/projects.$id_.$mode";
+    page: "/projects/:id/:mode";
   };
   "routes/projects._index.tsx": {
     id: "routes/projects._index";
@@ -119,6 +129,7 @@ type RouteFiles = {
 
 type RouteModules = {
   "root": typeof import("./app/root.tsx");
+  "routes/projects.$id_.$mode": typeof import("./app/routes/projects.$id_.$mode.tsx");
   "routes/projects._index": typeof import("./app/routes/projects._index.tsx");
   "routes/chat.$threadId": typeof import("./app/routes/chat.$threadId.tsx");
   "routes/observability": typeof import("./app/routes/observability.tsx");

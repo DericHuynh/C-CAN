@@ -6,9 +6,9 @@ import { useNavigate, useParams } from "react-router";
 import { APP_TITLE } from "@/lib/app-config";
 import { TAB_ID } from "@/lib/tab-id";
 
-const SEO_TITLE = `${APP_TITLE} - Open Source AI app starter with actions`;
+const SEO_TITLE = `${APP_TITLE} - Build and play interactive CYOAs`;
 const SEO_DESCRIPTION =
-  "Open Source starter for agent-native apps with durable chat, shared actions, UI state, tools, and a backend your agent can extend.";
+  "Create, edit, and play interactive choose-your-own-adventure stories with a visual editor and an AI authoring assistant.";
 
 export function meta() {
   return [

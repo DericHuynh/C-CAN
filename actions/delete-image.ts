@@ -1,9 +1,11 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { assertFound, getProjectOrThrow, saveProject } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description:
     "Delete an image resource from a project. Entities that reference it fall back to showing nothing (their image reference becomes dangling).",
   schema: z.object({

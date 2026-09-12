@@ -6,12 +6,14 @@
  * needs: loading a project's row + parsed document, and persisting the
  * document back with a bumped `updatedAt`.
  */
-import { eq } from "./_drizzle.js";
+import { eq, and } from "./_drizzle.js";
 
+import { assertAccess } from "@agent-native/core/sharing";
 import { getDb } from "../server/db/index.js";
 import { projects, type NewProject, type Project } from "../server/db/schema.js";
-import { normalizeApp, summarizeApp, type AppSummary } from "../shared/cyoa.js";
+import { aclImportImages, normalizeApp, summarizeApp, type AppSummary } from "../shared/cyoa.js";
 import type { App } from "../shared/types.js";
+import { externalizeAppImages } from "./_blob-images.js";
 
 /** Throw a helpful error when a lookup condition fails. */
 export function assertFound(condition: unknown, message: string): asserts condition {
@@ -45,8 +47,35 @@ export function parseAppDocument(json: string): App {
   }
 }
 
+/** Role a caller needs on a project for a given action. */
+export type ProjectAccessRole = "viewer" | "editor";
+
+/** Minimal access-context shape the action `ctx` satisfies. */
+export interface ProjectAccessContext {
+  userEmail?: string;
+  orgId?: string | null;
+  authCapability?: string;
+}
+
 /** Load a project row and its parsed + normalized document. */
-export async function getProjectOrThrow(projectId: string): Promise<{ row: Project; app: App }> {
+export async function getProjectOrThrow(
+  projectId: string,
+  ctx?: ProjectAccessContext,
+  minRole: ProjectAccessRole | "none" = "editor",
+): Promise<{ row: Project; app: App }> {
+  // Enforce the sharing model on every action that touches a project: reads
+  // pass "viewer", mutations default to "editor". "none" is for internal
+  // callers that do their own fine-grained resolution (project-resources.ts).
+  // The ctx keeps direct `action.run(params, ctx)` callers (scripts, tests)
+  // working — HTTP and agent tool calls resolve it from the request context.
+  if (minRole !== "none") {
+    await assertAccess(
+      "project",
+      projectId,
+      minRole,
+      ctx ? { ...ctx, orgId: ctx.orgId ?? undefined } : undefined,
+    );
+  }
   const db = getDb();
   const [row] = await db.select().from(projects).where(eq(projects.id, projectId));
   assertFound(row, `Project "${projectId}" not found`);
@@ -54,12 +83,30 @@ export async function getProjectOrThrow(projectId: string): Promise<{ row: Proje
 }
 
 /** Persist a document back to the project row and bump `updatedAt`. */
-export async function saveProject(projectId: string, app: App): Promise<void> {
+export async function saveProject(
+  projectId: string,
+  app: App,
+  expectedJson?: string,
+  metadata?: Pick<Project, "title" | "description">,
+): Promise<void> {
+  // All mutation actions share this boundary, including image updates and
+  // whole-document patches containing legacy inline image references.
+  await externalizeAppImages(aclImportImages(app));
   const db = getDb();
-  await db
+  const update = db
     .update(projects)
-    .set({ json: JSON.stringify(app), updatedAt: new Date().toISOString() })
-    .where(eq(projects.id, projectId));
+    .set({ ...metadata, json: JSON.stringify(app), updatedAt: new Date().toISOString() });
+  if (expectedJson !== undefined) {
+    const changed = await update
+      .where(and(eq(projects.id, projectId), eq(projects.json, expectedJson)))
+      .returning({ id: projects.id });
+    assertFound(
+      changed.length,
+      "Project changed while saving. Your draft is preserved locally; try saving again.",
+    );
+  } else {
+    await update.where(eq(projects.id, projectId));
+  }
 }
 
 /** Build a `ProjectSummary` from a row, parsing the document when needed. */
@@ -119,6 +166,7 @@ export function newProjectRow(
     json: overrides.json,
     ownerEmail: overrides.ownerEmail ?? null,
     orgId: overrides.orgId ?? null,
+    visibility: overrides.visibility ?? "private",
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now,
     isSeed: overrides.isSeed ?? false,

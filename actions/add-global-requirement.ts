@@ -1,3 +1,4 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
@@ -5,6 +6,7 @@ import { createDefaultGlobalRequirement } from "../shared/cyoa.js";
 import { getProjectOrThrow, saveProject } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description:
     'Add a new global requirement to a project (default name "Requirement") and return it.',
   schema: z.object({

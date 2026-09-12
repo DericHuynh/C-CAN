@@ -8,17 +8,19 @@
  * the document with its data URL, exactly like the original `replaceImages`.
  */
 
-const STYLE_IMAGE_KEYS = [
-  "backgroundImage",
-  "rowBackgroundImage",
-  "objectBackgroundImage",
-  "addonBackgroundImage",
-  "rowBorderImage",
-  "objectBorderImage",
-  "addonBorderImage",
-];
-const ROW_IMAGE_KEYS = ["image"];
-const CHOICE_IMAGE_KEYS = ["image", "bgImage"];
+import { visitAppImageFields } from "@shared/cyoa";
+
+/** Prefer project.json over unrelated manifests bundled in viewer exports. */
+export function zipProjectEntry(files: Map<string, Uint8Array>): [string, Uint8Array] {
+  const entries = [...files.entries()].filter(([name]) => !name.startsWith("__MACOSX/"));
+  const project =
+    entries.find(([name]) => name.toLowerCase() === "project.json") ??
+    entries.find(([name]) => /(^|\/)project\.json$/i.test(name));
+  if (project) return project;
+  const json = entries.filter(([name]) => /\.json$/i.test(name));
+  if (json.length === 1) return json[0];
+  throw new Error("The zip must contain project.json or exactly one JSON document.");
+}
 
 /** Unzip into a name -> bytes map. Supports stored + deflate-raw entries. */
 export async function unzip(buffer: ArrayBuffer): Promise<Map<string, Uint8Array>> {
@@ -93,6 +95,8 @@ function mimeFromName(name: string): string {
       return "image/gif";
     case "webp":
       return "image/webp";
+    case "avif":
+      return "image/avif";
     case "svg":
       return "image/svg+xml";
     case "bmp":
@@ -113,36 +117,6 @@ function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
   return `data:${mime};base64,${btoa(binary)}`;
 }
 
-function replaceFields(obj: unknown, keys: string[], images: Map<string, string>): void {
-  if (!obj || typeof obj !== "object") return;
-  const record = obj as Record<string, unknown>;
-  for (const key of keys) {
-    if (typeof record[key] === "string") {
-      const replacement = images.get(record[key] as string);
-      if (replacement) record[key] = replacement;
-    }
-  }
-}
-
-function inlineRowImages(row: Record<string, unknown>, images: Map<string, string>): void {
-  if (row.styling && typeof row.styling === "object") {
-    replaceFields(row.styling, STYLE_IMAGE_KEYS, images);
-  }
-  replaceFields(row, ROW_IMAGE_KEYS, images);
-  const objects = row.objects as Array<Record<string, unknown>> | undefined;
-  if (!Array.isArray(objects)) return;
-  for (const choice of objects) {
-    if (choice.styling && typeof choice.styling === "object") {
-      replaceFields(choice.styling, STYLE_IMAGE_KEYS, images);
-    }
-    replaceFields(choice, CHOICE_IMAGE_KEYS, images);
-    const addons = choice.addons as Array<Record<string, unknown>> | undefined;
-    if (Array.isArray(addons)) {
-      for (const addon of addons) replaceFields(addon, CHOICE_IMAGE_KEYS, images);
-    }
-  }
-}
-
 /**
  * Replaces `images/…` paths inside an ICCPlus document with their data URLs
  * (port of the original `replaceImages`). Mutates and returns the document.
@@ -150,34 +124,28 @@ function inlineRowImages(row: Record<string, unknown>, images: Map<string, strin
 export function inlineZipImages(
   doc: Record<string, unknown>,
   files: Map<string, Uint8Array>,
+  projectPath = "project.json",
 ): Record<string, unknown> {
   const images = new Map<string, string>();
-  for (const [name, bytes] of files) {
-    if (!name.startsWith("images/") || name.endsWith("/")) continue;
-    images.set(name, bytesToDataUrl(bytes, mimeFromName(name)));
-  }
-  if (images.size === 0) return doc;
 
-  if (doc.styling && typeof doc.styling === "object") {
-    replaceFields(doc.styling, STYLE_IMAGE_KEYS, images);
-  }
-  const rows = doc.rows as Array<Record<string, unknown>> | undefined;
-  if (Array.isArray(rows)) {
-    for (const row of rows) inlineRowImages(row, images);
-  }
-  const backpack = doc.backpack as Array<Record<string, unknown>> | undefined;
-  if (Array.isArray(backpack)) {
-    for (const row of backpack) inlineRowImages(row, images);
-  }
-  for (const key of ["rowDesignGroups", "objectDesignGroups"]) {
-    const groups = doc[key] as Array<Record<string, unknown>> | undefined;
-    if (Array.isArray(groups)) {
-      for (const group of groups) {
-        if (group.styling && typeof group.styling === "object") {
-          replaceFields(group.styling, STYLE_IMAGE_KEYS, images);
-        }
+  const directory = projectPath.slice(0, projectPath.lastIndexOf("/") + 1);
+  visitAppImageFields(
+    doc,
+    (record, key) => {
+      const ref = String(record[key]);
+      if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(ref)) return;
+      const path = ref.replace(/^\.\//, "");
+      const name = files.has(directory + path) ? directory + path : path;
+      const bytes = files.get(name);
+      if (!bytes || name.endsWith("/")) return;
+      let replacement = images.get(name);
+      if (!replacement) {
+        replacement = bytesToDataUrl(bytes, mimeFromName(name));
+        images.set(name, replacement);
       }
-    }
-  }
+      record[key] = replacement;
+    },
+    true,
+  );
   return doc;
 }

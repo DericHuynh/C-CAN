@@ -1,45 +1,55 @@
 /**
- * DeepSeekEngine — wraps the DeepSeek OpenAI-compatible Chat Completions API
- * (`https://api.deepseek.com`) for use as an AgentEngine.
+ * DeepSeek model provider — built on the framework's AI-SDK OpenAI-compatible
+ * engine (`createAISDKEngine("openai", { baseUrl })`).
  *
- * DeepSeek exposes an OpenAI-compatible HTTP API, so unlike the framework's
- * AI-SDK wrapper this engine talks to it directly (fetch + SSE) and owns its
- * own message/tool translation and error classification instead of inheriting
- * the OpenAI provider's GPT-specific assumptions (Responses-vs-ChatCompletions
- * routing, the `reasoning_effort`-with-tools rejection workaround, GPT model
- * catalogs). It is this app's BYOK engine: the key comes exclusively from the
- * caller's stored secret via `config.apiKey` — never from the environment.
+ * DeepSeek exposes an OpenAI Chat Completions API, so instead of hand-rolling
+ * SSE parsing, event translation, tool-call reconciliation and error
+ * classification (the previous ~670-line implementation), this module reuses
+ * the framework's `ai-sdk:openai` engine pointed at `https://api.deepseek.com`
+ * and adds the DeepSeek-specific constraints the generic OpenAI engine cannot
+ * know:
  *
- * Model-specific behavior:
- *  - `deepseek-reasoner` (and reasoning-capable `deepseek-v4*` models) stream
- *    chain-of-thought via `delta.reasoning_content`, surfaced here as
- *    `thinking-delta` events. `reasoning_effort` (low/medium/high) is
- *    forwarded when a tier is requested; the provider's medium default applies
- *    when none is (matching the framework's own default effort).
- *  - Output is capped at DeepSeek's documented 8192-token maximum no matter
- *    what the caller asks for, so the interactive-chat 32K default can never
- *    turn into a provider 400.
- *  - Tool calls stream through the standard OpenAI `delta.tool_calls`
- *    protocol. Announced calls whose arguments are cut off at stream end are
- *    reported in-band as `tool-call-error` instead of vanishing, so the turn
- *    never claims an action it did not run.
+ *  1. **max_tokens ceiling** — DeepSeek rejects requests above its documented
+ *     8192-token output ceiling with a 400. The framework's model catalog
+ *     treats unknown models as 64K output and the interactive-chat path asks
+ *     for 32K, so the stream wrapper clamps `maxOutputTokens` to 8192 before
+ *     the SDK serializes the request.
+ *  2. **vision: false** — the current DeepSeek models are text-only; the
+ *     OpenAI capability table declares vision, so the wrapper pins the
+ *     capability flags to the DeepSeek set (which also gates the agent loop's
+ *     attachment handling).
+ *  3. **model catalog** — the engine advertises only the app's pinned DeepSeek
+ *     models instead of the OpenAI GPT catalog, while `preserveCustomModels`
+ *     (implied by the custom base URL) lets any `deepseek-*` id pass through
+ *     verbatim.
+ *  4. **key handling** — the key comes from the user's stored secret
+ *     (`config.apiKey`), with the deployment-level `DEEPSEEK_API_KEY` env var
+ *     as a shared default (per AGENTS.md). `allowEnvFallback` is forced off in
+ *     the underlying OpenAI provider so it can never silently fall back to
+ *     `OPENAI_API_KEY` (a cross-provider key leak), and a missing key fails
+ *     closed with the framework's `missing_credentials` code instead of a raw
+ *     fetch 401.
  *
- * Errors are tagged the same way the framework engines tag them: HTTP
- * failures carry `http_<status>` / `statusCode`, transport failures carry
- * `provider_network_error` with `providerRetryable: true`, and a missing key
- * fails closed with `missing_credentials` — so run-level retries, run-level
- * resume, and the settings UI all classify this engine correctly.
+ * Reasoning: DeepSeek configures reasoning through a `thinking` object
+ * (`thinking.reasoning_effort`: low/high/max), not the top-level
+ * `reasoning_effort` parameter the AI SDK OpenAI provider emits. The framework
+ * only sends `reasoning_effort` for known GPT/Claude/Gemini reasoning families
+ * (`getReasoningEffortOptionsForModel`), and `deepseek-*` models fall through
+ * to the empty set — so the field is never serialized and DeepSeek's
+ * server-side default (thinking enabled, effort high) applies. `max_tokens`
+ * stays `max_tokens` (the SDK's `max_tokens` → `max_completion_tokens`
+ * rewrite only fires for OpenAI o-series / gpt-5 models), and
+ * `stream_options.include_usage` / `temperature` / `system` messages / tool
+ * calls are all part of DeepSeek's documented surface.
  */
 
 import type {
   AgentEngine,
   EngineCapabilities,
-  EngineContentPart,
   EngineEvent,
-  EngineMessage,
   EngineStreamOptions,
-  EngineTool,
 } from "@agent-native/core/agent/engine";
+import { createAISDKEngine } from "@agent-native/core/agent/engine";
 
 export const DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY";
 export const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
@@ -47,58 +57,20 @@ export const DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash";
 export const DEEPSEEK_SUPPORTED_MODELS = ["deepseek-v4-flash"] as const;
 
 /**
- * DeepSeek's documented max-output ceiling (8K) for both chat and reasoning
- * models. Requests above it are rejected with a 400, so the engine clamps
- * here rather than trusting caller-supplied ceilings.
+ * DeepSeek's documented max-output ceiling (8K). Requests above it are
+ * rejected with a 400, so the stream wrapper clamps here rather than trusting
+ * caller-supplied ceilings (the interactive-chat path asks for 32K).
  */
 export const DEEPSEEK_MAX_OUTPUT_TOKENS = 8192;
 
-/** Same "first stream event" deadline the framework engines use. */
-const FIRST_STREAM_EVENT_TIMEOUT_MS = 120_000;
-
 export const DEEPSEEK_CAPABILITIES: EngineCapabilities = {
-  // deepseek-reasoner (and reasoning-capable deepseek-v4* models) expose
-  // chain-of-thought "thinking" through the OpenAI-compatible reasoning path.
+  // deepseek-v4* models run thinking mode by default (server-side).
   thinking: true,
   promptCaching: false,
   vision: false,
   computerUse: false,
   parallelToolCalls: true,
 };
-
-const TRUNCATED_TOOL_INPUT_ERROR =
-  "The arguments never finished streaming, so this call was not executed and nothing changed. Call the tool again with complete arguments.";
-
-/** Models that accept `reasoning_effort` and emit `reasoning_content`. */
-const DEEPSEEK_REASONING_MODEL_PREFIXES = ["deepseek-reasoner", "deepseek-v"];
-
-function isDeepSeekReasoningModel(model: string): boolean {
-  const id = model.toLowerCase();
-  return (
-    DEEPSEEK_REASONING_MODEL_PREFIXES.some((prefix) => id.startsWith(prefix)) ||
-    id.includes("deepseek-reasoner")
-  );
-}
-
-/** Map the shared effort ladder onto DeepSeek's low/medium/high tiers. */
-const DEEPSEEK_EFFORT_TIERS: Record<string, string | undefined> = {
-  minimal: "low",
-  low: "low",
-  medium: "medium",
-  high: "high",
-  xhigh: "high",
-  max: "high",
-};
-
-function resolveReasoningEffort(model: string, effort: string | undefined): string | undefined {
-  if (!isDeepSeekReasoningModel(model)) return undefined;
-  // The provider's default is medium, and so is the framework's default
-  // effort — an unset/auto tier maps to the same value the API would pick
-  // anyway, made explicit so the request is deterministic.
-  if (!effort || effort === "auto") return "medium";
-  if (effort === "none") return undefined;
-  return DEEPSEEK_EFFORT_TIERS[effort];
-}
 
 /**
  * Clamp the requested max output to DeepSeek's 8192 ceiling. A positive
@@ -113,531 +85,10 @@ export function resolveMaxOutputTokens(explicit: unknown): number {
 }
 
 // ---------------------------------------------------------------------------
-// Engine → OpenAI wire format
-// ---------------------------------------------------------------------------
-
-function engineToolsToDeepSeek(tools: EngineTool[]): unknown[] {
-  return tools.map((tool) => ({
-    type: "function",
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.inputSchema,
-    },
-  }));
-}
-
-function engineMessagesToDeepSeek(messages: EngineMessage[]): Record<string, unknown>[] {
-  const out: Record<string, unknown>[] = [];
-  for (const msg of messages) {
-    if (msg.role === "user") {
-      // OpenAI requires tool results as their own `tool` messages, so split
-      // them out of the user turn (mirrors the AI-SDK translator's order:
-      // tool results first, then the remaining user text).
-      for (const result of msg.content) {
-        if (result.type !== "tool-result") continue;
-        out.push({
-          role: "tool",
-          tool_call_id: result.toolCallId,
-          content: result.content,
-        });
-      }
-      const text = textFromParts(msg.content);
-      if (text) out.push({ role: "user", content: text });
-    } else {
-      const assistant: Record<string, unknown> = { role: "assistant" };
-      const text = textFromParts(msg.content);
-      if (text) assistant.content = text;
-      const toolCalls = msg.content
-        .filter((part) => part.type === "tool-call")
-        .map((part) => ({
-          id: part.id,
-          type: "function",
-          function: {
-            name: part.name,
-            arguments: JSON.stringify(part.input ?? {}),
-          },
-        }));
-      if (toolCalls.length > 0) assistant.tool_calls = toolCalls;
-      // DeepSeek rejects assistant turns with neither content nor tool_calls
-      // (HTTP 400 "content or tool_calls must be set"). A reasoning-only turn
-      // — no text, no tool call, just chain-of-thought — must still send
-      // content, so fall back to the thinking text instead of an empty
-      // assistant message. A fully-empty turn is dropped entirely.
-      if (assistant.content === undefined && toolCalls.length === 0) {
-        const thinking = msg.content
-          .filter((part) => part.type === "thinking")
-          .map((part) => part.text)
-          .join("");
-        if (thinking) assistant.content = thinking;
-      }
-      if (assistant.content !== undefined || assistant.tool_calls !== undefined) {
-        out.push(assistant);
-      }
-    }
-  }
-  return out;
-}
-
-/**
- * Text for a message turn. DeepSeek has no vision, so image parts are dropped
- * (the tool-dispatch loop already appends `[image: …]` notes to result text);
- * file parts degrade to a placeholder so the model still knows they existed.
- * Thinking parts are not echoed back — DeepSeek rejects them on resend.
- */
-function textFromParts(parts: EngineContentPart[]): string {
-  return parts
-    .filter((part) => part.type === "text" || part.type === "file")
-    .map((part) =>
-      part.type === "text"
-        ? part.text
-        : `[Attached file: ${part.filename ?? "attachment"} (${part.mediaType})]`,
-    )
-    .join("");
-}
-
-function buildRequestBody(opts: EngineStreamOptions): Record<string, unknown> {
-  const messages = engineMessagesToDeepSeek(opts.messages);
-  if (opts.systemPrompt) {
-    messages.unshift({ role: "system", content: opts.systemPrompt });
-  }
-  // Final safety net: DeepSeek hard-rejects (HTTP 400) any assistant message
-  // with neither content nor tool_calls. The translator already repairs
-  // thinking-only turns and drops empty ones, but this pass guarantees no
-  // malformed assistant message can ever reach the wire, whatever shape the
-  // framework handed us (e.g. whitespace-only content).
-  for (const message of messages) {
-    if (message.role !== "assistant") continue;
-    const hasToolCalls = Array.isArray(message.tool_calls) && message.tool_calls.length > 0;
-    if (hasToolCalls) continue;
-    const content = typeof message.content === "string" ? message.content.trim() : "";
-    if (content) {
-      message.content = content;
-      continue;
-    }
-    // Nothing to salvage — drop the empty assistant turn entirely.
-    messages.splice(messages.indexOf(message), 1);
-  }
-  const body: Record<string, unknown> = {
-    model: opts.model,
-    messages,
-    max_tokens: resolveMaxOutputTokens(opts.maxOutputTokens),
-    stream: true,
-    stream_options: { include_usage: true },
-  };
-  if (opts.tools.length > 0) {
-    body.tools = engineToolsToDeepSeek(opts.tools);
-  }
-  if (opts.temperature !== undefined) {
-    body.temperature = opts.temperature;
-  }
-  const reasoningEffort = resolveReasoningEffort(opts.model, opts.reasoningEffort);
-  if (reasoningEffort) body.reasoning_effort = reasoningEffort;
-  return body;
-}
-
-// ---------------------------------------------------------------------------
-// SSE parsing
-// ---------------------------------------------------------------------------
-
-async function* sseDataLines(body: AsyncIterable<Uint8Array>): AsyncGenerator<string> {
-  const decoder = new TextDecoder();
-  let buffer = "";
-  for await (const raw of body) {
-    buffer += decoder.decode(raw, { stream: true });
-    let newline: number;
-    while ((newline = buffer.indexOf("\n")) !== -1) {
-      const line = buffer.slice(0, newline);
-      buffer = buffer.slice(newline + 1);
-      const data = sseLineData(line);
-      if (data !== undefined) yield data;
-    }
-  }
-  const tail = sseLineData(buffer.trimEnd());
-  if (tail !== undefined) yield tail;
-}
-
-function sseLineData(line: string): string | undefined {
-  // Skip blank lines, ":" comments (keepalives), and the terminal marker.
-  if (!line.startsWith("data:")) return undefined;
-  const data = line.slice("data:".length).trim();
-  if (!data || data === "[DONE]") return undefined;
-  return data;
-}
-
-// ---------------------------------------------------------------------------
-// Error helpers (mirror the framework engine helpers, which are not exported)
-// ---------------------------------------------------------------------------
-
-function describeErrorWithCauses(err: unknown, maxLinks = 4): string {
-  const head = err instanceof Error ? err.message : String(err ?? "Unknown error");
-  const links: string[] = [];
-  const seen = new Set<unknown>([err]);
-  let cause: unknown = (err as { cause?: unknown } | null)?.cause;
-  while (cause !== undefined && cause !== null && links.length < maxLinks) {
-    if (seen.has(cause)) break;
-    seen.add(cause);
-    const code = (cause as { code?: unknown }).code;
-    const message = cause instanceof Error ? cause.message : String(cause);
-    const text = (typeof code === "string" ? `${code} ${message}` : message).trim().slice(0, 200);
-    if (text) links.push(text);
-    cause = (cause as { cause?: unknown }).cause;
-  }
-  return links.length > 0 ? `${head} (cause: ${links.join(" <- ")})` : head;
-}
-
-function isConnectionErrorMessage(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("connection error") ||
-    normalized.includes("cannot connect to api") ||
-    normalized.includes("fetch failed") ||
-    normalized.includes("econnreset") ||
-    normalized.includes("econnrefused") ||
-    normalized.includes("und_err_socket") ||
-    normalized.includes("socket hang up") ||
-    normalized.includes("other side closed") ||
-    normalized.includes("ssl") ||
-    normalized.includes("tls")
-  );
-}
-
-/**
- * Extract a user-facing message from a non-2xx response. DeepSeek errors are
- * `{"error": {"message": …}}`; fall back to the status line for empty/HTML
- * bodies so a bare rate limit never shows up as "undefined".
- */
-async function describeHttpError(res: Response): Promise<string> {
-  let message = "";
-  try {
-    const parsed = await res.json();
-    message =
-      typeof parsed?.error?.message === "string"
-        ? parsed.error.message
-        : typeof parsed?.message === "string"
-          ? parsed.message
-          : "";
-  } catch {
-    // Non-JSON error body — fall back to the status line below.
-  }
-  const statusText = res.statusText ? ` ${res.statusText}` : "";
-  return message
-    ? `${message} (HTTP ${res.status})`
-    : `DeepSeek API error: HTTP ${res.status}${statusText}`;
-}
-
-/**
- * Layer a first-event deadline on top of the caller's AbortSignal: abort the
- * request if no stream data arrives within `FIRST_STREAM_EVENT_TIMEOUT_MS`.
- * A connection that streams zero events is wedged, not slow — bounding this
- * separately turns a silent multi-minute hang into a fast abort-and-retry.
- */
-interface FirstEventAbortController {
-  readonly signal: AbortSignal;
-  /** Idempotent. Call once the first real stream data line arrives. */
-  markFirstEvent: () => void;
-  didTimeout: () => boolean;
-  cleanup: () => void;
-}
-
-function createFirstEventAbortController(parentSignal: AbortSignal): FirstEventAbortController {
-  const controller = new AbortController();
-  let timedOut = false;
-  let firstEventSeen = false;
-
-  const abortFromParent = () => {
-    if (!controller.signal.aborted) controller.abort(parentSignal.reason);
-  };
-
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    if (!controller.signal.aborted) {
-      controller.abort(
-        new Error(
-          `Model request produced no stream events within ${FIRST_STREAM_EVENT_TIMEOUT_MS / 1000}s`,
-        ),
-      );
-    }
-  }, FIRST_STREAM_EVENT_TIMEOUT_MS);
-
-  if (parentSignal.aborted) abortFromParent();
-  parentSignal.addEventListener("abort", abortFromParent, { once: true });
-
-  return {
-    signal: controller.signal,
-    markFirstEvent: () => {
-      if (firstEventSeen) return;
-      firstEventSeen = true;
-      clearTimeout(timeout);
-    },
-    didTimeout: () => timedOut,
-    cleanup: () => {
-      clearTimeout(timeout);
-      parentSignal.removeEventListener("abort", abortFromParent);
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// DeepSeekEngine
-// ---------------------------------------------------------------------------
-
-class DeepSeekEngine implements AgentEngine {
-  readonly name = "deepseek";
-  readonly label = "DeepSeek";
-  readonly defaultModel = DEEPSEEK_DEFAULT_MODEL;
-  readonly supportedModels = DEEPSEEK_SUPPORTED_MODELS;
-  readonly capabilities = DEEPSEEK_CAPABILITIES;
-
-  private readonly apiKey: string;
-  private readonly baseUrl: string;
-
-  constructor(apiKey: string, baseUrl: string = DEEPSEEK_BASE_URL) {
-    this.apiKey = apiKey;
-    this.baseUrl = baseUrl;
-  }
-
-  async *stream(opts: EngineStreamOptions): AsyncIterable<EngineEvent> {
-    const requestBody = buildRequestBody(opts);
-    const firstEventAbort = createFirstEventAbortController(opts.abortSignal);
-
-    let res: Response;
-    try {
-      res = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
-          Accept: "text/event-stream",
-        },
-        body: JSON.stringify(requestBody),
-        signal: firstEventAbort.signal,
-      });
-    } catch (err: any) {
-      const timedOut = firstEventAbort.didTimeout();
-      const rawMessage: string = err?.message ?? String(err);
-      const errorMessage = timedOut
-        ? `Model request produced no stream events within ${FIRST_STREAM_EVENT_TIMEOUT_MS / 1000}s; the connection appears wedged.`
-        : describeErrorWithCauses(err);
-      // A fetch rejection with no HTTP status is a transport failure: tag it
-      // so run-level retries treat it as a transient blip, never a hard stop.
-      const isConnectionError = !timedOut && isConnectionErrorMessage(rawMessage);
-      yield {
-        type: "stop",
-        reason: "error",
-        error: errorMessage,
-        ...(isConnectionError || timedOut
-          ? { errorCode: "provider_network_error", providerRetryable: true }
-          : {}),
-      };
-      throw err;
-    }
-
-    if (!res.ok) {
-      const errorMessage = await describeHttpError(res);
-      const error = new Error(errorMessage) as Error & {
-        statusCode?: number;
-        status?: number;
-        errorCode?: string;
-      };
-      error.statusCode = res.status;
-      error.status = res.status;
-      error.errorCode = `http_${res.status}`;
-      yield {
-        type: "stop",
-        reason: "error",
-        error: errorMessage,
-        errorCode: `http_${res.status}`,
-        statusCode: res.status,
-      };
-      throw error;
-    }
-
-    try {
-      let fullText = "";
-      let reasoningText = "";
-      let finishReason: string | null = null;
-      let usage: Record<string, unknown> | null = null;
-      const toolCallsByIndex = new Map<number, { id?: string; name?: string; arguments: string }>();
-      const startedIndices = new Set<number>();
-
-      for await (const data of sseDataLines(res.body as unknown as AsyncIterable<Uint8Array>)) {
-        // The first data line proves the provider is actually streaming.
-        firstEventAbort.markFirstEvent();
-
-        let chunk: any;
-        try {
-          chunk = JSON.parse(data);
-        } catch {
-          continue;
-        }
-        const choice = chunk?.choices?.[0];
-        const delta = choice?.delta;
-
-        if (typeof delta?.reasoning_content === "string" && delta.reasoning_content) {
-          reasoningText += delta.reasoning_content;
-          yield { type: "thinking-delta", text: delta.reasoning_content };
-        }
-        if (typeof delta?.content === "string" && delta.content) {
-          fullText += delta.content;
-          yield { type: "text-delta", text: delta.content };
-        }
-        if (Array.isArray(delta?.tool_calls)) {
-          for (const toolCall of delta.tool_calls) {
-            const index = typeof toolCall?.index === "number" ? toolCall.index : 0;
-            let entry = toolCallsByIndex.get(index);
-            if (!entry) {
-              entry = { arguments: "" };
-              toolCallsByIndex.set(index, entry);
-            }
-            if (typeof toolCall?.id === "string") entry.id = toolCall.id;
-            if (typeof toolCall?.function?.name === "string") {
-              entry.name = toolCall.function.name;
-            }
-            if (typeof toolCall?.function?.arguments === "string") {
-              entry.arguments += toolCall.function.arguments;
-            }
-            // First delta for this call carries id + name; surface the
-            // progress signal exactly once, then stream argument fragments.
-            if (!startedIndices.has(index)) {
-              startedIndices.add(index);
-              yield {
-                type: "tool-input-start",
-                ...(entry.id ? { id: entry.id } : {}),
-                ...(entry.name ? { name: entry.name } : {}),
-              };
-            }
-            if (typeof toolCall?.function?.arguments === "string" && toolCall.function.arguments) {
-              yield {
-                type: "tool-input-delta",
-                ...(entry.id ? { id: entry.id } : {}),
-                ...(entry.name ? { name: entry.name } : {}),
-                text: toolCall.function.arguments,
-              };
-            }
-          }
-        }
-        if (typeof choice?.finish_reason === "string") {
-          finishReason = choice.finish_reason;
-        }
-        if (chunk?.usage) usage = chunk.usage;
-      }
-
-      // Assemble the assistant turn from everything the stream delivered.
-      // Thinking first, then text — the same order the stream produced them,
-      // so the persisted message matches the live preview. (A text-first
-      // assembly made the answer jump above the "Thought" cell on completion
-      // and the message re-render look like the text was overwriting itself.)
-      const assistantParts: EngineContentPart[] = [];
-      if (reasoningText) {
-        assistantParts.push({ type: "thinking", text: reasoningText });
-      }
-      if (fullText) assistantParts.push({ type: "text", text: fullText });
-
-      // A tool call the stream announced but never finished must not vanish:
-      // recover it from its deltas when the JSON parses, or report it in-band
-      // so the model can retry instead of the turn claiming an action it never
-      // ran (mirrors the framework's finalizeStreamedToolInputs).
-      const deliveredIds = new Set<string>();
-      for (const entry of toolCallsByIndex.values()) {
-        if (!entry.id) continue;
-        const input = parseToolArguments(entry.arguments);
-        if (input !== undefined) {
-          deliveredIds.add(entry.id);
-          assistantParts.push({
-            type: "tool-call",
-            id: entry.id,
-            name: entry.name ?? "unknown-tool",
-            input,
-          });
-          yield {
-            type: "tool-call",
-            id: entry.id,
-            name: entry.name ?? "unknown-tool",
-            input,
-          };
-        }
-      }
-      for (const entry of toolCallsByIndex.values()) {
-        if (!entry.id || deliveredIds.has(entry.id)) continue;
-        yield {
-          type: "tool-call-error",
-          id: entry.id,
-          name: entry.name || "unknown-tool",
-          input: entry.arguments,
-          error: TRUNCATED_TOOL_INPUT_ERROR,
-        };
-      }
-
-      if (usage) {
-        yield {
-          type: "usage",
-          inputTokens: (usage.prompt_tokens as number | undefined) ?? 0,
-          outputTokens: (usage.completion_tokens as number | undefined) ?? 0,
-          totalTokens:
-            typeof usage.total_tokens === "number"
-              ? usage.total_tokens
-              : ((usage.prompt_tokens as number | undefined) ?? 0) +
-                ((usage.completion_tokens as number | undefined) ?? 0),
-          reasoningTokens: (usage as any).completion_tokens_details?.reasoning_tokens,
-        };
-      }
-
-      yield { type: "assistant-content", parts: assistantParts };
-      yield { type: "stop", reason: stopReasonFromFinishReason(finishReason) };
-    } catch (err: any) {
-      const timedOut = firstEventAbort.didTimeout();
-      const rawMessage: string = err?.message ?? String(err);
-      const errorMessage = timedOut
-        ? `Model request produced no stream events within ${FIRST_STREAM_EVENT_TIMEOUT_MS / 1000}s; the connection appears wedged.`
-        : describeErrorWithCauses(err);
-      const isConnectionError = !timedOut && isConnectionErrorMessage(rawMessage);
-      yield {
-        type: "stop",
-        reason: "error",
-        error: errorMessage,
-        ...(isConnectionError || timedOut
-          ? { errorCode: "provider_network_error", providerRetryable: true }
-          : {}),
-      };
-      throw err;
-    } finally {
-      firstEventAbort.cleanup();
-    }
-  }
-}
-
-function stopReasonFromFinishReason(
-  finishReason: string | null | undefined,
-): "end_turn" | "tool_use" | "max_tokens" | "stop_sequence" | "error" {
-  switch (finishReason) {
-    case "tool_calls":
-      return "tool_use";
-    case "length":
-      return "max_tokens";
-    default:
-      return "end_turn";
-  }
-}
-
-function parseToolArguments(text: string): Record<string, unknown> | undefined {
-  const trimmed = text.trim();
-  if (!trimmed) return undefined;
-  try {
-    const parsed = JSON.parse(trimmed);
-    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
-/** Engine returned when no per-user key is available — fails closed with the
+/** Engine returned when no key is available — fails closed with the
  * framework's standard missing-credentials error code instead of leaking a
  * raw fetch 401. */
 function missingKeyEngine(): AgentEngine {
@@ -660,13 +111,58 @@ function missingKeyEngine(): AgentEngine {
 }
 
 /**
- * Create a DeepSeekEngine instance.
- * BYOK only: the key comes exclusively from `config.apiKey` (resolved by the
- * engine registry from the user's stored secret). Never reads .env.
+ * The AI SDK's `ai-sdk:openai` engine pointed at DeepSeek, wrapped to enforce
+ * the DeepSeek-specific constraints above. The framework engine handles all
+ * streaming, event translation, first-event timeout, error classification
+ * (including `http_401` credential-failure markers), and tool-call recovery.
+ */
+function createAiSdkDeepSeekEngine(apiKey: string, baseUrl: string): AgentEngine {
+  const engine = createAISDKEngine("openai", {
+    model: DEEPSEEK_DEFAULT_MODEL,
+    baseUrl,
+    apiKey,
+    // The key must never come from the OpenAI provider's own env fallback
+    // (OPENAI_API_KEY) — that would send an OpenAI key to api.deepseek.com.
+    allowEnvFallback: false,
+  });
+  const stream = engine.stream.bind(engine);
+  return {
+    name: "deepseek",
+    label: "DeepSeek",
+    defaultModel: DEEPSEEK_DEFAULT_MODEL,
+    supportedModels: DEEPSEEK_SUPPORTED_MODELS,
+    preserveCustomModels: true,
+    capabilities: DEEPSEEK_CAPABILITIES,
+    async *stream(opts: EngineStreamOptions): AsyncGenerator<EngineEvent> {
+      // Clamp before the SDK serializes: the framework resolves 32K for the
+      // interactive-chat path (unknown models default to a 64K ceiling), which
+      // DeepSeek rejects. resolveMaxOutputTokens also supplies the 8192 default
+      // when the caller left it unset.
+      yield* stream({
+        ...opts,
+        maxOutputTokens: resolveMaxOutputTokens(opts.maxOutputTokens),
+      });
+    },
+  };
+}
+
+/**
+ * Create the DeepSeek engine.
+ *
+ * Key precedence (per AGENTS.md "Model Providers"): the user's stored secret
+ * (`config.apiKey`, resolved by the engine registry) wins; the deployment-level
+ * `DEEPSEEK_API_KEY` env var is the shared default, gated by the registry's
+ * `allowEnvFallback` flag so a hosted multi-tenant deployment cannot hand a
+ * deploy key to every signed-in user.
  */
 export function createDeepSeekEngine(config: Record<string, unknown> = {}): AgentEngine {
-  const apiKey = (config.apiKey as string | undefined) ?? "";
+  const storedKey = (config.apiKey as string | undefined) ?? "";
+  let apiKey = storedKey;
+  if (!apiKey && config.allowEnvFallback !== false) {
+    // guard:allow-env-credential — AGENTS.md Model Providers explicitly permits this deploy default; Core's registry controls allowEnvFallback and scoped keys take precedence.
+    apiKey = process.env.DEEPSEEK_API_KEY ?? "";
+  }
   if (!apiKey) return missingKeyEngine();
   const baseUrl = (config.baseUrl as string | undefined) ?? DEEPSEEK_BASE_URL;
-  return new DeepSeekEngine(apiKey, baseUrl);
+  return createAiSdkDeepSeekEngine(apiKey, baseUrl);
 }

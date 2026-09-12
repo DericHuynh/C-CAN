@@ -881,7 +881,16 @@ export type ImageResource = {
   /** Inline data URL or remote URL (whatever the source document used). */
   image?: string;
   imageIsURL?: boolean;
+  /** Tiny embedded WebP, tied to the full image URL. Full image bytes stay in blob storage. */
+  preview?: { source: string; data: string; width: number; height: number };
+  /** Short attribution/tooltip shown under the resource name. */
   sourceTooltip?: string;
+  /** Longer attribution/description (e.g. the original post description). */
+  description?: string;
+  /** Search tags from the source site (e621/Derpibooru tag lists). */
+  tags?: string[];
+  /** Attribution URL: original source or the site post page. */
+  source?: string;
   category?: number;
 };
 /**

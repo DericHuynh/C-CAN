@@ -1,3 +1,4 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
@@ -11,6 +12,7 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
 export default defineAction({
+  audit: projectAudit,
   description:
     "Update project settings. Special keys: `viewerConfig` (object) is shallow-merged into the document's viewer config, `title` maps to the viewer title (app.viewerConfig.title), `description` updates the DB metadata column; every other key shallow-merges into the top-level app document.",
   schema: z.object({

@@ -1,19 +1,19 @@
 import { defineAction } from "@agent-native/core/action";
+import { assertAccess } from "@agent-native/core/sharing";
 import { z } from "zod";
-import { sql } from "@agent-native/core/db/schema";
-
-import { getDb } from "../server/db/index.js";
+import { queryAuditEvents } from "@agent-native/core/audit";
 
 /**
- * The framework's tool ledger records every agent tool call
- * (tool_key = `actionName:{JSON args}`, with result_summary + completed_at).
- * Mutations carry the projectId in their args, so a LIKE filter on the key
- * recovers "what has been changed on this project and when".
+ * Read Core's exact resource audit index, scoped to the caller and active org.
+ * The execution ledger is private agent runtime state, not a resource history:
+ * substring searches can match another project's content and miss UI edits.
  */
 export default defineAction({
   description:
-    "List the most recent agent tool calls that mutated a project (rows, choices, addons, images, settings, …) with their timestamps — i.e. 'what has changed on this project and when'. Useful after a long build to see which rows/choices were created or edited and verify the work landed, instead of re-reading the whole document.",
+    "List recent audited UI and agent mutations for this exact project, scoped to your identity and active organization. Older edits without project audit labels are not included. Inspect current content to verify results.",
   readOnly: true,
+  // Authenticated read exposure for external MCP/A2A hosts.
+  publicAgent: { expose: true, readOnly: true, requiresAuth: true },
   schema: z.object({
     projectId: z.string().describe("Project id"),
     limit: z
@@ -24,25 +24,26 @@ export default defineAction({
       .optional()
       .describe("Max entries to return (default 50)"),
   }),
-  run: async ({ projectId, limit }) => {
-    const db = getDb();
-    const rows = await db.all(
-      sql`SELECT thread_id, tool_key, result_summary, completed_at
-          FROM agent_tool_ledger
-          WHERE tool_key LIKE ${`%${projectId}%`}
-          ORDER BY completed_at DESC
-          LIMIT ${Math.min(limit ?? 50, 100)}`,
+  run: async ({ projectId, limit }, ctx) => {
+    // Resource access and audit visibility are both required.
+    await assertAccess(
+      "project",
+      projectId,
+      "viewer",
+      ctx ? { ...ctx, orgId: ctx.orgId ?? undefined } : undefined,
     );
-    const changes = (rows ?? []).map((entry: any) => {
-      const key: string = entry.tool_key ?? "";
-      const colon = key.indexOf(":");
-      return {
-        action: colon === -1 ? key : key.slice(0, colon),
-        threadId: entry.thread_id ?? null,
-        completedAt: entry.completed_at ?? null,
-        summary: String(entry.result_summary ?? "").slice(0, 500),
-      };
-    });
+    const rows = await queryAuditEvents(
+      { userEmail: ctx?.userEmail, orgId: ctx?.orgId ?? undefined },
+      { targetType: "project", targetId: projectId, limit: limit ?? 50 },
+    );
+    const changes = rows.map((entry) => ({
+      action: entry.action,
+      threadId: entry.threadId,
+      completedAt: entry.createdAt,
+      summary: entry.summary?.slice(0, 500) ?? "",
+      actorKind: entry.actorKind,
+      status: entry.status,
+    }));
     return { projectId, changeCount: changes.length, changes };
   },
 });

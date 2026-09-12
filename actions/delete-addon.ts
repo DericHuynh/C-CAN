@@ -1,9 +1,11 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { assertFound, getProjectOrThrow, saveProject } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description: "Remove an addon (by its array index) from a choice and save the updated choice.",
   schema: z.object({
     projectId: z.string().describe("Project id"),

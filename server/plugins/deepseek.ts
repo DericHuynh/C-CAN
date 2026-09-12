@@ -4,15 +4,19 @@
  *
  * 1. `registerAgentEngine()` — adds DeepSeek to the settings engine picker
  *    and the agent runtime. The engine (server/agent/deepseek-engine.ts) is
- *    a dedicated AgentEngine that talks directly to DeepSeek's
- *    OpenAI-compatible API (`https://api.deepseek.com`), rather than
- *    inheriting the AI-SDK OpenAI provider's GPT-specific assumptions.
- * 2. `registerRequiredSecret()` — the framework's standard BYOK flow: each
+ *    the framework's `ai-sdk:openai` engine pointed at DeepSeek's
+ *    OpenAI-compatible API (`https://api.deepseek.com`) — the sanctioned
+ *    path for OpenAI-compatible gateways — wrapped to enforce DeepSeek's
+ *    constraints (8K output ceiling, text-only capabilities, pinned model
+ *    catalog, key handling). See that file for the reasoning.
+ * 2. `registerRequiredSecret()` — the framework's standard key flow: each
  *    signed-in user enters their own key in Settings → Secrets (stored
  *    encrypted, scoped to that user, validated against the DeepSeek API).
  *
- * There is deliberately NO deployment-level env-var fallback: this app is
- * BYOK — a user's key comes from their own stored secret, nothing else.
+ * Key precedence: a user's stored key wins; the deployment-level
+ * `DEEPSEEK_API_KEY` env var is the shared default (see AGENTS.md "Model
+ * Providers"), gated by the framework's deploy-credential fallback rules so
+ * hosted multi-tenant deployments stay per-user.
  *
  * Model selection is pinned: `deepseek-v4-flash` is the app's default and its
  * only supported model.

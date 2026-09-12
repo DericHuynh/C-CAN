@@ -41,7 +41,7 @@ export function GroupPanel({ project }: GroupPanelProps) {
     if (!name.trim()) return;
     if (selected === "new") {
       addGroup.mutate(
-        { projectId, name: name.trim() },
+        { projectId, name: name.trim(), rowElements, elements },
         {
           onSuccess: () => {
             toast.success("Group added");

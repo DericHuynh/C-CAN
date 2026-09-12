@@ -1,12 +1,14 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
-import { createDefaultApp } from "./cyoa.js";
+import { createDefaultAddon, createDefaultApp, createDefaultScore } from "./cyoa.js";
 import {
   activateRowButton,
   applyActivateOther,
+  applyChoiceVariables,
   applyDeactivateOther,
   applyDeselectActivateOther,
   applyDuplicateRow,
+  applyMissingReqCascade,
   backgroundOverrides,
   buildCyoaIndex,
   checkActivated,
@@ -24,14 +26,17 @@ import {
   loadBuildCode,
   pointBarOverrides,
   pointSum,
+  parseBuildCode,
   replaceText,
+  rollScoreValue,
   rowAllowedChoices,
   selectChoice,
+  selectOneLess,
   selectOneMore,
   templateOverrideFor,
   widthOverrideFor,
 } from "./cyoa-engine.js";
-import type { Choice, Requireds, Row } from "./types.js";
+import type { Choice, Requireds, Row, SelectableAddon } from "./types.js";
 
 /** Build a positive/negated choice-id requirement. */
 function idReq(reqId: string, required = true): Requireds {
@@ -245,6 +250,50 @@ describe("cyoa-engine requirements", () => {
 });
 
 describe("cyoa-engine points", () => {
+  it("rolls random scores between expression bounds", () => {
+    const app = appWith({ rows: [] });
+    const idx = buildCyoaIndex(app);
+    const state = createCyoaState(app);
+    const rng = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      expect(
+        rollScoreValue(
+          "choice",
+          0,
+          {
+            isRandom: true,
+            useExpression: true,
+            expMinValue: "2 + 2",
+            expMaxValue: "4 + 4",
+            expValue: "99",
+          } as never,
+          idx,
+          state,
+        ),
+      ).toBe(6);
+    } finally {
+      rng.mockRestore();
+    }
+  });
+
+  it("applies cumulative scaling to each recorded multi-select roll", () => {
+    const choice = makeChoice("multi", {
+      isSelectableMultiple: true,
+      scores: [{ id: "gold", isRandom: true, multiplyByTimes: true } as never],
+    });
+    const app = appWith({
+      rows: [makeRow("row", [choice])],
+      pointTypes: [{ id: "gold", startingSum: 100 } as never],
+    });
+    const idx = buildCyoaIndex(app);
+    const state = createCyoaState(app);
+    state.activated.set(choice.id, { multiple: 2 });
+    state.rolledScores.set("multi:0:1", 3);
+    state.rolledScores.set("multi:0:2", 7);
+
+    expect(computePointTotals(app, idx, state).get("gold")?.total).toBe(83);
+  });
+
   it("computes totals from starting sum and scores (ICCPlus: negative value is a gain)", () => {
     const row = makeRow("row_1");
     const choice = makeChoice("choice_a", {
@@ -460,6 +509,167 @@ describe("cyoa-engine points", () => {
 });
 
 describe("cyoa-engine build codes", () => {
+  it.each([
+    "literal /CHAR# and commas, stay intact",
+    "name /ON#42 /VAR#1",
+    "name /IMG#not-an-image /RS#0:99",
+    "name /RP#gold/NUM#100",
+    "  spaces and unicode 🐉\n  ",
+    "a lone surrogate \ud800",
+  ])("round-trips custom text without interpreting it as build tokens: %s", (word) => {
+    const choice = makeChoice("custom", {
+      textfieldIsOn: true,
+      customTextfieldIsOn: true,
+      idOfTheTextfieldWord: "name",
+      isImageUpload: true,
+    });
+    const app = appWith({ rows: [makeRow("row", [choice])] });
+    const idx = buildCyoaIndex(app);
+    const state = createCyoaState(app);
+    state.activated.set(choice.id, { multiple: 0 });
+    state.wordValues.set("name", word);
+    const image = "https://example.com/image.png#literal/ON#5/CHAR#/WORD#x";
+    state.uploadedImages.set(choice.id, image);
+    const loaded = loadBuildCode(encodeBuildCode(app, idx, state), app, idx);
+    expect(loaded.wordValues.get("name")).toBe(word);
+    expect(loaded.uploadedImages.get(choice.id)).toBe(image);
+    expect(loaded.activated.get(choice.id)).toEqual({ multiple: 0 });
+    expect(loaded.pointAdjustments.size).toBe(0);
+    expect(loaded.rolledScores.size).toBe(0);
+  });
+
+  it("reads legacy word and image fields without parsing their contents as metadata", () => {
+    const [entry] = parseBuildCode(
+      "custom/ON#2/WORD#hello/CHAR# world /ON#99/IMG#https://example.com/x/ON#5",
+    );
+    expect(entry.multiple).toBe(2);
+    expect(entry.word).toBe("hello, world /ON#99");
+    expect(entry.image).toBe("https://example.com/x/ON#5");
+  });
+
+  it("does not treat markers in a legacy image URL as a word field", () => {
+    const [entry] = parseBuildCode("custom/IMG#https://example.com/x/WORD#literal");
+    expect(entry.word).toBeUndefined();
+    expect(entry.image).toBe("https://example.com/x/WORD#literal");
+  });
+
+  it("ignores malformed encoded text while retaining valid selections", () => {
+    const [entry] = parseBuildCode(
+      "custom/ON#2/WORD2#%broken/IMG2#%22https%3A%2F%2Fexample.com%22",
+    );
+    expect(entry.multiple).toBe(2);
+    expect(entry.word).toBeUndefined();
+    expect(entry.image).toBe("https://example.com");
+  });
+
+  it.each([
+    { code: "flag", expected: true },
+    { code: "flag/VAR#0,turn-on", expected: false },
+    { code: "turn-on,flag/VAR#0", expected: false },
+    { code: "flag/VAR#1,turn-off", expected: true },
+  ])("restores legacy or explicit variable state from $code", ({ code, expected }) => {
+    const on = makeChoice("turn-on", {
+      isChangeVariables: true,
+      changeType: "1",
+      changedVariables: ["flag"],
+    });
+    const off = makeChoice("turn-off", {
+      isChangeVariables: true,
+      changeType: "2",
+      changedVariables: ["flag"],
+    });
+    const app = appWith({
+      rows: [makeRow("row", [on, off])],
+      variables: [{ id: "flag", isTrue: false } as never],
+    });
+    const idx = buildCyoaIndex(app);
+    const loaded = loadBuildCode(code, app, idx);
+
+    expect(loaded.variables.get("flag")).toBe(expected);
+    expect(loaded.activated.has("flag")).toBe(expected);
+  });
+
+  it("replaces document selections and stale counts when loading a build", () => {
+    const row = makeRow("row", [makeChoice("a"), makeChoice("b")]);
+    row.currentChoices = 9;
+    const app = appWith({ rows: [row], activated: ["a"] });
+    const idx = buildCyoaIndex(app);
+
+    const loaded = loadBuildCode("b,b", app, idx);
+    expect([...loaded.activated.keys()]).toEqual(["b"]);
+    expect(loaded.currentChoices.get(row.id)).toBe(1);
+    const cleared = loadBuildCode("", app, idx);
+    expect(cleared.activated.size).toBe(0);
+    expect(cleared.currentChoices.get(row.id)).toBe(0);
+  });
+
+  it("round-trips fractional row-button awards without adding duplicate entries twice", () => {
+    const row = makeRow("bonus");
+    const app = appWith({
+      rows: [row],
+      pointTypes: [{ id: "gold", startingSum: 0, allowFloat: true } as never],
+    });
+    const idx = buildCyoaIndex(app);
+    const state = createCyoaState(app);
+    state.activated.set(row.id, {
+      multiple: 0,
+      isRowButton: true,
+      rndPoint: "gold",
+      pointNum: 2.5,
+    });
+    state.pointAdjustments.set("gold", 2.5);
+    const code = encodeBuildCode(app, idx, state);
+    const loaded = loadBuildCode(`${code},${code}`, app, idx);
+
+    expect(loaded.activated.get(row.id)?.pointNum).toBe(2.5);
+    expect(computePointTotals(app, idx, loaded).get("gold")?.total).toBe(2.5);
+  });
+
+  it.each(["Ari, the Wanderer", ""])(
+    "restores player text %j and an uploaded image together",
+    (word) => {
+      const choice = makeChoice("portrait", {
+        textfieldIsOn: true,
+        customTextfieldIsOn: true,
+        idOfTheTextfieldWord: "player_name",
+        wordChangeSelect: "Author's default",
+        isImageUpload: true,
+        image: "https://example.com/default.png",
+      });
+      const row = makeRow("row", [choice]);
+      const app = appWith({
+        rows: [row],
+        words: [{ id: "player_name", replaceText: "Default name" } as never],
+      });
+      const idx = buildCyoaIndex(app);
+      const state = selectChoice(choice, row, idx, createCyoaState(app));
+      const image = "https://example.com/portrait.png?crop=1,2";
+      state.wordValues.set("player_name", word);
+      state.uploadedImages.set(choice.id, image);
+
+      const loaded = loadBuildCode(encodeBuildCode(app, idx, state), app, idx);
+
+      expect(replaceText("Name: player_name", idx, loaded)).toBe(`Name: ${word}`);
+      expect(loaded.uploadedImages.get(choice.id)).toBe(image);
+      expect(choice.wordChangeSelect).toBe("Author's default");
+      expect(choice.image).toBe("https://example.com/default.png");
+    },
+  );
+
+  it("preserves old random-score build tokens", () => {
+    const score = { id: "gold", value: 0, isRandom: true, minValue: 1, maxValue: 1 };
+    const choice = makeChoice("random", { scores: [score as never] });
+    const app = appWith({
+      rows: [makeRow("row", [choice])],
+      pointTypes: [{ id: "gold", startingSum: 100 } as never],
+    });
+    const idx = buildCyoaIndex(app);
+    const loaded = loadBuildCode("random/RS#0:7", app, idx);
+    const reloaded = loadBuildCode(encodeBuildCode(app, idx, loaded), app, idx);
+
+    expect(computePointTotals(app, idx, reloaded).get("gold")?.total).toBe(93);
+  });
+
   it("round-trips a selection through encode/load", () => {
     const row = makeRow("row_1");
     const choice = makeChoice("choice_a");
@@ -548,6 +758,56 @@ describe("cyoa-engine misc", () => {
     expect(checkPointEnable(secret, idx, state)).toBe(true);
   });
 
+  it("preserves accumulated row button awards through a build roundtrip", () => {
+    const row = makeRow("award", []);
+    Object.assign(row, {
+      btnPointAddon: true,
+      buttonTypeRadio: "sumaddon",
+      pointTypeRandom: "gold",
+      randomMin: 3,
+      randomMax: 3,
+    });
+    const app = appWith({
+      rows: [row],
+      pointTypes: [{ id: "gold", name: "Gold", startingSum: 10, initValue: 0 } as never],
+    });
+    const idx = buildCyoaIndex(app);
+    let state = activateRowButton(row, idx, createCyoaState(app));
+    state = activateRowButton(row, idx, state);
+    expect(pointSum("gold", idx, state)).toBe(16);
+    const loaded = loadBuildCode(encodeBuildCode(app, idx, state), app, idx);
+    expect(pointSum("gold", idx, loaded)).toBe(16);
+  });
+
+  it("preserves earlier awards when a later roll would violate the point floor", () => {
+    const row = makeRow("award", []);
+    Object.assign(row, {
+      btnPointAddon: true,
+      buttonTypeRadio: "sumaddon",
+      pointTypeRandom: "gold",
+      randomMin: 3,
+      randomMax: 3,
+    });
+    const app = appWith({
+      rows: [row],
+      pointTypes: [
+        {
+          id: "gold",
+          name: "Gold",
+          startingSum: 0,
+          initValue: 0,
+          belowZeroNotAllowed: true,
+        } as never,
+      ],
+    });
+    const idx = buildCyoaIndex(app);
+    const state = activateRowButton(row, idx, createCyoaState(app));
+    const next = activateRowButton({ ...row, randomMin: -4, randomMax: -4 }, idx, state);
+    expect(next).toBe(state);
+    const loaded = loadBuildCode(encodeBuildCode(app, idx, next), app, idx);
+    expect(pointSum("gold", idx, loaded)).toBe(3);
+  });
+
   it("row button adds a random sum to a point type", () => {
     const row = makeRow("row_1", []);
     row.btnPointAddon = true;
@@ -575,6 +835,140 @@ describe("cyoa-engine misc", () => {
     expect(pointSum("pt_gold", idx, next)).toBeGreaterThanOrEqual(11);
     expect(pointSum("pt_gold", idx, next)).toBeLessThanOrEqual(15);
   });
+});
+
+describe("cyoa-engine random row buttons", () => {
+  it("does not turn a single selection into a counter on repeated clicks", () => {
+    const choice = makeChoice("single");
+    const row = { ...makeRow("row", [choice]), buttonRandom: true };
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = createCyoaState(app);
+    state = activateRowButton(row, idx, state);
+    state = activateRowButton(row, idx, state);
+    expect(state.activated.get(choice.id)?.multiple).toBe(0);
+    expect(state.currentChoices.get(row.id)).toBe(1);
+  });
+
+  it("respects a counter's maximum without counting its copies as separate choices", () => {
+    const choice = makeChoice("counter", {
+      isSelectableMultiple: true,
+      allowSelectByClick: true,
+      numMultipleTimesPluss: 2,
+    });
+    const row = { ...makeRow("row", [choice]), buttonRandom: true };
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = createCyoaState(app);
+    for (let i = 0; i < 3; i++) state = activateRowButton(row, idx, state);
+    expect(state.activated.get(choice.id)?.multiple).toBe(2);
+    expect(state.currentChoices.get(row.id)).toBe(1);
+  });
+
+  it("honors the row's selection limit", () => {
+    const row = {
+      ...makeRow("row", [makeChoice("a"), makeChoice("b")]),
+      buttonRandom: true,
+      buttonRandomNumber: 2,
+      allowedChoices: 1,
+    };
+    const app = appWith({ rows: [row] });
+    const state = activateRowButton(row, buildCyoaIndex(app), createCyoaState(app));
+    expect(state.activated.size).toBe(1);
+    expect(state.currentChoices.get(row.id)).toBe(1);
+  });
+
+  it("ignores stored weights when weighted random is off", () => {
+    const row = {
+      ...makeRow("row", [
+        makeChoice("a", { randomWeight: 100 }),
+        makeChoice("b", { randomWeight: 1 }),
+      ]),
+      buttonRandom: true,
+      isWeightedRandom: false,
+    };
+    const app = appWith({ rows: [row] });
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.75);
+    try {
+      const state = activateRowButton(row, buildCyoaIndex(app), createCyoaState(app));
+      expect([...state.activated.keys()]).toEqual(["b"]);
+    } finally {
+      random.mockRestore();
+    }
+  });
+
+  it("never selects a zero-weight choice, including at the random lower bound", () => {
+    const row = {
+      ...makeRow("row", [
+        makeChoice("zero", { randomWeight: 0 }),
+        makeChoice("eligible", { randomWeight: 1 }),
+      ]),
+      buttonRandom: true,
+      isWeightedRandom: true,
+    };
+    const app = appWith({ rows: [row] });
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    try {
+      const state = activateRowButton(row, buildCyoaIndex(app), createCyoaState(app));
+      expect([...state.activated.keys()]).toEqual(["eligible"]);
+    } finally {
+      random.mockRestore();
+    }
+  });
+
+  it.each([false, true])(
+    "applies variable effects for random selection (counter: %s)",
+    (counter) => {
+      const choice = makeChoice("switch", {
+        isSelectableMultiple: counter,
+        allowSelectByClick: true,
+        isChangeVariables: true,
+        changeType: "3",
+        changedVariables: ["flag"],
+      });
+      const row = { ...makeRow("row", [choice]), buttonRandom: true };
+      const app = appWith({ rows: [row], variables: [{ id: "flag", isTrue: false } as never] });
+      const idx = buildCyoaIndex(app);
+      let state = activateRowButton(row, idx, createCyoaState(app));
+      expect(state.variables.get("flag")).toBe(true);
+      state = activateRowButton(row, idx, state);
+      expect(state.variables.get("flag")).toBe(!counter);
+      expect(state.activated.has("flag")).toBe(!counter);
+    },
+  );
+
+  it("does not execute a button restricted to an empty row when choices are selected", () => {
+    const row = {
+      ...makeRow("row", [makeChoice("a")]),
+      buttonRandom: true,
+      onlyIfNoChoices: true,
+    };
+    const app = appWith({ rows: [row], activated: ["a"] });
+    const state = createCyoaState(app);
+    expect(activateRowButton(row, buildCyoaIndex(app), state)).toBe(state);
+  });
+});
+
+describe("cyoa-engine counter metadata", () => {
+  it.each(["more", "less"])(
+    "retains linked activation metadata when selecting one %s",
+    (operation) => {
+      const choice = makeChoice("counter", { isSelectableMultiple: true });
+      const row = makeRow("row", [choice]);
+      const state = createCyoaState(appWith({ rows: [row] }));
+      state.activated.set(choice.id, { multiple: 2, forcedFrom: 1 });
+      state.currentChoices.set(row.id, 1);
+      const next =
+        operation === "more"
+          ? selectOneMore(choice, row, state)
+          : selectOneLess(choice, row, state);
+      expect(next.activated.get(choice.id)).toEqual({
+        multiple: operation === "more" ? 3 : 1,
+        forcedFrom: 1,
+      });
+      expect(state.activated.get(choice.id)).toEqual({ multiple: 2, forcedFrom: 1 });
+    },
+  );
 });
 
 describe("cyoa-engine point modifiers", () => {
@@ -656,6 +1050,20 @@ describe("cyoa-engine point modifiers", () => {
 });
 
 describe("cyoa-engine allowed-choices and counts", () => {
+  it("ignores repeated single-select and deselect requests without changing counts", () => {
+    const choice = makeChoice("a");
+    const row = makeRow("row", [choice]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    const empty = createCyoaState(app);
+    const selected = selectChoice(choice, row, idx, empty);
+
+    expect(selectChoice(choice, row, idx, selected)).toBe(selected);
+    expect(deselectChoice(choice, row, empty)).toBe(empty);
+    expect(selected.currentChoices.get(row.id)).toBe(1);
+    expect(empty.currentChoices.get(row.id)).toBe(0);
+  });
+
   it("addToAllowChoice raises the target row's effective limit", () => {
     const row = makeRow("row_1");
     const grant = makeChoice("choice_grant", {
@@ -692,6 +1100,43 @@ describe("cyoa-engine allowed-choices and counts", () => {
     state = selectChoice(a, row, idx, state);
     expect(state.activated.has("choice_free")).toBe(true);
     expect(state.activated.has("choice_a")).toBe(true);
+  });
+
+  it("does not displace a full row when selecting a choice excluded from its limit", () => {
+    const a = makeChoice("choice_a");
+    const free = makeChoice("choice_free", { isCountDisabled: true });
+    const row = makeRow("row_1", [a, free]);
+    row.allowedChoices = 1;
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    const selected = selectChoice(a, row, idx, createCyoaState(app));
+    const next = selectChoice(free, row, idx, selected);
+
+    expect([...next.activated.keys()]).toEqual([a.id, free.id]);
+  });
+
+  it("counts a multi-select's row-limit increase only once", () => {
+    const a = makeChoice("choice_a");
+    const b = makeChoice("choice_b");
+    const grant = makeChoice("choice_grant", {
+      isSelectableMultiple: true,
+      addToAllowChoice: true,
+      idOfAllowChoice: ["row_1"],
+      numbAddToAllowChoice: 1,
+    });
+    const row = makeRow("row_1", [a, b, grant]);
+    row.allowedChoices = 2;
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = selectChoice(a, row, idx, createCyoaState(app));
+    state = selectChoice(b, row, idx, state);
+    // The author reduces the base allowance; the grant makes room for two,
+    // not three, choices when it is selected.
+    row.allowedChoices = 1;
+    state = selectOneMore(grant, row, state, idx);
+
+    expect(rowAllowedChoices(row, idx, state, grant)).toBe(2);
+    expect([...state.activated.keys()]).toEqual([b.id, grant.id]);
   });
 });
 
@@ -784,7 +1229,228 @@ describe("cyoa-engine groups are namespaces (parity with ICCPlus)", () => {
   });
 });
 
+describe("cyoa-engine cascading variable effects", () => {
+  it.each([1, 2, 3])("undoes toggle effects for %s removed counter copies", (count) => {
+    const choice = makeChoice("toggle", {
+      isSelectableMultiple: true,
+      isChangeVariables: true,
+      changeType: "3",
+      changedVariables: ["flag"],
+      requireds: [idReq("missing")],
+    });
+    const row = makeRow("row", [choice]);
+    const app = appWith({ rows: [row], variables: [{ id: "flag", isTrue: false } as never] });
+    const idx = buildCyoaIndex(app);
+    let state = createCyoaState(app);
+    for (let i = 0; i < count; i++) {
+      state = applyChoiceVariables(selectOneMore(choice, row, state, idx), choice, idx, true);
+    }
+    const next = applyMissingReqCascade(state, idx);
+    expect(next.variables.get("flag")).toBe(false);
+    expect(next.activated.has("flag")).toBe(false);
+    expect(next.activated.has(choice.id)).toBe(false);
+    expect(next.currentChoices.get(row.id)).toBe(0);
+  });
+
+  it("restores a variable switched off by a removed choice", () => {
+    const choice = makeChoice("switch-off", {
+      isChangeVariables: true,
+      changeType: "2",
+      changedVariables: ["flag"],
+      requireds: [idReq("missing")],
+    });
+    const row = makeRow("row", [choice]);
+    const app = appWith({ rows: [row], variables: [{ id: "flag", isTrue: true } as never] });
+    const idx = buildCyoaIndex(app);
+    const state = selectChoice(choice, row, idx, createCyoaState(app));
+    expect(state.variables.get("flag")).toBe(false);
+    const next = applyMissingReqCascade(state, idx);
+    expect(next.variables.get("flag")).toBe(true);
+    expect(next.activated.has("flag")).toBe(true);
+  });
+});
+
 describe("cyoa-engine linked activation", () => {
+  it("releases the recorded random target count rather than the current configured count", () => {
+    const target = makeChoice("target", {
+      isSelectableMultiple: true,
+      isMultipleUseVariable: true,
+    });
+    const activator = makeChoice("activator", {
+      activateOtherChoice: true,
+      activateThisChoice: "target/ON#1",
+      isActivateRandom: true,
+      numActivateRandom: 1,
+    });
+    const row = makeRow("row", [target, activator]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    const state = applyActivateOther(createCyoaState(app), activator, idx, ["target/ON#3"]);
+    expect(state.activated.get(target.id)?.multiple).toBe(3);
+    const released = applyDeselectActivateOther(state, activator, idx);
+    expect(released.activated.has(target.id)).toBe(false);
+    expect(released.currentChoices.get(row.id)).toBe(0);
+  });
+
+  it("does not release unrelated targets when the recorded random selection is empty", () => {
+    const target = makeChoice("target");
+    const activator = makeChoice("activator", {
+      activateOtherChoice: true,
+      activateThisChoice: target.id,
+      isActivateRandom: true,
+      numActivateRandom: 0,
+    });
+    const row = makeRow("row", [target, activator]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = selectChoice(target, row, idx, createCyoaState(app));
+    state = applyActivateOther(state, activator, idx);
+    const released = applyDeselectActivateOther(state, activator, idx);
+    expect(released.activated.has(target.id)).toBe(true);
+  });
+
+  it.each([false, true])(
+    "releases chained activations while preserving a previously selected middle choice (%s)",
+    (middleWasSelected) => {
+      const c = makeChoice("c");
+      const b = makeChoice("b", { activateOtherChoice: true, activateThisChoice: c.id });
+      const a = makeChoice("a", { activateOtherChoice: true, activateThisChoice: b.id });
+      const row = makeRow("row", [a, b, c]);
+      const app = appWith({ rows: [row] });
+      const idx = buildCyoaIndex(app);
+      let state = createCyoaState(app);
+      if (middleWasSelected) {
+        state = selectChoice(b, row, idx, state);
+        state = applyActivateOther(state, b, idx);
+      }
+      state = selectChoice(a, row, idx, state);
+      state = applyActivateOther(state, a, idx);
+      state = deselectChoice(a, row, state);
+      const released = applyDeselectActivateOther(state, a, idx);
+
+      expect(released.activated.has(b.id)).toBe(middleWasSelected);
+      expect(released.activated.has(c.id)).toBe(middleWasSelected);
+      expect(released.activated.get(c.id)?.forcedFrom ?? 0).toBe(middleWasSelected ? 1 : 0);
+      expect(released.currentChoices.get(row.id)).toBe(middleWasSelected ? 2 : 0);
+    },
+  );
+
+  it("releases recorded random targets in a linked chain", () => {
+    const c = makeChoice("c");
+    const d = makeChoice("d");
+    const b = makeChoice("b", {
+      activateOtherChoice: true,
+      activateThisChoice: "c,d",
+      isActivateRandom: true,
+      numActivateRandom: 1,
+    });
+    const a = makeChoice("a", { activateOtherChoice: true, activateThisChoice: b.id });
+    const row = makeRow("row", [a, b, c, d]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = selectChoice(a, row, idx, createCyoaState(app));
+    state = applyActivateOther(state, a, idx);
+    state = deselectChoice(a, row, state);
+    const released = applyDeselectActivateOther(state, a, idx);
+
+    expect(released.activated.size).toBe(0);
+    expect(released.activatedRandom.size).toBe(0);
+    expect(state.activatedRandom.get(b.id)?.[0]).toHaveLength(1);
+  });
+
+  it("releases a cyclic chain without recursing back into its starting choice", () => {
+    const a = makeChoice("a", { activateOtherChoice: true, activateThisChoice: "b" });
+    const b = makeChoice("b", { activateOtherChoice: true, activateThisChoice: "a" });
+    const row = makeRow("row", [a, b]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = selectChoice(a, row, idx, createCyoaState(app));
+    state = applyActivateOther(state, a, idx);
+    state = deselectChoice(a, row, state);
+
+    expect(applyDeselectActivateOther(state, a, idx).activated.size).toBe(0);
+  });
+
+  it("keeps a manual selection's snapshot when an unrelated activation runs", () => {
+    const target = makeChoice("target");
+    const other = makeChoice("other");
+    const a = makeChoice("a", { activateOtherChoice: true, activateThisChoice: target.id });
+    const b = makeChoice("b", { activateOtherChoice: true, activateThisChoice: other.id });
+    const row = makeRow("row", [target, other, a, b]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = selectChoice(target, row, idx, createCyoaState(app));
+    state = applyActivateOther(state, a, idx);
+    state = applyActivateOther(state, b, idx);
+    state = applyDeselectActivateOther(state, a, idx);
+
+    expect(state.activated.get(target.id)).toEqual({ multiple: 0 });
+    expect(state.activated.has(other.id)).toBe(true);
+  });
+
+  it.each([false, true])(
+    "releases a shared target correctly (initially selected: %s)",
+    (initiallySelected) => {
+      const target = makeChoice("target");
+      const a = makeChoice("a", { activateOtherChoice: true, activateThisChoice: target.id });
+      const b = makeChoice("b", { activateOtherChoice: true, activateThisChoice: target.id });
+      const row = makeRow("row", [target, a, b]);
+      const app = appWith({ rows: [row] });
+      const idx = buildCyoaIndex(app);
+      let state = createCyoaState(app);
+      if (initiallySelected) state = selectChoice(target, row, idx, state);
+      state = applyActivateOther(state, a, idx);
+      state = applyActivateOther(state, b, idx);
+      const oneReleased = applyDeselectActivateOther(state, a, idx);
+      expect(state.activated.get(target.id)?.forcedFrom).toBe(2);
+      expect(oneReleased.activated.get(target.id)?.forcedFrom).toBe(1);
+      const allReleased = applyDeselectActivateOther(oneReleased, b, idx);
+
+      expect(allReleased.activated.has(target.id)).toBe(initiallySelected);
+      expect(allReleased.activated.get(target.id)?.forcedFrom ?? 0).toBe(0);
+      expect(allReleased.tmpActivated.size).toBe(0);
+    },
+  );
+
+  it("does not deselect targets when the activator opted out of forcing them", () => {
+    const target = makeChoice("target");
+    const a = makeChoice("a", {
+      activateOtherChoice: true,
+      activateThisChoice: target.id,
+      isAllowDeselect: true,
+    });
+    const row = makeRow("row", [target, a]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = selectChoice(target, row, idx, createCyoaState(app));
+    state = applyActivateOther(state, a, idx);
+    const released = applyDeselectActivateOther(state, a, idx);
+
+    expect(released.activated.has(target.id)).toBe(true);
+  });
+
+  it("clears a multi-select target's force lock after releasing its last activator", () => {
+    const target = makeChoice("target", {
+      isSelectableMultiple: true,
+      isMultipleUseVariable: true,
+    });
+    const a = makeChoice("a", { activateOtherChoice: true, activateThisChoice: target.id });
+    const row = makeRow("row", [target, a]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = selectOneMore(target, row, createCyoaState(app), idx);
+    state = applyActivateOther(state, a, idx);
+    state = applyDeselectActivateOther(state, a, idx);
+
+    expect(state.activated.get(target.id)?.multiple).toBe(1);
+    expect(state.activated.get(target.id)?.forcedFrom ?? 0).toBe(0);
+    const remover = makeChoice("remove", {
+      deactivateOtherChoice: true,
+      deactivateThisChoice: target.id,
+    });
+    expect(applyDeactivateOther(state, remover, idx).activated.has(target.id)).toBe(false);
+  });
+
   it("activateOtherChoice force-selects targets and releases them on deselect", () => {
     const rowA = makeRow("row_a");
     const a = makeChoice("choice_a", {
@@ -1113,6 +1779,86 @@ describe("cyoa-engine hidden contents", () => {
 });
 
 describe("cyoa-engine duplicate rows", () => {
+  it("assigns unique ids to duplications before the lookup index is rebuilt", () => {
+    const row = makeRow("source", [makeChoice("choice")]);
+    const trigger = makeChoice("duplicate", {
+      duplicateRow: true,
+      duplicateRowId: row.id,
+      duplicateRowPlace: row.id,
+    });
+    const app = appWith({ rows: [row, makeRow("controls", [trigger])] });
+    const idx = buildCyoaIndex(app);
+    let state = applyDuplicateRow(createCyoaState(app), trigger, idx);
+    state = applyDuplicateRow(state, trigger, idx);
+    expect(state.dupRows.map((copy) => copy.id)).toEqual(["source/D#1", "source/D#2"]);
+  });
+
+  it.each([false, true])(
+    "copies addon effects and image requirements with the configured references (keep originals: %s)",
+    (keepOriginals) => {
+      const app = appWith({});
+      const addon: SelectableAddon = {
+        ...createDefaultAddon(app),
+        isSelectable: true,
+        groups: [],
+        multipleUseVariable: 0,
+        isActive: false,
+        activateOtherChoice: true,
+        activateThisChoice: "target",
+        scores: [{ ...createDefaultScore("gold"), value: 1, requireds: [idReq("target")] }],
+      };
+      const choice = makeChoice("parent", {
+        addons: [addon],
+        imageVariants: [
+          { id: "variant", image: "portrait", priority: 0, requireds: [idReq(addon.id)] },
+        ],
+      });
+      const row = makeRow("source", [choice, makeChoice("target")]);
+      const trigger = makeChoice("duplicate", {
+        duplicateRow: true,
+        duplicateRowId: row.id,
+        duplicateRowPlace: row.id,
+        dRowAddSufReq: keepOriginals,
+        dRowAddSufFunc: keepOriginals,
+      });
+      app.rows = [row, makeRow("controls", [trigger])];
+      const next = applyDuplicateRow(createCyoaState(app), trigger, buildCyoaIndex(app));
+      const copy = next.dupRows[0].objects[0];
+      const suffix = keepOriginals ? "" : "/D#1";
+      expect(copy.imageVariants?.[0].requireds[0].reqId).toBe(`${addon.id}${suffix}`);
+      expect(copy.addons[0].scores[0].requireds[0].reqId).toBe(`target${suffix}`);
+      expect(copy.addons[0].activateThisChoice).toBe(`target${suffix}`);
+      expect(addon.activateThisChoice).toBe("target");
+    },
+  );
+
+  it("gives duplicated addons their own ids and preserves original parent lookups", () => {
+    const app = appWith({});
+    const addon: SelectableAddon = {
+      ...createDefaultAddon(app),
+      isSelectable: true,
+      scores: [],
+      groups: [],
+      multipleUseVariable: 0,
+      isActive: false,
+    };
+    const choice = makeChoice("parent", { addons: [addon] });
+    const row = makeRow("source", [choice]);
+    const trigger = makeChoice("duplicate", {
+      duplicateRow: true,
+      duplicateRowId: row.id,
+      duplicateRowPlace: row.id,
+    });
+    app.rows = [row, makeRow("controls", [trigger])];
+    const next = applyDuplicateRow(createCyoaState(app), trigger, buildCyoaIndex(app));
+    const duplicate = next.dupRows[0].objects[0].addons[0];
+    expect(duplicate.id).toBe(`${addon.id}/D#1`);
+    expect(duplicate.parentId).toBe("parent/D#1");
+    const idx = buildCyoaIndex(app, next.dupRows);
+    expect(idx.addonParentMap.get(addon.id)?.id).toBe("parent");
+    expect(idx.addonParentMap.get(duplicate.id)?.id).toBe("parent/D#1");
+  });
+
   it("duplicates a row with /D# ids and rewrites requirement refs", () => {
     const target = makeRow("row_dup_me");
     const c = makeChoice("choice_x", {
@@ -1425,5 +2171,201 @@ describe("cyoa-engine discount scope", () => {
     // Second target selected -> discount now applies.
     state = selectChoice(extra, row, idx, state);
     expect(computeScoreNet(row.objects[1], 0, row.objects[1].scores[0], idx, state, 0)).toBe(8);
+  });
+});
+
+describe("cyoa-engine missing-req cascade (deselectMissingReq parity)", () => {
+  it("fully removes a dependency chain loaded in reverse order", () => {
+    const gate = makeChoice("gate");
+    const mid = makeChoice("mid", { requireds: [idReq(gate.id)] });
+    const leaf = makeChoice("leaf", { requireds: [idReq(mid.id)] });
+    const row = makeRow("row", [gate, mid, leaf]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    const loaded = loadBuildCode("leaf,mid,gate", app, idx);
+    const state = deselectChoice(gate, row, loaded);
+
+    const next = applyMissingReqCascade(state, idx);
+
+    expect([...next.activated.keys()]).toEqual([]);
+    expect(next.currentChoices.get(row.id)).toBe(0);
+    expect([...state.activated.keys()]).toEqual([leaf.id, mid.id]);
+  });
+
+  it("releases linked targets when a single-select activator loses its requirement", () => {
+    const gate = makeChoice("gate");
+    const target = makeChoice("target");
+    const activator = makeChoice("activator", {
+      requireds: [idReq(gate.id)],
+      activateOtherChoice: true,
+      activateThisChoice: target.id,
+    });
+    const row = makeRow("row", [gate, activator, target]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    let state = selectChoice(gate, row, idx, createCyoaState(app));
+    state = selectChoice(activator, row, idx, state);
+    state = applyActivateOther(state, activator, idx);
+    state = deselectChoice(gate, row, state);
+
+    const next = applyMissingReqCascade(state, idx);
+
+    expect([...next.activated.keys()]).toEqual([]);
+    expect(next.currentChoices.get(row.id)).toBe(0);
+  });
+
+  it("removes choices whose prerequisites were deselected, cascading across rows", () => {
+    const gate = makeChoice("choice_gate");
+    const mid = makeChoice("choice_mid", { requireds: [idReq("choice_gate")] });
+    const leaf = makeChoice("choice_leaf", { requireds: [idReq("choice_mid")] });
+    const row0 = makeRow("row_0", [gate]);
+    const row1 = makeRow("row_1", [mid]);
+    const row2 = makeRow("row_2", [leaf]);
+    const app = appWith({ rows: [row0, row1, row2] });
+    const idx = buildCyoaIndex(app);
+    let state = createCyoaState(app);
+    state = selectChoice(gate, row0, idx, state);
+    state = selectChoice(mid, row1, idx, state);
+    state = selectChoice(leaf, row2, idx, state);
+    expect(state.activated.has("choice_leaf")).toBe(true);
+    // Removing the gate un-mets mid's requirement, which in turn un-mets
+    // leaf's — the cascade propagates through the chain.
+    state = deselectChoice(gate, row0, state);
+    state = applyMissingReqCascade(state, idx);
+    expect(state.activated.has("choice_mid")).toBe(false);
+    expect(state.activated.has("choice_leaf")).toBe(false);
+    expect(state.currentChoices.get("row_1")).toBe(0);
+    expect(state.currentChoices.get("row_2")).toBe(0);
+  });
+
+  it("skips the local choice during the pass; the caller's self-check pass removes it", () => {
+    const gate = makeChoice("choice_gate");
+    const self = makeChoice("choice_self", { requireds: [idReq("choice_gate")] });
+    const row = makeRow("row_0", [gate, self]);
+    const app = appWith({ rows: [row] });
+    const idx = buildCyoaIndex(app);
+    const state = createCyoaState(app);
+    state.activated.set("choice_self", { multiple: 0 });
+    state.currentChoices.set("row_0", 1);
+    // The local (just-selected) choice is skipped by the pass itself...
+    const skipped = applyMissingReqCascade(state, idx, "choice_self");
+    expect(skipped.activated.has("choice_self")).toBe(true);
+    // ...and the second, no-skip pass (end-of-selectObject self-check) removes
+    // it when the selection un-met its own requirements.
+    const final = applyMissingReqCascade(skipped, idx);
+    expect(final.activated.has("choice_self")).toBe(false);
+    expect(final.currentChoices.get("row_0")).toBe(0);
+  });
+
+  it("releases linked activations per count when a multi-select entry cascades out", () => {
+    const gate = makeChoice("choice_gate");
+    const multi = makeChoice("choice_multi", {
+      isSelectableMultiple: true,
+      isMultipleUseVariable: true,
+      numMultipleTimesPluss: 5,
+      requireds: [idReq("choice_gate")],
+      activateOtherChoice: true,
+      activateThisChoice: "choice_target",
+    });
+    const target = makeChoice("choice_target", {
+      // The target's own requirements are unmet, so it is only ever active
+      // through the activator's forced activation.
+      requireds: [idReq("choice_never")],
+    });
+    const rowA = makeRow("row_a", [gate, multi]);
+    const rowB = makeRow("row_b", [target]);
+    const app = appWith({ rows: [rowA, rowB] });
+    const idx = buildCyoaIndex(app);
+    let state = createCyoaState(app);
+    state = selectChoice(gate, rowA, idx, state);
+    // Two counts of the activator, each forcing the target (forcedFrom 2).
+    state = selectOneMore(multi, rowA, state, idx);
+    state = applyActivateOther(state, multi, idx);
+    state = selectOneMore(multi, rowA, state, idx);
+    state = applyActivateOther(state, multi, idx);
+    expect(state.activated.get("choice_target")?.forcedFrom).toBe(2);
+    // Removing the gate cascades the activator out count-by-count; both
+    // forced links are released, so the unmet-requirement target goes too.
+    state = deselectChoice(gate, rowA, state);
+    state = applyMissingReqCascade(state, idx);
+    expect(state.activated.has("choice_multi")).toBe(false);
+    expect(state.activated.has("choice_target")).toBe(false);
+  });
+
+  it("removes choices whose point requirements are no longer met", () => {
+    const gainer = makeChoice("choice_gain", {
+      scores: [
+        {
+          idx: "0",
+          id: "pt_gold",
+          type: "pt_gold",
+          value: -20, // gain of 20 (ICCPlus convention)
+          beforeText: "",
+          afterText: "",
+          requireds: [],
+          showScore: true,
+        },
+      ],
+    });
+    const spender = makeChoice("choice_spend", {
+      requireds: [
+        {
+          required: true,
+          requireds: [],
+          orRequired: [],
+          id: "2",
+          type: "points",
+          reqId: "pt_gold",
+          operator: "2", // >=
+          reqPoints: 10,
+          reqId1: "",
+          reqId2: "",
+          reqId3: "",
+          showRequired: true,
+          afterText: "",
+          beforeText: "",
+        },
+      ],
+    });
+    const row = makeRow("row_0", [gainer, spender]);
+    const app = appWith({
+      rows: [row],
+      pointTypes: [
+        {
+          id: "pt_gold",
+          name: "Gold",
+          startingSum: 0,
+          initValue: 0,
+          beforeText: "",
+          afterText: "",
+        } as never,
+      ],
+    });
+    const idx = buildCyoaIndex(app);
+    let state = createCyoaState(app);
+    state = selectChoice(gainer, row, idx, state);
+    state = selectChoice(spender, row, idx, state);
+    expect(state.activated.has("choice_spend")).toBe(true);
+    // Without the gainer, the total drops back below the requirement.
+    state = deselectChoice(gainer, row, state);
+    state = applyMissingReqCascade(state, idx);
+    expect(state.activated.has("choice_spend")).toBe(false);
+  });
+
+  it("leaves row-button and variable entries alone", () => {
+    const gate = makeChoice("choice_gate");
+    const row = makeRow("row_0", [gate]);
+    const app = appWith({
+      rows: [row],
+      variables: [{ id: "var_1", isTrue: false } as never],
+    });
+    const idx = buildCyoaIndex(app);
+    const state = createCyoaState(app);
+    state.activated.set("row_0", { multiple: 0, isRowButton: true });
+    state.activated.set("var_1", { multiple: 0, isVariable: true });
+    state.activated.set("choice_gate", { multiple: 0 });
+    const next = applyMissingReqCascade(state, idx);
+    expect(next.activated.has("row_0")).toBe(true);
+    expect(next.activated.has("var_1")).toBe(true);
   });
 });

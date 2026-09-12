@@ -8,6 +8,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import "../server/plugins/project-resources.js"; // registers the `project` resource for assertAccess
+import "../server/plugins/file-upload.js"; // scripts must register the app's blob provider explicitly
+
 export default async function e2eImportCheck(args: Record<string, unknown>) {
   const file = (args.file as string) ?? "examples/project.json";
   const raw = readFileSync(resolve(file), "utf8");
@@ -17,20 +20,27 @@ export default async function e2eImportCheck(args: Record<string, unknown>) {
   const { default: exportAction } = await import("../actions/export-project-json.js");
   const { default: listProjects } = await import("../actions/list-projects.js");
 
+  // The import claims ownership with this identity, so the export/list/delete
+  // access checks below (viewer/editor) resolve to the same owner.
+  const scriptCtx = { userEmail: "e2e-import-check@local.test" };
+
   console.log(`importing ${file} (${(raw.length / 1024 / 1024).toFixed(1)} MB)...`);
-  const created = await importAction.run({ title: "e2e-import-check", json: parsed });
+  const created = await importAction.run({ title: "e2e-import-check", json: parsed }, scriptCtx);
   console.log(
     `created project ${created.id}: ${created.summary.rowCount} rows, ${created.summary.choiceCount} choices`,
   );
 
-  const exported = await exportAction.run({ id: created.id });
+  const exported = await exportAction.run({ id: created.id }, scriptCtx);
   const out = JSON.parse(JSON.stringify(exported.json)) as Record<string, unknown>;
 
   // ACL image-resource translation: every legacy inline image on choices,
   // rows and addons must have been rewritten to an image-resource id, and the
-  // `images` collection must hold the same payloads.
+  // `images` collection must hold storage URLs rather than embedded payloads.
   const images = Array.isArray(out.images) ? (out.images as Array<Record<string, unknown>>) : [];
   const imageIds = new Set(images.map((img) => img.id));
+  const embeddedPayloads = images.filter(
+    (img) => typeof img.image === "string" && /^data:/i.test(img.image),
+  ).length;
   let inlineImages = 0;
   let danglingRefs = 0;
   const walkRefs = (ref: unknown): void => {
@@ -56,7 +66,7 @@ export default async function e2eImportCheck(args: Record<string, unknown>) {
     }
   }
   console.log(
-    `[acl images] resources: ${images.length}, inline refs remaining: ${inlineImages}, dangling refs: ${danglingRefs}`,
+    `[acl images] resources: ${images.length}, embedded payloads: ${embeddedPayloads}, inline refs remaining: ${inlineImages}, dangling refs: ${danglingRefs}`,
   );
   // Styling background images (design tab) must be resource ids too.
   const styling = (out.styling ?? {}) as Record<string, unknown>;
@@ -75,7 +85,11 @@ export default async function e2eImportCheck(args: Record<string, unknown>) {
     `[acl styling] background keys with values: ${stylingRefs.length}, inline refs remaining: ${stylingInline}`,
   );
   const aclOk =
-    images.length > 0 && inlineImages === 0 && danglingRefs === 0 && stylingInline === 0;
+    images.length > 0 &&
+    embeddedPayloads === 0 &&
+    inlineImages === 0 &&
+    danglingRefs === 0 &&
+    stylingInline === 0;
 
   function walk(obj: unknown, fn: (path: string, value: unknown) => void, path = "$"): void {
     if (Array.isArray(obj)) {
@@ -120,14 +134,14 @@ export default async function e2eImportCheck(args: Record<string, unknown>) {
     console.log(`  [lost ids] ${lostIds.slice(0, 10).join(", ")}`);
   }
 
-  const afterList = await listProjects.run({});
+  const afterList = await listProjects.run({}, scriptCtx);
   const listed = afterList.projects ?? afterList;
   const listedOk = JSON.stringify(listed).includes(created.id);
 
   // Clean up the throwaway project.
   const { default: deleteAction } = await import("../actions/delete-project.js");
   try {
-    await deleteAction.run({ id: created.id });
+    await deleteAction.run({ id: created.id }, scriptCtx);
   } catch {
     // the project may already be gone — non-fatal
   }

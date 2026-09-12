@@ -227,7 +227,10 @@ export function useDeletePointType() {
 /* ------------------------------------------------------------------ */
 
 export function useAddGroup() {
-  return useActionMutation<ProjectRefResult, { projectId: string; name?: string }>("add-group");
+  return useActionMutation<
+    ProjectRefResult,
+    { projectId: string; name?: string; rowElements?: string[]; elements?: string[] }
+  >("add-group");
 }
 
 export function useUpdateGroup() {
@@ -302,4 +305,30 @@ export function useUpdateProjectSettings() {
   return useActionMutation<ProjectRefResult, { projectId: string; patch: Record<string, unknown> }>(
     "update-project-settings",
   );
+}
+
+export function useGenerateImagePreviews() {
+  return useActionMutation<
+    { generated: string[]; skipped: string[]; failed: string[] },
+    { projectId: string; imageIds: string[] }
+  >("generate-image-previews", { skipActionQueryInvalidation: true });
+}
+
+export function useUpdatePlanningEntry() {
+  return useActionMutation<
+    { draft: import("@shared/planning").PlanningDraft; applied: boolean },
+    import("@shared/planning").PlanningTarget & {
+      projectId: string;
+      expectedRevision: number;
+      base?: { title: string; text: string };
+      patch: Partial<
+        Pick<
+          import("@shared/planning").PlanningDraft,
+          "title" | "text" | "notes" | "mechanics" | "imageNotes" | "status" | "imageStatus"
+        >
+      >;
+      applyToContent?: boolean;
+      resetTextToCurrent?: boolean;
+    }
+  >("update-planning-entry");
 }

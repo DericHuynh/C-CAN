@@ -11,7 +11,8 @@ import {
 } from "@shared/cyoa-engine";
 import { buildFilterString, getStyling } from "@shared/cyoa-styling";
 import { resolveImageRef } from "@shared/cyoa";
-import type { App, Choice, PointType, Row } from "@shared/types";
+import type { Addon, App, Choice, PointType, Row } from "@shared/types";
+import type { CSSProperties } from "react";
 
 /**
  * Sanitizer configuration matching the original ICCPlus viewer's `sanitizeArg`:
@@ -344,7 +345,7 @@ export function choiceSurfaceStyle(
     // has no border image.
     borderImage:
       str(objectStyle, "objectBorderImage") && isOn(objectStyle, "objectBorderIsOn")
-        ? `url('${str(objectStyle, "objectBorderImage")}') ${num(objectStyle, "objectBorderImageSliceTop")} ${num(objectStyle, "objectBorderImageSliceRight")} ${num(objectStyle, "objectBorderImageSliceBottom")} ${num(objectStyle, "objectBorderImageSliceLeft")} / ${num(objectStyle, "objectBorderImageWidth")}px ${str(objectStyle, "objectBorderImageRepeat") || "stretch"}`
+        ? `url('${resolveImageRef(idx.app, str(objectStyle, "objectBorderImage"))}') ${num(objectStyle, "objectBorderImageSliceTop")} ${num(objectStyle, "objectBorderImageSliceRight")} ${num(objectStyle, "objectBorderImageSliceBottom")} ${num(objectStyle, "objectBorderImageSliceLeft")} / ${num(objectStyle, "objectBorderImageWidth")}px ${str(objectStyle, "objectBorderImageRepeat") || "stretch"}`
         : "",
     margin: `${num(objectStyle, "objectMargin")}px`,
     overflow: isOn(objectStyle, "objectOverflowIsOn") ? "hidden" : "",
@@ -380,7 +381,7 @@ export function resolveChoiceImage(
       return resolveImageRef(app, matching[0].image);
     }
   }
-  return resolveImageRef(app, choice.image);
+  return resolveImageRef(app, state.uploadedImages.get(choice.id) ?? choice.image);
 }
 
 /**
@@ -413,6 +414,67 @@ export function addonFilter(addon: Choice, row: Row, idx: CyoaIndex, state: Cyoa
     unknown
   >;
   return buildFilterString(filterStyling, FILTER_PREFIX[visualState]);
+}
+
+/** Addons inherit the parent's design sections, with their own selection state. */
+export function addonSurfaceStyle(
+  addon: Addon,
+  choice: Choice,
+  row: Row,
+  idx: CyoaIndex,
+  state: CyoaState,
+): CSSProperties {
+  const style = getStyling("privateAddonIsOn", idx, state, row, choice);
+  const filters = getStyling("privateFilterIsOn", idx, state, row, choice);
+  const enabled = isEnabled(choice.requireds, idx, state) && isEnabled(addon.requireds, idx, state);
+  const selected = state.activated.has(addon.isSelectable ? addon.id : choice.id);
+  const prefix = !enabled ? "req" : selected ? "sel" : "unsel";
+  const result: CSSProperties = {};
+  if (style.useAddonDesign) {
+    const suffix = style.addonBorderRadiusIsPixels ? "px" : "%";
+    result.padding = `${num(style, "addonTextPadding")}px`;
+    result.borderRadius = ["TopLeft", "TopRight", "BottomRight", "BottomLeft"]
+      .map((corner) => `${num(style, `addonBorderRadius${corner}`)}${suffix}`)
+      .join(" ");
+    if (style.addonOverflowIsOn) result.overflow = "hidden";
+    if (style.addonBgColorIsOn) result.backgroundColor = str(style, "addonBgColor");
+    if (style.useAddonBackgroundImage) {
+      result.backgroundImage = `url('${resolveImageRef(idx.app, str(style, "addonBackgroundImage")) ?? ""}')`;
+      result.backgroundSize = style.isAddonBackgroundFitIn ? "cover" : undefined;
+      result.backgroundRepeat = style.isAddonBackgroundRepeat ? "repeat" : "no-repeat";
+    }
+    if (style.addonBorderIsOn) {
+      result.border = `${num(style, "addonBorderWidth")}px ${str(style, "addonBorderStyle") || "solid"} ${str(style, "addonBorderColor")}`;
+      if (filters[`${prefix}BorderColorIsOn`])
+        result.borderColor = str(filters, `${prefix}FilterBorderColor`);
+      if (style.addonBorderImage)
+        result.borderImage = `url('${resolveImageRef(idx.app, str(style, "addonBorderImage"))}') ${["Top", "Right", "Bottom", "Left"].map((side) => num(style, `addonBorderImageSlice${side}`)).join(" ")} / ${num(style, "addonBorderImageWidth")}px ${str(style, "addonBorderImageRepeat") || "stretch"}`;
+    }
+    if (style.addonGradientIsOn) {
+      const key = !enabled
+        ? "addonGradientOnReq"
+        : selected
+          ? "addonGradientOnSelect"
+          : "addonGradient";
+      const gradient = str(style, key) || str(style, "addonGradient");
+      if (gradient) result.backgroundImage = `linear-gradient(${gradient.split(");")[0]})`;
+    }
+    if (style.addonDropShadowIsOn) {
+      const shadow = `${num(style, "addonDropShadowH")}px ${num(style, "addonDropShadowV")}px ${num(style, "addonDropShadowBlur")}px`;
+      if (style.addonUseBoxShadowIsOn)
+        result.boxShadow = `${shadow} ${num(style, "addonDropShadowSpread")}px ${str(style, "addonDropShadowColor")}`;
+      else result.filter = `drop-shadow(${shadow} ${str(style, "addonDropShadowColor")})`;
+    }
+  }
+  if (addon.isSelectable) {
+    result.filter =
+      [result.filter, buildFilterString(filters, prefix)].filter(Boolean).join(" ") || undefined;
+    if (filters[`${prefix}BgColorIsOn`]) {
+      result.backgroundColor = str(filters, `${prefix}FilterBgColor`);
+      if (!filters[`${prefix}OverlayOnImage`]) result.backgroundImage = undefined;
+    }
+  }
+  return result;
 }
 
 /* ------------------------------------------------------------------ */
@@ -589,6 +651,7 @@ export function imageStyle(
     maxWidth: "100%",
     height: "auto",
     display: "block",
+    border: "none",
   };
   // Margins are percentages of the image box in the original viewer.
   const marginTop = Number(styling[marginTopKey]);
@@ -803,7 +866,7 @@ export function rowSurfaceStyle(row: Row, idx: CyoaIndex, state: CyoaState): Row
     borderRadius,
     borderImage:
       str(rowStyle, "rowBorderImage") && isOn(rowStyle, "rowBorderIsOn")
-        ? `url('${str(rowStyle, "rowBorderImage")}') ${num(rowStyle, "rowBorderImageSliceTop")} ${num(rowStyle, "rowBorderImageSliceRight")} ${num(rowStyle, "rowBorderImageSliceBottom")} ${num(rowStyle, "rowBorderImageSliceLeft")} / ${num(rowStyle, "rowBorderImageWidth")}px ${str(rowStyle, "rowBorderImageRepeat") || "stretch"}`
+        ? `url('${resolveImageRef(idx.app, str(rowStyle, "rowBorderImage"))}') ${num(rowStyle, "rowBorderImageSliceTop")} ${num(rowStyle, "rowBorderImageSliceRight")} ${num(rowStyle, "rowBorderImageSliceBottom")} ${num(rowStyle, "rowBorderImageSliceLeft")} / ${num(rowStyle, "rowBorderImageWidth")}px ${str(rowStyle, "rowBorderImageRepeat") || "stretch"}`
         : "",
     boxShadow,
     filter,

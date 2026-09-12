@@ -24,7 +24,9 @@ import { resolveImageRef } from "@shared/cyoa";
 import type { App, Choice, PointType, Row } from "@shared/types";
 
 import { LazyImage } from "./LazyImage";
-import { formatScoreChip, sortedChoices } from "./project-utils";
+import { formatScoreChip, sortedChoices, sortedRows } from "./project-utils";
+
+const EXPANDED_CHOICES = new Set<string>();
 
 /** What is being dragged. */
 type DragPayload =
@@ -63,6 +65,8 @@ export interface RowTreeProps {
   rowOffset?: number;
   /** Row ids to force-expand (e.g. rows matching the current filter). */
   autoExpandIds?: Set<string>;
+  /** Reveal the selected item after it is created or opened. */
+  revealRowId?: string;
   /** Node key of the currently selected item (`row:${id}`, `choice:${id}`, `addon:${choiceId}:${index}`). */
   selectedKey?: string | null;
   onEditRow: (row: Row) => void;
@@ -72,7 +76,7 @@ export interface RowTreeProps {
   onEditChoice: (choice: Choice, row: Row) => void;
   onDeleteChoice: (choice: Choice, row: Row) => void;
   onMoveChoice: (targetRowId: string, choiceId: string, index: number) => void;
-  onEditAddon: (choice: Choice, row: Row) => void;
+  onEditAddon: (choice: Choice, row: Row, addonIndex: number) => void;
   onDeleteAddon: (choiceId: string, addonIndex: number) => void;
   onMoveAddon: (
     sourceChoiceId: string,
@@ -109,6 +113,7 @@ export const RowTree = memo(function RowTree({
   groups,
   rowOffset = 0,
   autoExpandIds,
+  revealRowId,
   selectedKey,
   onEditRow,
   onAddChoice,
@@ -124,6 +129,11 @@ export const RowTree = memo(function RowTree({
   onAddChoiceAt,
   onAddAddonAt,
 }: RowTreeProps) {
+  const allRows = useMemo(() => sortedRows(app), [app]);
+  const rowPositions = useMemo(
+    () => new Map(allRows.map((row, index) => [row.id, index + 1])),
+    [allRows],
+  );
   const [collapsedRows, setCollapsedRows] = useState<Set<string>>(new Set());
   const [collapsedChoices, setCollapsedChoices] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<DragPayload | null>(null);
@@ -183,17 +193,36 @@ export const RowTree = memo(function RowTree({
       const position = positionFromY(event, insideAllowed);
       const target: DropTarget = { ...targetBase, position } as DropTarget;
       handleDrop(target, event, payload, {
-        rows,
+        rows: allRows,
         drag,
-        rowOffset,
+        rowOffset: 0,
         clearDrag,
         onMoveRow,
         onMoveChoice,
         onMoveAddon,
       });
     },
-    [drag, rows, rowOffset, clearDrag, onMoveRow, onMoveChoice, onMoveAddon],
+    [drag, allRows, clearDrag, onMoveRow, onMoveChoice, onMoveAddon],
   );
+
+  useEffect(() => {
+    if (!revealRowId) return;
+    setCollapsedRows((previous) => {
+      if (!previous.has(revealRowId)) return previous;
+      const next = new Set(previous);
+      next.delete(revealRowId);
+      return next;
+    });
+    if (selectedKey?.startsWith("addon:")) {
+      const choiceId = selectedKey.slice(6, selectedKey.lastIndexOf(":"));
+      setCollapsedChoices((previous) => {
+        if (!previous.has(choiceId)) return previous;
+        const next = new Set(previous);
+        next.delete(choiceId);
+        return next;
+      });
+    }
+  }, [revealRowId, selectedKey]);
 
   // Which row owns the current selection (so only that row sees a changing
   // childSelectedKey and re-renders when the highlight moves).
@@ -203,7 +232,7 @@ export const RowTree = memo(function RowTree({
     const id = selectedKey.startsWith("choice:")
       ? selectedKey.slice(7)
       : selectedKey.startsWith("addon:")
-        ? selectedKey.slice(6).split(":")[0]
+        ? selectedKey.slice(6, selectedKey.lastIndexOf(":"))
         : null;
     if (!id) return null;
     return rows.find((row) => (row.objects ?? []).some((c) => c.id === id))?.id ?? null;
@@ -217,11 +246,11 @@ export const RowTree = memo(function RowTree({
           <TreeRow
             key={row.id}
             row={row}
-            rowNumber={rowOffset + rowIndex + 1}
+            rowNumber={rowPositions.get(row.id) ?? rowOffset + rowIndex + 1}
             collapsed={!forceExpand && collapsedRows.has(row.id)}
             selected={selectedKey === `row:${row.id}`}
             childSelectedKey={selectedRowId === row.id ? (selectedKey ?? null) : null}
-            collapsedChoiceIds={collapsedChoices}
+            collapsedChoiceIds={forceExpand ? EXPANDED_CHOICES : collapsedChoices}
             app={app}
             pointTypes={pointTypes}
             groups={groups}
@@ -315,7 +344,7 @@ const TreeRow = memo(function TreeRow({
   onDeleteRow: (row: Row) => void;
   onEditChoice: (choice: Choice, row: Row) => void;
   onDeleteChoice: (choice: Choice, row: Row) => void;
-  onEditAddon: (choice: Choice, row: Row) => void;
+  onEditAddon: (choice: Choice, row: Row, addonIndex: number) => void;
   onDeleteAddon: (choiceId: string, addonIndex: number) => void;
   onOpenContextMenu: (event: ReactMouseEvent<HTMLDivElement>, target: ContextTarget) => void;
 }) {
@@ -369,7 +398,14 @@ const TreeRow = memo(function TreeRow({
             <Badge variant="outline" className="shrink-0">
               Row {rowNumber}
             </Badge>
-            <span className="truncate text-sm font-semibold">{row.title}</span>
+            <button
+              type="button"
+              aria-label={`Edit row: ${row.title || row.id}`}
+              aria-pressed={selected}
+              className="min-w-0 truncate text-left text-sm font-semibold hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              {row.title || "Untitled row"}
+            </button>
           </div>
           {row.titleText ? (
             <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{row.titleText}</p>
@@ -381,7 +417,13 @@ const TreeRow = memo(function TreeRow({
       {childrenMounted ? (
         <div className="space-y-1.5 border-t border-border/60 p-2 pl-8">
           {choices.length === 0 ? (
-            <p className="py-1 pl-8 text-xs text-muted-foreground">No choices yet — add one.</p>
+            <div className="flex flex-wrap items-center gap-2 py-1 pl-2">
+              <span className="text-xs text-muted-foreground">No choices yet.</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => onAddChoice(row)}>
+                <IconPlus className="mr-1 size-3.5" />
+                Add choice
+              </Button>
+            </div>
           ) : (
             choices.map((choice) => (
               <TreeChoice
@@ -460,7 +502,7 @@ const TreeChoice = memo(function TreeChoice({
   ) => void;
   onEditChoice: (choice: Choice, row: Row) => void;
   onDeleteChoice: (choice: Choice, row: Row) => void;
-  onEditAddon: (choice: Choice, row: Row) => void;
+  onEditAddon: (choice: Choice, row: Row, addonIndex: number) => void;
   onDeleteAddon: (choiceId: string, addonIndex: number) => void;
   onOpenContextMenu: (event: ReactMouseEvent<HTMLDivElement>, target: ContextTarget) => void;
 }) {
@@ -521,7 +563,14 @@ const TreeChoice = memo(function TreeChoice({
         ) : null}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="truncate text-sm font-medium">{choice.title}</span>
+            <button
+              type="button"
+              aria-label={`Edit choice: ${choice.title || choice.id}`}
+              aria-pressed={selectedKey === `choice:${choice.id}`}
+              className="min-w-0 truncate text-left text-sm font-medium hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              {choice.title || "Untitled choice"}
+            </button>
             {(choice.scores ?? []).map((score, index) => (
               <Badge
                 key={`${score.id ?? score.type}-${index}`}
@@ -573,7 +622,7 @@ const TreeChoice = memo(function TreeChoice({
                   addonOverTarget(event, { kind: "addon", id: key }, drag, setDrop)
                 }
                 onDrop={(event) => onDropAt(event, { kind: "addon", id: key })}
-                onClick={() => onEditAddon(choice, row)}
+                onClick={() => onEditAddon(choice, row, addonIndex)}
                 onContextMenu={(event) =>
                   onOpenContextMenu(event, { kind: "addon", choiceId: choice.id, addonIndex })
                 }
@@ -590,7 +639,14 @@ const TreeChoice = memo(function TreeChoice({
                     <Badge variant="secondary" className="shrink-0">
                       Addon
                     </Badge>
-                    <span className="truncate text-sm">{addon.title || "Untitled addon"}</span>
+                    <button
+                      type="button"
+                      aria-label={`Edit addon: ${addon.title || "Untitled addon"}`}
+                      aria-pressed={selectedKey === `addon:${choice.id}:${addonIndex}`}
+                      className="min-w-0 truncate text-left text-sm hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                    >
+                      {addon.title || "Untitled addon"}
+                    </button>
                   </div>
                   {addon.text ? (
                     <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
@@ -889,7 +945,7 @@ function TreeNode({
 /** Right-side action buttons for a tree branch. */
 function NodeActions({ onAdd, onDelete }: { onAdd?: () => void; onDelete?: () => void }) {
   return (
-    <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+    <div className="flex shrink-0 items-center gap-0.5 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
       {onAdd ? (
         <Button
           type="button"

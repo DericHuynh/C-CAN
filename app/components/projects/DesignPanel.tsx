@@ -147,8 +147,7 @@ export function DesignPanel({ project }: DesignPanelProps) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Global styling lives in <code className="text-foreground">app.styling</code>. Edits below
-        are collected into a draft and applied when you save.
+        Customize the appearance of your CYOA. Changes are applied when you save.
       </p>
 
       <BackgroundSection draft={draft} set={set} images={images} />

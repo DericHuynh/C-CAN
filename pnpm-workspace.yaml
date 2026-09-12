@@ -25,7 +25,12 @@ minimumReleaseAgeExclude:
 patchedDependencies:
   "@agent-native/core@0.133.1": patches/@agent-native__core@0.133.1.patch
 catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@0.2.7
+  # Real Vite 8.1.0 for dev/build/start: the framework's `agent-native dev`
+  # spawns the `vite` bin, and Nitro's dev worker resolves
+  # `virtual:react-router/server-build` through real Vite. The vite-plus fork
+  # breaks that SSR path ("No fetch handler exported from
+  # virtual:react-router/server-build"). vite-plus stays as the test runner.
+  vite: 8.1.0
   vite-plus: 0.2.7
 peerDependencyRules:
   allowAny:

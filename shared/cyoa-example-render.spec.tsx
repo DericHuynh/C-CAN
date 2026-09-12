@@ -114,7 +114,19 @@ describe.skipIf(!exampleExists)("viewer render applies examples/project.json sty
 
   it("does not apply an unselected filter the doc does not enable", () => {
     // The example keeps every unsel*IsOn flag off, so no grayscale etc.
-    expect(html).not.toMatch(/unsel/);
+    // ICCPlus-compatible choice-unselected CSS classes are expected; inspect
+    // the actual style rather than rejecting a word anywhere in the HTML.
+    const styles = [...html.matchAll(/data-cyoa-choice="[^"]+"[^>]*style="([^"]*)"/g)].map(
+      (match) => match[1],
+    );
+    expect(styles.length).toBeGreaterThan(0);
+    expect(
+      styles.some((style) =>
+        /filter:[^;]*(?:blur|grayscale|opacity|brightness|contrast|hue-rotate|invert|sepia|saturate)\(/.test(
+          style,
+        ),
+      ),
+    ).toBe(false);
   });
 
   it("renders the initially-visible rows (progressive gating)", () => {

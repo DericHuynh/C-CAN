@@ -1,3 +1,4 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
@@ -5,6 +6,7 @@ import { createDefaultRow } from "../shared/cyoa.js";
 import { getProjectOrThrow, reindexRows, saveProject } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description:
     "Add a new row to a CYOA project at the given index (default: end) and return it. Accepts optional `fields` so the row is created fully-formed in one call: title, titleText, objectWidth, image, template, allowedChoices, rowJustify, requireds, styling, groups, and the row-kind flags (isInfoRow / isResultRow / isGroupRow / isButtonRow) — no follow-up update-row needed. Pass an existing row's `styling` object to match the project's look.",
   schema: z.object({

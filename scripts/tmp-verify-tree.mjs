@@ -1,3 +1,4 @@
+import { parseArgs } from "node:util";
 /**
  * Headless browser verification of the editor rework:
  *  - two-level nav (group buttons + per-group tab triggers, ?tab= deep links)
@@ -11,7 +12,7 @@
  * the project byte-identical (modulo row/choice `index` fields, which are
  * re-derived identically by the actions).
  *
- * Usage: node scripts/tmp-verify-tree.mjs
+ * Usage: node scripts/tmp-verify-tree.mjs --project-id <copy>
  */
 import { chromium } from "../node_modules/.pnpm/playwright@1.62.1/node_modules/playwright/index.mjs";
 import { createClient } from "../node_modules/@libsql/client/lib-esm/node.js";
@@ -19,9 +20,10 @@ import { createClient } from "../node_modules/@libsql/client/lib-esm/node.js";
 const BASE = "http://localhost:8080";
 // Run against a throwaway copy (see tmp-make-copy.mjs) — these tests mutate
 // and undo project data, so never point them at a real project.
-const PROJECT_ID = process.env.PROJECT_ID;
+const { values } = parseArgs({ options: { "project-id": { type: "string" } } });
+const PROJECT_ID = values["project-id"];
 if (!PROJECT_ID) {
-  console.error("Set PROJECT_ID to a throwaway copy (node scripts/tmp-make-copy.mjs).");
+  console.error("Pass --project-id for a throwaway copy (node scripts/tmp-make-copy.mjs).");
   process.exit(1);
 }
 const EMAIL = "viewer-check@local.test";

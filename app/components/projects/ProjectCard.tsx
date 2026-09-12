@@ -11,6 +11,8 @@ import {
   IconTable,
   IconTrash,
 } from "@tabler/icons-react";
+import { appPath } from "@agent-native/core/client/api-path";
+import { ShareButton } from "@agent-native/core/client/sharing";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,8 +39,12 @@ export function ProjectCard({ project }: ProjectCardProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const title = project.title || "Untitled CYOA";
-  const projectPath = `/projects/${encodeURIComponent(project.id)}`;
-  const viewPath = `${projectPath}?mode=viewer`;
+  const projectPath = `/projects/${encodeURIComponent(project.id)}/editor`;
+  const viewPath = `/projects/${encodeURIComponent(project.id)}/viewer`;
+  const absoluteViewUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${appPath(viewPath)}`
+      : appPath(viewPath);
 
   function handleDuplicate() {
     duplicateProject.mutate(
@@ -85,7 +91,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={handleDuplicate}>
+              <DropdownMenuItem disabled={duplicateProject.isPending} onSelect={handleDuplicate}>
                 <IconCopy className="mr-2 size-4" />
                 Duplicate
               </DropdownMenuItem>
@@ -126,11 +132,19 @@ export function ProjectCard({ project }: ProjectCardProps) {
             {project.pointTypeCount} points
           </span>
         </div>
-        <div className="mt-auto flex items-center justify-between gap-2">
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
             Updated {formatDate(project.updatedAt)}
           </span>
           <div className="flex shrink-0 items-center gap-2">
+            <ShareButton
+              resourceType="project"
+              resourceId={project.id}
+              resourceTitle={title}
+              trigger="icon"
+              shareUrl={absoluteViewUrl}
+              shareUrlLabel="Playable viewer link"
+            />
             <Button size="sm" variant="outline" asChild>
               <Link to={viewPath}>
                 <IconEye className="mr-1.5 size-3.5" />

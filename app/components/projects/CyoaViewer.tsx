@@ -6,21 +6,28 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ReactNode,
   type Ref,
 } from "react";
 import {
+  IconArrowDown,
+  IconArrowUp,
   IconBackpack,
   IconDownload,
   IconMenu2,
+  IconPencil,
   IconPlayerPause,
   IconPlayerPlay,
   IconPlayerStop,
+  IconPlus,
   IconSearch,
+  IconTrash,
   IconUpload,
   IconVolume,
   IconVolumeOff,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
+import { useT } from "@agent-native/core/client/i18n";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,7 +52,6 @@ import {
   checkRequirements,
   computeScoreNet,
   effectiveWidth,
-  encodeBuildCode,
   getProjectSearchEntries,
   groupRowChoices,
   hiddenContentsFor,
@@ -76,6 +82,7 @@ import { resolveImageRef } from "@shared/cyoa";
 
 import {
   choiceMargin,
+  addonSurfaceStyle,
   choiceSurfaceStyle,
   choiceWidthClass,
   formatPointValue,
@@ -92,7 +99,21 @@ import {
   textStyle,
   viewerTemplate,
 } from "./cyoa-styles";
+import { ImagePreviewProvider, ViewerImage, useViewerBackground } from "./ViewerImage";
+import { InlineTextEditor } from "./InlineTextEditor";
 import { sortedChoices } from "./project-utils";
+import { exportBackpackImages } from "./viewer-export";
+import { ViewerSettingsDialog } from "./ViewerSettingsDialog";
+import { ViewerNavigator, type ViewerNavigatorHandle } from "./ViewerNavigator";
+import { focusViewerTarget } from "./viewer-feedback";
+import type { ViewerTarget } from "@shared/viewer-feedback";
+import { ViewerUploadDialog } from "./ViewerUploadDialog";
+import {
+  applyViewerPreferences,
+  parseViewerPreferences,
+  viewerPreferencesKey,
+  type ViewerPreferences,
+} from "./viewer-preferences";
 
 /** Choice column width honoring runtime `changeWidth` overrides. */
 function effectiveChoiceWidth(
@@ -110,7 +131,50 @@ function effectiveChoiceWidth(
 
 interface CyoaViewerProps {
   app: App;
+  projectId?: string;
   className?: string;
+  /**
+   * Visual-editor mode: rows/choices become click-to-select targets (with a
+   * floating action toolbar) instead of play interactions. The preview stays
+   * fully rendered so edits can be reviewed live in the V-Editor's canvas.
+   */
+  editing?: boolean;
+  /** Currently selected entity in the visual editor. */
+  selection?: VisualSelection | null;
+  /** Called when a row/choice is clicked in the visual editor. */
+  onSelect?: (selection: VisualSelection) => void;
+  /** Called when a toolbar action fires on the selected entity. */
+  onAction?: (action: VisualEditAction, selection: VisualSelection) => void;
+  /** Row/choice text field being edited inline (Figma-style double-click). */
+  editTarget?: VisualEditTarget | null;
+  /** Double-clicked a title/description on the canvas to edit it in place. */
+  onStartEdit?: (target: VisualEditTarget) => void;
+  /** The inline editor committed a new value for the field. */
+  onCommitEdit?: (target: VisualEditTarget, value: string) => void;
+  /**
+   * Right-click in V-Editor mode: selection is the row/choice under the cursor
+   * (or null for the empty canvas). The browser menu is already prevented.
+   */
+  onContextMenu?: (selection: VisualSelection | null, event: React.MouseEvent) => void;
+}
+
+/** Toolbar actions the V-Editor canvas can trigger on a row/choice. */
+export type VisualEditAction = "edit" | "add-choice" | "move-up" | "move-down" | "delete";
+
+/** A row or choice selected in the V-Editor canvas. */
+export interface VisualSelection {
+  kind: "row" | "choice";
+  id: string;
+}
+
+/**
+ * A text field being edited inline on the canvas. Row fields are `title` and
+ * `titleText`; choice fields are `title` and `text`.
+ */
+export interface VisualEditTarget {
+  kind: "row" | "choice";
+  id: string;
+  field: "title" | "titleText" | "text";
 }
 
 /**
@@ -119,11 +183,89 @@ interface CyoaViewerProps {
  * row buttons, result/group rows, variables, words, filters/styling, backpack,
  * build form with save/load slots, and search.
  */
-export function CyoaViewer({ app, className }: CyoaViewerProps) {
+export function CyoaViewer(props: CyoaViewerProps) {
+  const [preferences, setPreferences] = useState<ViewerPreferences>({});
+  useEffect(() => {
+    try {
+      setPreferences(
+        parseViewerPreferences(JSON.parse(localStorage.getItem(viewerPreferencesKey()) || "{}")),
+      );
+    } catch {
+      /* Storage may be unavailable. */
+    }
+  }, []);
+  const app = useMemo(
+    () => (props.editing ? props.app : applyViewerPreferences(props.app, preferences)),
+    [props.app, props.editing, preferences],
+  );
+  const updatePreferences = (patch: ViewerPreferences | null) => {
+    setPreferences((prev) => {
+      const next = patch === null ? {} : parseViewerPreferences({ ...prev, ...patch });
+      try {
+        localStorage.setItem(viewerPreferencesKey(), JSON.stringify(next));
+      } catch {
+        /* Session preferences still apply. */
+      }
+      return next;
+    });
+  };
+  return (
+    <ImagePreviewProvider images={app.images ?? []} preload={app.preloadImages}>
+      <CyoaViewerContent {...props} app={app} onPreferences={updatePreferences} />
+    </ImagePreviewProvider>
+  );
+}
+
+function CyoaViewerContent({
+  app,
+  projectId,
+  className,
+  editing = false,
+  selection = null,
+  onSelect,
+  onAction,
+  editTarget = null,
+  onStartEdit,
+  onCommitEdit,
+  onContextMenu,
+  onPreferences,
+}: CyoaViewerProps & { onPreferences: (value: ViewerPreferences | null) => void }) {
+  const t = useT();
   const cyoa = useCyoa({ app });
-  const [dialog, setDialog] = useState<"backpack" | "build" | "save" | null>(null);
+  useEffect(() => {
+    if (cyoa.storageError) toast.error(t("viewer.storageFailed"));
+  }, [cyoa.storageError, t]);
+  const [dialog, setDialog] = useState<"backpack" | "build" | "save" | "settings" | null>(null);
+  const [uploadId, setUploadId] = useState<string | null>(null);
+  const offeredUploads = useRef(new Set<string>());
+  useEffect(() => {
+    if (editing) return;
+    for (const id of offeredUploads.current)
+      if (!cyoa.state.activated.has(id)) offeredUploads.current.delete(id);
+    if (uploadId) {
+      if (!cyoa.state.activated.has(uploadId)) setUploadId(null);
+      return;
+    }
+    for (const id of cyoa.state.activated.keys()) {
+      if (
+        cyoa.idx.choiceMap.get(id)?.choice.isImageUpload &&
+        !cyoa.state.uploadedImages.has(id) &&
+        !offeredUploads.current.has(id)
+      ) {
+        offeredUploads.current.add(id);
+        setUploadId(id);
+        break;
+      }
+    }
+  }, [cyoa.state.activated, cyoa.state.uploadedImages, cyoa.idx, editing, uploadId]);
+  cyoa.requestImage = setUploadId;
   const [fade, setFade] = useState<{ color: string; time: number } | null>(null);
   const searchBarRef = useRef<ViewerSearchBarHandle>(null);
+  const navigatorRef = useRef<ViewerNavigatorHandle>(null);
+  const jumpToTarget = (target: ViewerTarget) => {
+    if (navigatorRef.current) navigatorRef.current.jump(target);
+    else if (viewerRef.current) focusViewerTarget(viewerRef.current, target);
+  };
 
   // The original ICCPlus viewer is full-page, so its breakpoints key off the
   // window width. This viewer can be embedded in narrower containers, so we
@@ -177,35 +319,57 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
     styleEl.textContent = app.customCSS;
     document.head.appendChild(styleEl);
     return () => {
-      document.getElementById("cyoa-viewer-custom-css")?.remove();
+      styleEl.remove();
     };
   }, [app.customCSS]);
 
-  // Fade transition overlay when a choice with isFadeTransition is selected.
-  const lastSelection = useRef<Choice | null>(null);
   useEffect(() => {
-    // Detect a fresh selection carrying a fade transition.
-    for (const [id] of cyoa.state.activated) {
-      if (lastSelection.current && lastSelection.current.id === id) continue;
-      const cMap = cyoa.idx.choiceMap.get(id);
-      const choice = cMap?.choice as
-        | (Choice & {
-            isFadeTransition?: boolean;
-            fadeTransitionColor?: string;
-            fadeTransitionTime?: number;
-          })
-        | undefined;
-      if (choice?.isFadeTransition) {
-        lastSelection.current = choice as Choice;
-        setFade({
-          color: choice.fadeTransitionColor ?? "#000000",
-          time: choice.fadeTransitionTime ?? 1,
-        });
-        const timer = setTimeout(() => setFade(null), (choice.fadeTransitionTime ?? 1) * 1000);
-        return () => clearTimeout(timer);
-      }
+    const urls = new Set([
+      ...(app.googleFonts ?? []).map(
+        (font) =>
+          `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font).replace(/%20/g, "+")}&display=swap`,
+      ),
+      ...(app.customFonts ?? []),
+    ]);
+    const links = [...urls].map((url) => {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = url;
+      link.crossOrigin = "anonymous";
+      document.head.appendChild(link);
+      return link;
+    });
+    return () => links.forEach((link) => link.remove());
+  }, [app.googleFonts, app.customFonts]);
+
+  // Trigger effects only for changed selections, rather than replaying
+  // earlier choices every time any unrelated card changes.
+  const fadeSelections = useRef(new Map<string, number>());
+  const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const before = fadeSelections.current;
+    fadeSelections.current = new Map(
+      [...cyoa.state.activated].map(([id, value]) => [id, value.multiple]),
+    );
+    for (const [id, value] of cyoa.state.activated) {
+      if (before.get(id) === value.multiple) continue;
+      const choice = cyoa.idx.choiceMap.get(id)?.choice;
+      if (!choice?.isFadeTransition) continue;
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+      const duration = Math.max(
+        0,
+        Number(choice.fadeInTransitionTime ?? 250) + Number(choice.fadeOutTransitionTime ?? 250),
+      );
+      setFade({ color: choice.fadeTransitionColor ?? "#000000", time: duration / 1000 });
+      fadeTimer.current = setTimeout(() => setFade(null), duration);
     }
-  }, [cyoa.state.activated]);
+  }, [cyoa.state.activated, cyoa.idx]);
+  useEffect(
+    () => () => {
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+    },
+    [],
+  );
 
   // ---------------------------------------------------------------------
   // BGM / music player
@@ -229,6 +393,7 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
     isYoutube: boolean;
   } | null>(null);
   const lastBgmSelection = useRef<Choice | SelectableAddon | null>(null);
+  const bgmSelections = useRef(new Set<string>());
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(() => app.isMute === true);
   const [volume, setVolume] = useState(() => {
@@ -489,8 +654,10 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
   // Detect a fresh selection carrying a BGM choice (mirrors the fade effect).
   useEffect(() => {
     let picked: Choice | SelectableAddon | undefined;
+    const before = bgmSelections.current;
+    bgmSelections.current = new Set(cyoa.state.activated.keys());
     for (const [id] of cyoa.state.activated) {
-      if (lastBgmSelection.current && lastBgmSelection.current.id === id) continue;
+      if (before.has(id)) continue;
       const cMap = cyoa.idx.choiceMap.get(id);
       const choice = cMap?.choice;
       if (choice?.setBgmIsOn && choice.bgmId) picked = choice;
@@ -602,31 +769,10 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
     if (audio) audio.volume = value / 100;
   }
 
-  // Auto-deselect choices whose requirements became unmet (missing-req cascade).
-  useEffect(() => {
-    let changed = false;
-    const next = {
-      ...cyoa.state,
-      activated: new Map(cyoa.state.activated),
-      currentChoices: new Map(cyoa.state.currentChoices),
-    };
-    for (const [id, entry] of cyoa.state.activated) {
-      if (entry.isRowButton || entry.isVariable) continue;
-      const cMap = cyoa.idx.choiceMap.get(id);
-      if (!cMap) continue;
-      const { choice, row } = cMap;
-      if (!isEnabled(choice.requireds, cyoa.idx, next)) {
-        next.activated.delete(id);
-        next.currentChoices.set(row.id, Math.max(0, (next.currentChoices.get(row.id) ?? 0) - 1));
-        changed = true;
-      }
-    }
-    if (changed) {
-      // Replace state via the hook's setter through a dedicated method.
-      cyoa.importBuildCode(encodeForState(next, cyoa));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cyoa.state]);
+  // The missing-requirement cascade (auto-deselect when requirements become
+  // unmet) runs synchronously inside `useCyoa`'s select/deselect flows — a
+  // faithful port of the original viewer's `deselectMissingReq` — so there is
+  // no reactive effect here.
 
   // The bar docks whenever the document has point types, a backpack, or
   // imported choices open — the original viewer shows the bar when point types
@@ -639,23 +785,32 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
 
   const showBackpackBtn =
     (app.backpack?.length ?? 0) > 0 &&
-    (app.hideBackpackBtn === 0 || app.hideBackpackBtn === app.btnBackpackIsOn);
+    (app.hideBackpackBtn === 0 ||
+      app.hideBackpackBtn ===
+        app.btnBackpackIsOn +
+          [...cyoa.state.activated.keys()].filter(
+            (id) => cyoa.idx.choiceMap.get(id)?.choice.backpackBtnRequirement,
+          ).length);
 
   // Background overrides from active `changeBackground` choices.
   const bgOverrides = backgroundOverrides(cyoa.idx, cyoa.state);
   const viewerBackgroundColor =
     bgOverrides.color ?? ((app.styling?.backgroundColor as string) || undefined);
-  const viewerBackgroundImage = resolveImageRef(
-    app,
-    bgOverrides.image ?? ((app.styling?.backgroundImage as string) || undefined),
+  const viewerBackgroundImage = useViewerBackground(
+    resolveImageRef(
+      app,
+      bgOverrides.image ?? ((app.styling?.backgroundImage as string) || undefined),
+    ),
   );
 
   // Scroll to a row/choice when a `scrollToRow`/`scrollToObject` choice is
   // freshly selected (mirrors the original `selectScroll`).
-  const lastScrollChoice = useRef<string | null>(null);
+  const scrollSelections = useRef(new Set<string>());
   useEffect(() => {
+    const before = scrollSelections.current;
+    scrollSelections.current = new Set(cyoa.state.activated.keys());
     for (const [id] of cyoa.state.activated) {
-      if (lastScrollChoice.current === id) continue;
+      if (before.has(id)) continue;
       const cMap = cyoa.idx.choiceMap.get(id);
       const choice = cMap?.choice as
         | (Choice & {
@@ -666,14 +821,13 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
           })
         | undefined;
       if (choice?.scrollToRow) {
-        lastScrollChoice.current = id;
         const targetId =
           choice.scrollToObject && choice.scrollObjectId
             ? choice.scrollObjectId
             : choice.scrollRowId;
         if (targetId) {
           window.setTimeout(() => {
-            const el = document.querySelector(
+            const el = viewerRef.current?.querySelector(
               `[data-cyoa-row="${CSS.escape(targetId)}"], [data-cyoa-choice="${CSS.escape(targetId)}"]`,
             );
             el?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -692,7 +846,12 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
         ...(app.useVW ? { fontSize: "0.835vw" } : undefined),
         backgroundColor: viewerBackgroundColor,
         backgroundImage: viewerBackgroundImage ? `url(${viewerBackgroundImage})` : undefined,
-        backgroundSize: "cover",
+        backgroundSize: app.styling.isBackgroundRepeat
+          ? undefined
+          : app.styling.isBackgroundFitIn
+            ? "100% 100%"
+            : "cover",
+        backgroundRepeat: app.styling.isBackgroundRepeat ? "repeat" : "no-repeat",
         backgroundAttachment: "fixed",
         backgroundPosition: "center",
       }}
@@ -716,7 +875,7 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
           style={{
             backgroundColor: app.viewerConfig?.loadingBgColor || "#ffffff",
             backgroundImage: app.viewerConfig?.loadingBgImage
-              ? `url(${app.viewerConfig.loadingBgImage})`
+              ? `url(${resolveImageRef(app, app.viewerConfig.loadingBgImage)})`
               : undefined,
             backgroundSize: "100% 100%",
             opacity: loadingStage === "fading" ? 0 : 1,
@@ -766,7 +925,17 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
         />
       ) : null}
 
-      {app.enableSearch ? <ViewerSearchBar ref={searchBarRef} cyoa={cyoa} /> : null}
+      {projectId ? (
+        <ViewerNavigator ref={navigatorRef} projectId={projectId} cyoa={cyoa} rootRef={viewerRef} />
+      ) : null}
+      {app.enableSearch ? (
+        <ViewerSearchBar
+          ref={searchBarRef}
+          cyoa={cyoa}
+          onJump={jumpToTarget}
+          hasNavigator={Boolean(projectId)}
+        />
+      ) : null}
 
       {app.rows?.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-10 text-center">
@@ -775,7 +944,17 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
           </p>
         </div>
       ) : (
-        <div className="row-gap-6 -mx-4 flex flex-wrap gap-6 px-4 lg:-mx-6 lg:px-6">
+        <div
+          className="row-gap-6 -mx-4 flex flex-wrap gap-y-6 px-4 lg:-mx-6 lg:px-6"
+          onContextMenu={
+            editing && onContextMenu
+              ? (event) => {
+                  event.preventDefault();
+                  onContextMenu(null, event);
+                }
+              : undefined
+          }
+        >
           {/* Rows whose requirements are unmet are hidden entirely (the
               original viewer uses `display:none`). Filter them out here so
               their wrappers don't create flex gaps between visible rows. */}
@@ -787,7 +966,19 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
                 data-cyoa-row={row.id}
                 className={cn(rowWidthClass(row, app, viewport), "min-w-0")}
               >
-                <RowView cyoa={cyoa} row={row} viewport={viewport} />
+                <RowView
+                  cyoa={cyoa}
+                  row={row}
+                  viewport={viewport}
+                  editing={editing}
+                  selection={selection}
+                  onSelect={onSelect}
+                  onAction={onAction}
+                  editTarget={editTarget}
+                  onStartEdit={onStartEdit}
+                  onCommitEdit={onCommitEdit}
+                  onContextMenu={onContextMenu}
+                />
               </div>
             ))}
         </div>
@@ -800,31 +991,59 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
         <PointBar
           app={app}
           cyoa={cyoa}
+          editing={editing}
           showBackpackBtn={showBackpackBtn}
           onOpenBackpack={() => setDialog("backpack")}
           onOpenSearch={() => searchBarRef.current?.focus()}
           onOpenBuild={() => setDialog("build")}
           onOpenSave={() => setDialog("save")}
+          onOpenSettings={() => setDialog("settings")}
           onClean={cyoa.clean}
         />
       ) : null}
 
-      <BackpackDialog
-        open={dialog === "backpack"}
-        onOpenChange={(open) => setDialog(open ? "backpack" : null)}
-        cyoa={cyoa}
-        viewport={viewport}
-      />
-      <BuildFormDialog
-        open={dialog === "build"}
-        onOpenChange={(open) => setDialog(open ? "build" : null)}
-        cyoa={cyoa}
-      />
-      <SaveLoadDialog
-        open={dialog === "save"}
-        onOpenChange={(open) => setDialog(open ? "save" : null)}
-        cyoa={cyoa}
-      />
+      {/* Play-only dialogs stay hidden in the visual editor. */}
+      {!editing ? (
+        <>
+          {dialog === "settings" ? (
+            <ViewerSettingsDialog
+              app={app}
+              onClose={() => setDialog(null)}
+              onChange={onPreferences}
+              onReset={() => onPreferences(null)}
+            />
+          ) : null}
+          {uploadId ? (
+            <ViewerUploadDialog
+              key={uploadId}
+              initialImage={
+                cyoa.state.uploadedImages.get(uploadId) ||
+                resolveImageRef(app, cyoa.idx.choiceMap.get(uploadId)?.choice.image) ||
+                ""
+              }
+              position={app.cropperPosition ?? 4}
+              onClose={() => setUploadId(null)}
+              onSave={(image) => cyoa.setUploadedImage(uploadId, image)}
+            />
+          ) : null}
+          <BackpackDialog
+            open={dialog === "backpack"}
+            onOpenChange={(open) => setDialog(open ? "backpack" : null)}
+            cyoa={cyoa}
+            viewport={viewport}
+          />
+          <BuildFormDialog
+            open={dialog === "build"}
+            onOpenChange={(open) => setDialog(open ? "build" : null)}
+            cyoa={cyoa}
+          />
+          <SaveLoadDialog
+            open={dialog === "save"}
+            onOpenChange={(open) => setDialog(open ? "save" : null)}
+            cyoa={cyoa}
+          />
+        </>
+      ) : null}
 
       {/* Music player bar (fixed bottom, above the point bar) */}
       {app.showMusicPlayer ? (
@@ -898,11 +1117,6 @@ export function CyoaViewer({ app, className }: CyoaViewerProps) {
   );
 }
 
-/** Serialize a state back into a build code (for the missing-req cascade). */
-function encodeForState(state: CyoaState, cyoa: UseCyoaResult): string {
-  return encodeBuildCode(cyoa.app, cyoa.idx, state);
-}
-
 /* ------------------------------------------------------------------ */
 /* Project-wide search bar                                            */
 /* ------------------------------------------------------------------ */
@@ -925,10 +1139,20 @@ const SEARCH_FILTERS: { value: ProjectSearchType | "all"; label: string }[] = [
 /**
  * Project-wide search bar: filters the whole document (choices, addons,
  * rows, point types, groups, global requirements, words) by kind and query,
- * then jumps to the match — selecting choices/addons and scrolling to the
+ * then jumps to the match without changing player selections, scrolling to the
  * first choice that references non-visual entities.
  */
-function ViewerSearchBar({ cyoa, ref }: { cyoa: UseCyoaResult; ref?: Ref<ViewerSearchBarHandle> }) {
+function ViewerSearchBar({
+  cyoa,
+  ref,
+  onJump,
+  hasNavigator,
+}: {
+  cyoa: UseCyoaResult;
+  ref?: Ref<ViewerSearchBarHandle>;
+  onJump: (target: ViewerTarget) => void;
+  hasNavigator?: boolean;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProjectSearchType | "all">("all");
@@ -998,30 +1222,13 @@ function ViewerSearchBar({ cyoa, ref }: { cyoa: UseCyoaResult; ref?: Ref<ViewerS
   }, [entries, query, filter, cyoa.idx, cyoa.state]);
 
   function jumpTo(entry: ProjectSearchEntry) {
-    if (entry.type === "row") {
-      document
-        .querySelector(`[data-cyoa-row="${CSS.escape(entry.id)}"]`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else if (entry.type === "choice" && entry.choice && entry.row) {
-      document
-        .querySelector(`[data-cyoa-choice="${CSS.escape(entry.id)}"]`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-      cyoa.toggleChoice(entry.choice, entry.row);
-    } else if (entry.type === "addon" && entry.choice && entry.row && entry.parentId) {
-      const parent = cyoa.idx.choiceMap.get(entry.parentId)?.choice;
-      document
-        .querySelector(`[data-cyoa-choice="${CSS.escape(entry.parentId)}"]`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-      if (parent) cyoa.toggleAddon(entry.choice as unknown as SelectableAddon, parent, entry.row);
-    } else {
-      // Non-visual entity (point/group/global requirement/word): jump to the
-      // first choice that references it.
+    if (entry.type === "row") onJump({ rowId: entry.id });
+    else if (entry.type === "choice") onJump({ rowId: entry.row?.id, choiceId: entry.id });
+    else if (entry.type === "addon")
+      onJump({ rowId: entry.row?.id, choiceId: entry.parentId, addonId: entry.id });
+    else {
       const target = referenceTargets.get(entry.id);
-      if (target) {
-        document
-          .querySelector(`[data-cyoa-choice="${CSS.escape(target.choice.id)}"]`)
-          ?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
+      if (target) onJump({ rowId: target.row.id, choiceId: target.choice.id });
     }
     setQuery("");
     setOpen(false);
@@ -1029,7 +1236,13 @@ function ViewerSearchBar({ cyoa, ref }: { cyoa: UseCyoaResult; ref?: Ref<ViewerS
   }
 
   return (
-    <div className="sticky top-0 z-30 border-b border-border/60 bg-background/90 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/75 lg:px-6">
+    <div
+      data-viewer-controls
+      className={cn(
+        hasNavigator ? "relative" : "sticky top-0",
+        "z-30 border-b border-border/60 bg-background/90 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/75 lg:px-6",
+      )}
+    >
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
         <div className="relative min-w-56 flex-1">
           <IconSearch className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -1110,22 +1323,27 @@ function ViewerSearchBar({ cyoa, ref }: { cyoa: UseCyoaResult; ref?: Ref<ViewerS
 interface PointBarProps {
   app: App;
   cyoa: UseCyoaResult;
+  /** Visual-editor mode: show totals only, no play actions. */
+  editing?: boolean;
   showBackpackBtn: boolean;
   onOpenBackpack: () => void;
   onOpenSearch: () => void;
   onOpenBuild: () => void;
   onOpenSave: () => void;
+  onOpenSettings: () => void;
   onClean: () => void;
 }
 
 function PointBar({
   app,
   cyoa,
+  editing = false,
   showBackpackBtn,
   onOpenBackpack,
   onOpenSearch,
   onOpenBuild,
   onOpenSave,
+  onOpenSettings,
   onClean,
 }: PointBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1195,7 +1413,7 @@ function PointBar({
                   }}
                 >
                   {icon && !icon.onSide && !icon.sidePlacement && icon.src ? (
-                    <img
+                    <ViewerImage
                       src={icon.src}
                       alt=""
                       className="self-center"
@@ -1206,7 +1424,7 @@ function PointBar({
                     <span className="font-medium text-foreground">{pointType.beforeText}</span>
                   ) : null}
                   {icon && icon.onSide && !icon.sidePlacement && icon.src ? (
-                    <img
+                    <ViewerImage
                       src={icon.src}
                       alt=""
                       className="self-center"
@@ -1220,7 +1438,7 @@ function PointBar({
                     {formatPointValue(pointType, total)}
                   </span>
                   {icon && !icon.onSide && icon.sidePlacement && icon.src ? (
-                    <img
+                    <ViewerImage
                       src={icon.src}
                       alt=""
                       className="self-center"
@@ -1231,7 +1449,7 @@ function PointBar({
                     <span className="text-muted-foreground">{pointType.afterText}</span>
                   ) : null}
                   {icon && icon.onSide && icon.sidePlacement && icon.src ? (
-                    <img
+                    <ViewerImage
                       src={icon.src}
                       alt=""
                       className="self-center"
@@ -1244,63 +1462,73 @@ function PointBar({
         </div>
 
         <div className="relative flex shrink-0 items-center gap-1.5">
-          {showBackpackBtn ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={onOpenBackpack}
-              title="Backpack"
-              aria-label="Backpack"
-            >
-              <IconBackpack className="size-4" />
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={() => setMenuOpen((v) => !v)}
-            title="Menu"
-            aria-label="Menu"
-          >
-            <IconMenu2 className="size-4" />
-          </Button>
-          {menuOpen ? (
-            <div className="absolute bottom-full right-0 z-30 mb-1 w-48 rounded-md border border-border bg-popover p-1 shadow-md">
-              <MenuButton
-                label="Clear selected choices"
-                onClick={() => {
-                  onClean();
-                  setMenuOpen(false);
-                }}
-              />
-              {app.enableSearch ? (
-                <MenuButton
-                  label="Search choice"
-                  onClick={() => {
-                    onOpenSearch();
-                    setMenuOpen(false);
-                  }}
-                />
+          {!editing ? (
+            <>
+              {showBackpackBtn ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  onClick={onOpenBackpack}
+                  title="Backpack"
+                  aria-label="Backpack"
+                >
+                  <IconBackpack className="size-4" />
+                </Button>
               ) : null}
-              <MenuButton
-                label="Build form"
-                onClick={() => {
-                  onOpenBuild();
-                  setMenuOpen(false);
-                }}
-              />
-              <MenuButton
-                label="Save / load build"
-                onClick={() => {
-                  onOpenSave();
-                  setMenuOpen(false);
-                }}
-              />
-            </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={() => setMenuOpen((v) => !v)}
+                title="Menu"
+                aria-label="Menu"
+              >
+                <IconMenu2 className="size-4" />
+              </Button>
+              {menuOpen ? (
+                <div className="absolute bottom-full right-0 z-30 mb-1 w-48 rounded-md border border-border bg-popover p-1 shadow-md">
+                  <MenuButton
+                    label="Clear selected choices"
+                    onClick={() => {
+                      onClean();
+                      setMenuOpen(false);
+                    }}
+                  />
+                  {app.enableSearch ? (
+                    <MenuButton
+                      label="Search choice"
+                      onClick={() => {
+                        onOpenSearch();
+                        setMenuOpen(false);
+                      }}
+                    />
+                  ) : null}
+                  <MenuButton
+                    label="Build form"
+                    onClick={() => {
+                      onOpenBuild();
+                      setMenuOpen(false);
+                    }}
+                  />
+                  <MenuButton
+                    label="Save / load build"
+                    onClick={() => {
+                      onOpenSave();
+                      setMenuOpen(false);
+                    }}
+                  />
+                  <ReaderSettingsButton
+                    onClick={() => {
+                      onOpenSettings();
+                      setMenuOpen(false);
+                    }}
+                  />
+                </div>
+              ) : null}
+            </>
           ) : null}
         </div>
       </div>
@@ -1320,11 +1548,142 @@ function MenuButton({ label, onClick }: { label: string; onClick: () => void }) 
   );
 }
 
+function ReaderSettingsButton({ onClick }: { onClick: () => void }) {
+  const t = useT();
+  return <MenuButton label={t("viewer.settings")} onClick={onClick} />;
+}
+
+function PlayerImageButton({ onClick }: { onClick: () => void }) {
+  const t = useT();
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+    >
+      {t("viewer.uploadImage")}
+    </Button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Visual-editor toolbar (V-Editor)                                   */
+/* ------------------------------------------------------------------ */
+
+/** Floating action toolbar shown on the selected row/choice in V-Editor. */
+function EditToolbar({
+  kind,
+  selection,
+  canMoveUp = true,
+  canMoveDown = true,
+  onAction,
+}: {
+  kind: VisualSelection["kind"];
+  selection: VisualSelection;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onAction?: (action: VisualEditAction, selection: VisualSelection) => void;
+}) {
+  const fire =
+    (action: VisualEditAction) =>
+    (event: React.MouseEvent): void => {
+      event.stopPropagation();
+      onAction?.(action, selection);
+    };
+  return (
+    <div
+      className="absolute right-1 top-1 z-20 flex items-center gap-0.5 rounded-md border border-border bg-popover/95 p-0.5 shadow-sm backdrop-blur"
+      role="toolbar"
+      aria-label={`${kind === "row" ? "Row" : "Choice"} actions`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <ToolbarButton label="Edit" onClick={fire("edit")}>
+        <IconPencil className="size-3.5" />
+      </ToolbarButton>
+      {kind === "row" ? (
+        <ToolbarButton label="Add choice" onClick={fire("add-choice")}>
+          <IconPlus className="size-3.5" />
+        </ToolbarButton>
+      ) : null}
+      <ToolbarButton label="Move up" disabled={!canMoveUp} onClick={fire("move-up")}>
+        <IconArrowUp className="size-3.5" />
+      </ToolbarButton>
+      <ToolbarButton label="Move down" disabled={!canMoveDown} onClick={fire("move-down")}>
+        <IconArrowDown className="size-3.5" />
+      </ToolbarButton>
+      <ToolbarButton label="Delete" destructive onClick={fire("delete")}>
+        <IconTrash className="size-3.5" />
+      </ToolbarButton>
+    </div>
+  );
+}
+
+function ToolbarButton({
+  label,
+  onClick,
+  disabled = false,
+  destructive = false,
+  children,
+}: {
+  label: string;
+  onClick: (event: React.MouseEvent) => void;
+  disabled?: boolean;
+  destructive?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+        destructive && "hover:bg-destructive hover:text-destructive-foreground",
+        disabled &&
+          "cursor-not-allowed opacity-40 hover:bg-transparent hover:text-muted-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Row                                                                */
 /* ------------------------------------------------------------------ */
 
-function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewport: number }) {
+interface RowViewProps {
+  cyoa: UseCyoaResult;
+  row: Row;
+  viewport: number;
+  editing?: boolean;
+  selection?: VisualSelection | null;
+  onSelect?: (selection: VisualSelection) => void;
+  onAction?: (action: VisualEditAction, selection: VisualSelection) => void;
+  editTarget?: VisualEditTarget | null;
+  onStartEdit?: (target: VisualEditTarget) => void;
+  onCommitEdit?: (target: VisualEditTarget, value: string) => void;
+  onContextMenu?: (selection: VisualSelection | null, event: React.MouseEvent) => void;
+}
+
+function RowView({
+  cyoa,
+  row,
+  viewport,
+  editing = false,
+  selection = null,
+  onSelect,
+  onAction,
+  editTarget = null,
+  onStartEdit,
+  onCommitEdit,
+  onContextMenu,
+}: RowViewProps) {
   const enabled = isEnabled(row.requireds, cyoa.idx, cyoa.state);
 
   // Hidden entirely when requirements are unmet (original behavior).
@@ -1332,6 +1691,39 @@ function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewp
     // `deselectChoices` auto-deselects the row's choices when unmet.
     return null;
   }
+
+  const isSelected = editing && selection?.kind === "row" && selection.id === row.id;
+  const selectRow = () => onSelect?.({ kind: "row", id: row.id });
+  // Document-order position for the move-up/down toolbar affordances.
+  const allRows = cyoa.idx.rows ?? [];
+  const rowIndex = allRows.findIndex((r) => r.id === row.id);
+
+  // Figma-style inline editing: the target field renders as a live editor.
+  const isEditingTitle =
+    editing &&
+    editTarget?.kind === "row" &&
+    editTarget.id === row.id &&
+    editTarget.field === "title";
+  const isEditingText =
+    editing &&
+    editTarget?.kind === "row" &&
+    editTarget.id === row.id &&
+    editTarget.field === "titleText";
+  const startEdit =
+    (field: "title" | "titleText") =>
+    (event: React.MouseEvent): void => {
+      if (!editing) return;
+      event.stopPropagation();
+      onSelect?.({ kind: "row", id: row.id });
+      onStartEdit?.({ kind: "row", id: row.id, field });
+    };
+  const handleContextMenu = (event: React.MouseEvent): void => {
+    if (!editing) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onSelect?.({ kind: "row", id: row.id });
+    onContextMenu?.({ kind: "row", id: row.id }, event);
+  };
 
   const titleStyle = textStyle("rowTitle", cyoa.idx, cyoa.state, row);
   const textStyleObj = textStyle("rowText", cyoa.idx, cyoa.state, row);
@@ -1381,32 +1773,65 @@ function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewp
     ...(rowSurface.borderImage ? { borderImage: rowSurface.borderImage } : {}),
   } as React.CSSProperties;
 
-  const titleEl = row.title ? (
-    <h2
-      className="font-semibold"
-      style={titleStyle}
-      dangerouslySetInnerHTML={renderHtml(row.title, cyoa.idx, cyoa.state)}
+  const titleEl =
+    row.title || isEditingTitle ? (
+      isEditingTitle ? (
+        <InlineTextEditor
+          key={`row-title:${row.id}`}
+          as="h2"
+          html={renderHtml(row.title ?? "", cyoa.idx, cyoa.state).__html}
+          style={titleStyle}
+          className="font-semibold"
+          onCommit={(value) => onCommitEdit?.({ kind: "row", id: row.id, field: "title" }, value)}
+        />
+      ) : (
+        <h2
+          className="font-semibold"
+          style={titleStyle}
+          onDoubleClick={startEdit("title")}
+          dangerouslySetInnerHTML={renderHtml(row.title, cyoa.idx, cyoa.state)}
+        />
+      )
+    ) : null;
+  const textEl = isEditingText ? (
+    <InlineTextEditor
+      key={`row-text:${row.id}`}
+      as="p"
+      html={renderHtml(row.titleText ?? "", cyoa.idx, cyoa.state).__html}
+      style={textStyleObj}
+      className="leading-6"
+      onCommit={(value) => onCommitEdit?.({ kind: "row", id: row.id, field: "titleText" }, value)}
+    />
+  ) : row.titleText && !rowTextRemoved ? (
+    <p
+      className="leading-6"
+      style={textStyleObj}
+      onDoubleClick={startEdit("titleText")}
+      dangerouslySetInnerHTML={renderHtml(row.titleText, cyoa.idx, cyoa.state)}
     />
   ) : null;
-  const textEl =
-    row.titleText && !rowTextRemoved ? (
-      <p
-        className="leading-6"
-        style={textStyleObj}
-        dangerouslySetInnerHTML={renderHtml(row.titleText, cyoa.idx, cyoa.state)}
-      />
-    ) : null;
   // Row buttons render in the image slot (original `isButtonRow` replaces the
   // row image); otherwise the row image spans the full width at its natural
   // height, only constrained when the document opts into a fixed object-fit.
   const imageEl = row.isButtonRow ? (
-    <RowButton cyoa={cyoa} row={row} />
+    <RowButton cyoa={cyoa} row={row} editing={editing} />
   ) : row.image ? (
-    <img
+    <ViewerImage
       src={resolveImageRef(cyoa.app, row.image)}
+      title={row.imageSourceTooltip || undefined}
       alt=""
       className="w-full"
       style={rowImageStyle}
+    />
+  ) : null;
+
+  const rowToolbar = isSelected ? (
+    <EditToolbar
+      kind="row"
+      selection={{ kind: "row", id: row.id }}
+      canMoveUp={rowIndex > 0}
+      canMoveDown={rowIndex >= 0 && rowIndex < allRows.length - 1}
+      onAction={onAction}
     />
   ) : null;
 
@@ -1431,8 +1856,20 @@ function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewp
         </div>
       );
       return (
-        <section style={sectionStyle}>
-          <header className="flex items-start" style={headerStyle}>
+        <section
+          className={cn(editing && "relative")}
+          style={sectionStyle}
+          onContextMenu={editing ? handleContextMenu : undefined}
+        >
+          <header
+            className={cn(
+              "flex items-start",
+              editing && "cursor-pointer",
+              isSelected && "outline-2 outline-primary outline",
+            )}
+            style={headerStyle}
+            onClick={editing ? selectRow : undefined}
+          >
             {tpl === 2 ? (
               <>
                 {textCol}
@@ -1445,7 +1882,20 @@ function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewp
               </>
             )}
           </header>
-          {rowContent(cyoa, row, viewport)}
+          {rowToolbar}
+          {rowContent(
+            cyoa,
+            row,
+            viewport,
+            editing,
+            selection,
+            onSelect,
+            onAction,
+            editTarget,
+            onStartEdit,
+            onCommitEdit,
+            onContextMenu,
+          )}
         </section>
       );
     }
@@ -1460,23 +1910,110 @@ function RowView({ cyoa, row, viewport }: { cyoa: UseCyoaResult; row: Row; viewp
       .filter((el) => el !== null)
       .map((el, i) => <Fragment key={i}>{el}</Fragment>);
     return (
-      <section style={sectionStyle}>
-        <header style={headerStyle}>{orderedWithKeys}</header>
-        {rowContent(cyoa, row, viewport)}
+      <section
+        className={cn(editing && "relative")}
+        style={sectionStyle}
+        onContextMenu={editing ? handleContextMenu : undefined}
+      >
+        <header
+          className={cn(
+            editing && "cursor-pointer",
+            isSelected && "outline-2 outline-primary outline",
+          )}
+          style={headerStyle}
+          onClick={editing ? selectRow : undefined}
+        >
+          {orderedWithKeys}
+        </header>
+        {rowToolbar}
+        {rowContent(
+          cyoa,
+          row,
+          viewport,
+          editing,
+          selection,
+          onSelect,
+          onAction,
+          editTarget,
+          onStartEdit,
+          onCommitEdit,
+          onContextMenu,
+        )}
       </section>
     );
   }
 
-  return <section style={sectionStyle}>{rowContent(cyoa, row, viewport)}</section>;
+  return (
+    <section
+      className={cn(editing && "relative")}
+      style={sectionStyle}
+      onContextMenu={editing ? handleContextMenu : undefined}
+    >
+      {rowToolbar}
+      {rowContent(
+        cyoa,
+        row,
+        viewport,
+        editing,
+        selection,
+        onSelect,
+        onAction,
+        editTarget,
+        onStartEdit,
+        onCommitEdit,
+        onContextMenu,
+      )}
+    </section>
+  );
 }
 
 /** Row body: button row, result/group rows, or the choice grid. */
-function rowContent(cyoa: UseCyoaResult, row: Row, viewport: number) {
+function rowContent(
+  cyoa: UseCyoaResult,
+  row: Row,
+  viewport: number,
+  editing = false,
+  selection: VisualSelection | null = null,
+  onSelect?: (selection: VisualSelection) => void,
+  onAction?: (action: VisualEditAction, selection: VisualSelection) => void,
+  editTarget: VisualEditTarget | null = null,
+  onStartEdit?: (target: VisualEditTarget) => void,
+  onCommitEdit?: (target: VisualEditTarget, value: string) => void,
+  onContextMenu?: (selection: VisualSelection | null, event: React.MouseEvent) => void,
+) {
   if (row.isResultRow) {
-    return <ResultRowContent cyoa={cyoa} row={row} viewport={viewport} />;
+    return (
+      <ResultRowContent
+        cyoa={cyoa}
+        row={row}
+        viewport={viewport}
+        editing={editing}
+        selection={selection}
+        onSelect={onSelect}
+        onAction={onAction}
+        editTarget={editTarget}
+        onStartEdit={onStartEdit}
+        onCommitEdit={onCommitEdit}
+        onContextMenu={onContextMenu}
+      />
+    );
   }
   if (row.isGroupRow) {
-    return <GroupRowContent cyoa={cyoa} row={row} viewport={viewport} />;
+    return (
+      <GroupRowContent
+        cyoa={cyoa}
+        row={row}
+        viewport={viewport}
+        editing={editing}
+        selection={selection}
+        onSelect={onSelect}
+        onAction={onAction}
+        editTarget={editTarget}
+        onStartEdit={onStartEdit}
+        onCommitEdit={onCommitEdit}
+        onContextMenu={onContextMenu}
+      />
+    );
   }
   return (
     <div className={cn("flex flex-wrap", rowJustifyClass(row))}>
@@ -1486,7 +2023,20 @@ function rowContent(cyoa: UseCyoaResult, row: Row, viewport: number) {
           className={cn("min-w-0", effectiveChoiceWidth(row, choice, cyoa, viewport))}
           style={{ padding: choiceMargin(choice, row, cyoa.idx, cyoa.state) }}
         >
-          <ChoiceView cyoa={cyoa} choice={choice} row={row} viewport={viewport} />
+          <ChoiceView
+            cyoa={cyoa}
+            choice={choice}
+            row={row}
+            viewport={viewport}
+            editing={editing}
+            selection={selection}
+            onSelect={onSelect}
+            onAction={onAction}
+            editTarget={editTarget}
+            onStartEdit={onStartEdit}
+            onCommitEdit={onCommitEdit}
+            onContextMenu={onContextMenu}
+          />
         </div>
       ))}
     </div>
@@ -1509,8 +2059,16 @@ function rowJustifyClass(row: Row): string {
   }
 }
 
-function RowButton({ cyoa, row }: { cyoa: UseCyoaResult; row: Row }) {
-  const disabled = isRowButtonDisabled(row, cyoa.state);
+function RowButton({
+  cyoa,
+  row,
+  editing = false,
+}: {
+  cyoa: UseCyoaResult;
+  row: Row;
+  editing?: boolean;
+}) {
+  const disabled = editing || isRowButtonDisabled(row, cyoa.state);
   // The row button carries only the row's button padding (original
   // `AppRow.rowButton`); the row header it sits in provides the background,
   // border and shadow via `rowSurfaceStyle`.
@@ -1541,10 +2099,26 @@ function ResultRowContent({
   cyoa,
   row,
   viewport,
+  editing = false,
+  selection = null,
+  onSelect,
+  onAction,
+  editTarget = null,
+  onStartEdit,
+  onCommitEdit,
+  onContextMenu,
 }: {
   cyoa: UseCyoaResult;
   row: Row;
   viewport: number;
+  editing?: boolean;
+  selection?: VisualSelection | null;
+  onSelect?: (selection: VisualSelection) => void;
+  onAction?: (action: VisualEditAction, selection: VisualSelection) => void;
+  editTarget?: VisualEditTarget | null;
+  onStartEdit?: (target: VisualEditTarget) => void;
+  onCommitEdit?: (target: VisualEditTarget, value: string) => void;
+  onContextMenu?: (selection: VisualSelection | null, event: React.MouseEvent) => void;
 }) {
   const entries = resultRowChoices(row, cyoa.idx, cyoa.state);
   const allowDeselect = cyoa.app.viewerSettings?.allowDeselect === true;
@@ -1554,15 +2128,23 @@ function ResultRowContent({
       {entries.map(({ choice, row: origin }) => (
         <div
           key={choice.id}
-          className={cn("min-w-0", effectiveChoiceWidth(origin, choice, cyoa, viewport))}
-          style={{ padding: choiceMargin(choice, origin, cyoa.idx, cyoa.state) }}
+          className={cn("min-w-0", effectiveChoiceWidth(row, choice, cyoa, viewport))}
+          style={{ padding: choiceMargin(choice, row, cyoa.idx, cyoa.state) }}
         >
           <ChoiceView
             cyoa={cyoa}
             choice={choice}
-            row={origin}
+            row={row}
             viewport={viewport}
+            editing={editing}
+            selection={selection}
+            onSelect={onSelect}
+            onAction={onAction}
             info={!allowDeselect}
+            editTarget={editTarget}
+            onStartEdit={onStartEdit}
+            onCommitEdit={onCommitEdit}
+            onContextMenu={onContextMenu}
           />
         </div>
       ))}
@@ -1574,10 +2156,26 @@ function GroupRowContent({
   cyoa,
   row,
   viewport,
+  editing = false,
+  selection = null,
+  onSelect,
+  onAction,
+  editTarget = null,
+  onStartEdit,
+  onCommitEdit,
+  onContextMenu,
 }: {
   cyoa: UseCyoaResult;
   row: Row;
   viewport: number;
+  editing?: boolean;
+  selection?: VisualSelection | null;
+  onSelect?: (selection: VisualSelection) => void;
+  onAction?: (action: VisualEditAction, selection: VisualSelection) => void;
+  editTarget?: VisualEditTarget | null;
+  onStartEdit?: (target: VisualEditTarget) => void;
+  onCommitEdit?: (target: VisualEditTarget, value: string) => void;
+  onContextMenu?: (selection: VisualSelection | null, event: React.MouseEvent) => void;
 }) {
   const entries = groupRowChoices(row, cyoa.idx);
   if (entries.length === 0) return null;
@@ -1586,10 +2184,24 @@ function GroupRowContent({
       {entries.map(({ choice, row: origin }) => (
         <div
           key={choice.id}
-          className={cn("min-w-0", effectiveChoiceWidth(origin, choice, cyoa, viewport))}
-          style={{ padding: choiceMargin(choice, origin, cyoa.idx, cyoa.state) }}
+          className={cn("min-w-0", effectiveChoiceWidth(row, choice, cyoa, viewport))}
+          style={{ padding: choiceMargin(choice, row, cyoa.idx, cyoa.state) }}
         >
-          <ChoiceView cyoa={cyoa} choice={choice} row={origin} viewport={viewport} info />
+          <ChoiceView
+            cyoa={cyoa}
+            choice={choice}
+            row={row}
+            viewport={viewport}
+            editing={editing}
+            selection={selection}
+            onSelect={onSelect}
+            onAction={onAction}
+            info={row.isInfoRow}
+            editTarget={editTarget}
+            onStartEdit={onStartEdit}
+            onCommitEdit={onCommitEdit}
+            onContextMenu={onContextMenu}
+          />
         </div>
       ))}
     </div>
@@ -1607,14 +2219,64 @@ interface ChoiceViewProps {
   /** Info rows ignore clicks (result/group/backpack rows). */
   info?: boolean;
   viewport?: number;
+  /** Visual-editor mode: click selects the choice instead of toggling it. */
+  editing?: boolean;
+  selection?: VisualSelection | null;
+  onSelect?: (selection: VisualSelection) => void;
+  onAction?: (action: VisualEditAction, selection: VisualSelection) => void;
+  editTarget?: VisualEditTarget | null;
+  onStartEdit?: (target: VisualEditTarget) => void;
+  onCommitEdit?: (target: VisualEditTarget, value: string) => void;
+  onContextMenu?: (selection: VisualSelection | null, event: React.MouseEvent) => void;
 }
 
-function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceViewProps) {
+function ChoiceView({
+  cyoa,
+  choice,
+  row,
+  info = false,
+  viewport = 0,
+  editing = false,
+  selection = null,
+  onSelect,
+  onAction,
+  editTarget = null,
+  onStartEdit,
+  onCommitEdit,
+  onContextMenu,
+}: ChoiceViewProps) {
   const enabled = isEnabled(choice.requireds, cyoa.idx, cyoa.state);
   // A single-select choice is stored as `{ multiple: 0 }` — presence in the
   // activated map (not the count) means it is selected (matches the original
   // viewer's `isActive` flag semantics).
   const isSelected = cyoa.state.activated.has(choice.id);
+  const isEditorSelected = editing && selection?.kind === "choice" && selection.id === choice.id;
+  // Figma-style inline editing for the choice title/text.
+  const isEditingTitle =
+    editing &&
+    editTarget?.kind === "choice" &&
+    editTarget.id === choice.id &&
+    editTarget.field === "title";
+  const isEditingText =
+    editing &&
+    editTarget?.kind === "choice" &&
+    editTarget.id === choice.id &&
+    editTarget.field === "text";
+  const startEdit =
+    (field: "title" | "text") =>
+    (event: React.MouseEvent): void => {
+      if (!editing) return;
+      event.stopPropagation();
+      onSelect?.({ kind: "choice", id: choice.id });
+      onStartEdit?.({ kind: "choice", id: choice.id, field });
+    };
+  const handleContextMenu = (event: React.MouseEvent): void => {
+    if (info || !editing) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onSelect?.({ kind: "choice", id: choice.id });
+    onContextMenu?.({ kind: "choice", id: choice.id }, event);
+  };
   const isMulti = choice.isSelectableMultiple === true;
   const surface = choiceSurfaceStyle(choice, row, cyoa.idx, cyoa.state);
   const shown = isChoiceShown(choice, row, cyoa.idx, cyoa.state);
@@ -1623,7 +2285,10 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
   const textStyleObj = textStyle("objectText", cyoa.idx, cyoa.state, row, choice);
   const objectImageStyle = imageStyle("objectImage", cyoa.idx, cyoa.state, row, choice);
   const isCounterOnlyMulti = isMulti && !choice.allowSelectByClick;
-  const isClickable = !info && !isCounterOnlyMulti && !choice.isNotSelectable;
+  const isClickable = !info && !row.isInfoRow && !isCounterOnlyMulti && !choice.isNotSelectable;
+  // Document-order position within the row for move-up/down affordances.
+  const rowChoices = sortedChoices(row);
+  const choiceIndex = rowChoices.findIndex((c) => c.id === choice.id);
 
   const hidden = hiddenContentsFor(row, cyoa.idx, cyoa.state);
   const nAddons = (choice.addons ?? []).filter((a): a is NonSelectableAddon => !a.isSelectable);
@@ -1640,32 +2305,44 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
 
   if (!shown) return null;
 
-  const counter = isMulti ? <MultiChoice cyoa={cyoa} choice={choice} row={row} /> : null;
+  const counter =
+    isMulti && !choice.showMulInAddon ? (
+      <MultiChoice cyoa={cyoa} choice={choice} row={row} editing={editing || info} />
+    ) : null;
+  const counterPosition = numValue(
+    getStyling("privateMultiChoiceIsOn", cyoa.idx, cyoa.state, row, choice)
+      .multiChoiceCounterPosition,
+  );
 
   // Scores/requirements move into the first addon when the choice opts into
   // `showScoreInAddon` / `showReqInAddon` (original viewer behavior).
   const showScores = !scoreRemoved && !choice.showScoreInAddon;
   const showReqs = !reqRemoved && !choice.showReqInAddon;
 
-  const effTpl = viewerTemplate(choice, false, cyoa.app, viewport, cyoa.idx, cyoa.state);
+  const effTpl = row.choicesShareTemplate
+    ? 1
+    : viewerTemplate(choice, false, cyoa.app, viewport, cyoa.idx, cyoa.state);
   const tpl = templateClasses(effTpl);
-  // Stacked templates (1/4/5) size the image from the styling cascade; the
-  // side templates let their flex box handle sizing. The image always fills
-  // the card width (the doc's objectImageWidth is ignored for the stacked
-  // layouts so images align edge-to-edge with the card).
-  const imgStyle =
-    effTpl === 1 || effTpl === 4 || effTpl === 5
-      ? { ...objectImageStyle, width: "100%", borderColor: surface.imageBorderColor || undefined }
-      : { borderColor: surface.imageBorderColor || undefined };
+  const imgStyle = {
+    ...objectImageStyle,
+    borderColor: surface.imageBorderColor || undefined,
+  };
+  const sideImage = effTpl === 2 || effTpl === 3;
+  const imageBoxStyling = getStyling("privateObjectImageIsOn", cyoa.idx, cyoa.state, row, choice);
+  const imageBoxWidth = Math.max(
+    0,
+    Math.min(100, Number(imageBoxStyling.objectImageBoxWidth ?? 50)),
+  );
 
   // Template 5 flows the image inline (after requirements, before the text);
   // all other templates render it as the first/last flex child of the card.
   const choiceImage = resolveChoiceImage(choice, cyoa.idx, cyoa.state);
   const tplImageEl =
     choiceImage && !imageRemoved ? (
-      <div className={tpl.image}>
-        <img
+      <div className={tpl.image} style={sideImage ? { width: `${imageBoxWidth}%` } : undefined}>
+        <ViewerImage
           src={choiceImage}
+          title={choice.imageSourceTooltip || undefined}
           alt=""
           className={cn(
             "rounded-md border border-border",
@@ -1679,7 +2356,12 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
   const addonsEl = (
     <>
       {nAddons.length > 0 ? (
-        <div className={cn("flex flex-wrap gap-2", choice.addonJustify ? "justify-center" : "")}>
+        <div
+          className={cn(
+            "flex flex-wrap",
+            rowJustifyClass({ rowJustify: choice.addonJustify } as Row),
+          )}
+        >
           {nAddons.map((addon, i) => (
             <AddonView
               key={addon.id}
@@ -1688,6 +2370,8 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
               choice={choice}
               row={row}
               hidden={hidden}
+              editing={editing || info}
+              viewport={viewport}
               isFirst={
                 !addon.skipIndex &&
                 sAddons.length === 0 &&
@@ -1698,7 +2382,12 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
         </div>
       ) : null}
       {sAddons.length > 0 ? (
-        <div className={cn("mt-1 flex flex-wrap gap-2 border-t border-border pt-2")}>
+        <div
+          className={cn(
+            "mt-1 flex flex-wrap",
+            rowJustifyClass({ rowJustify: choice.addonJustify } as Row),
+          )}
+        >
           {sAddons.map((addon, i) => (
             <AddonView
               key={addon.id}
@@ -1707,6 +2396,8 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
               choice={choice}
               row={row}
               hidden={hidden}
+              editing={editing || info}
+              viewport={viewport}
               isFirst={
                 !addon.skipIndex &&
                 (nAddons.length === 0 || nAddons.every((a) => a.skipIndex)) &&
@@ -1721,23 +2412,64 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
 
   const body = (
     <>
-      {text.title && !titleRemoved ? (
-        <>
-          <h3
-            className="font-semibold"
-            style={titleStyle}
-            dangerouslySetInnerHTML={renderHtml(text.title, cyoa.idx, cyoa.state)}
-          />
-        </>
+      {row.resultShowRowTitle ? (
+        <h4
+          style={textStyle("objectTitle", cyoa.idx, cyoa.state, row, choice)}
+          dangerouslySetInnerHTML={renderHtml(
+            cyoa.idx.choiceMap.get(choice.id)?.row.title ||
+              cyoa.idx.choiceMap.get(choice.id)?.row.debugTitle ||
+              "",
+            cyoa.idx,
+            cyoa.state,
+          )}
+        />
       ) : null}
-      {counter}
+      {isEditingTitle && !titleRemoved ? (
+        <InlineTextEditor
+          key={`choice-title:${choice.id}`}
+          as="h3"
+          html={renderHtml(text.title ?? "", cyoa.idx, cyoa.state).__html}
+          style={titleStyle}
+          className="font-semibold"
+          onCommit={(value) =>
+            onCommitEdit?.({ kind: "choice", id: choice.id, field: "title" }, value)
+          }
+        />
+      ) : text.title && !titleRemoved ? (
+        <h3
+          className="font-semibold"
+          style={titleStyle}
+          onDoubleClick={startEdit("title")}
+          dangerouslySetInnerHTML={renderHtml(text.title, cyoa.idx, cyoa.state)}
+        />
+      ) : null}
+      {counterPosition === 0 ? counter : null}
       {/* Original viewer order: title, scores, requirements, then text. */}
       {showScores ? <Scores cyoa={cyoa} choice={choice} row={row} /> : null}
+      {counterPosition === 1 ? counter : null}
       {showReqs ? (
         <Requirements cyoa={cyoa} choice={choice} row={row} textColor={surface.scoreColor} />
       ) : null}
+      {counterPosition === 2 ? counter : null}
       {effTpl === 5 ? tplImageEl : null}
-      {text.text && !textRemoved ? (
+      {isEditingText && !textRemoved ? (
+        <InlineTextEditor
+          key={`choice-text:${choice.id}`}
+          as="p"
+          html={renderHtml(text.text ?? "", cyoa.idx, cyoa.state).__html}
+          style={{
+            ...textStyleObj,
+            // Gap after the scores/requirements badges (the global
+            // `.cyoa-viewer p` margin rule beats a margin utility class,
+            // so set it inline).
+            ...((showScores || showReqs) && { marginTop: 8 }),
+          }}
+          className="leading-5"
+          onCommit={(value) =>
+            onCommitEdit?.({ kind: "choice", id: choice.id, field: "text" }, value)
+          }
+        />
+      ) : text.text && !textRemoved ? (
         <p
           className="leading-5"
           style={{
@@ -1747,29 +2479,48 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
             // so set it inline).
             ...((showScores || showReqs) && { marginTop: 8 }),
           }}
+          onDoubleClick={startEdit("text")}
           dangerouslySetInnerHTML={renderHtml(text.text, cyoa.idx, cyoa.state)}
         />
       ) : null}
+      {counterPosition === 3 ? counter : null}
       {!choice.useSeperateAddon ? addonsEl : null}
+      {counterPosition === 4 ? counter : null}
+      {choice.isImageUpload && isSelected && !editing && !info ? (
+        <PlayerImageButton onClick={() => cyoa.requestImage?.(choice.id)} />
+      ) : null}
     </>
   );
 
-  // The document's `objectBgColor` (or the state filter color) wins here.
-  // We intentionally do NOT use the `bg-card` utility: the agent-native shell
-  // forces `.bg-card` to the theme card surface with `!important` in dark
-  // mode, which would silently override the CYOA's background color. The theme
-  // card surface is still applied inline as the fallback when the document
-  // doesn't specify a background.
-  const docBackground = surface.backgroundColor || "var(--agent-native-card-surface)";
+  // Author styling controls the surface, including transparent backgrounds
+  // and disabled borders; shell selection decorations must not override it.
+  const docBackground = surface.backgroundColor || "transparent";
+  const fullHeight =
+    getStyling("privateObjectIsOn", cyoa.idx, cyoa.state, row, choice).objectHeight === true;
+
+  const choiceToolbar = isEditorSelected ? (
+    <EditToolbar
+      kind="choice"
+      selection={{ kind: "choice", id: choice.id }}
+      canMoveUp={choiceIndex > 0}
+      canMoveDown={choiceIndex >= 0 && choiceIndex < rowChoices.length - 1}
+      onAction={onAction}
+    />
+  ) : null;
 
   return (
     <div
       data-cyoa-choice={choice.id}
       className={cn(
-        "relative flex h-full flex-col rounded-lg border p-4 text-start transition-colors",
-        isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border",
+        "relative flex flex-col text-start transition-colors",
+        fullHeight && "h-full",
+        `row-${row.id} choice-${choice.id}`,
+        isSelected ? "choice-selected" : "choice-unselected",
+        enabled ? "choice-enabled" : "choice-disabled",
         !enabled && "cursor-not-allowed",
         cyoa.app.isPointerCursor && isClickable && "cursor-pointer",
+        editing && "cursor-pointer",
+        isEditorSelected && "outline-2 outline-primary outline",
       )}
       style={{
         filter: surface.filter || undefined,
@@ -1782,20 +2533,29 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
         backgroundRepeat: surface.backgroundRepeat || undefined,
         backgroundSize: surface.backgroundSize || undefined,
         borderColor: surface.borderColor || undefined,
-        borderStyle: surface.borderStyle || undefined,
-        borderWidth: surface.borderWidth || undefined,
+        borderStyle: surface.borderStyle || "none",
+        borderWidth: surface.borderWidth || 0,
         borderRadius: surface.borderRadius || undefined,
         boxShadow: surface.boxShadow || undefined,
         overflow: surface.overflow || undefined,
         ...(surface.borderImage ? { borderImage: surface.borderImage } : {}),
       }}
       onClick={() => {
-        if (info || isCounterOnlyMulti) return;
-        cyoa.toggleChoice(choice, row);
+        if (info || (!editing && row.isInfoRow)) return;
+        if (editing) {
+          onSelect?.({ kind: "choice", id: choice.id });
+          return;
+        }
+        if (isCounterOnlyMulti) return;
+        cyoa.toggleChoice(choice, cyoa.idx.choiceMap.get(choice.id)?.row ?? row);
       }}
+      onContextMenu={handleContextMenu}
     >
-      {effTpl !== 5 ? tplImageEl : null}
-      <div className={tpl.body}>{body}</div>
+      {choiceToolbar}
+      <div className={tpl.container}>
+        {effTpl !== 5 ? tplImageEl : null}
+        <div className={cn("min-w-0", tpl.body)}>{body}</div>
+      </div>
       {choice.useSeperateAddon ? <div className="mt-2 w-full">{addonsEl}</div> : null}
     </div>
   );
@@ -1805,7 +2565,17 @@ function ChoiceView({ cyoa, choice, row, info = false, viewport = 0 }: ChoiceVie
 /* Multi-choice counter                                               */
 /* ------------------------------------------------------------------ */
 
-function MultiChoice({ cyoa, choice, row }: { cyoa: UseCyoaResult; choice: Choice; row: Row }) {
+function MultiChoice({
+  cyoa,
+  choice,
+  row,
+  editing = false,
+}: {
+  cyoa: UseCyoaResult;
+  choice: Choice | SelectableAddon;
+  row: Row;
+  editing?: boolean;
+}) {
   const entry = cyoa.state.activated.get(choice.id);
   const count = entry?.multiple ?? 0;
   const min = Number(choice.numMultipleTimesMinus ?? 0);
@@ -1819,24 +2589,31 @@ function MultiChoice({ cyoa, choice, row }: { cyoa: UseCyoaResult; choice: Choic
       : String(count);
   const hideCounterUntilSelect = choice.hideCounterUntilSelect && count === 0;
 
-  if (choice.isNotSelectable || hideCounterUntilSelect) return null;
+  const enabled = isEnabled(choice.requireds, cyoa.idx, cyoa.state);
+  const disabled = editing || row.isInfoRow || !enabled;
+  const origin = cyoa.idx.choiceMap.get(choice.id)?.row ?? row;
+  if (hideCounterUntilSelect || (choice.hideMultipleCounter && !enabled)) return null;
 
   if (choice.useSlider) {
     const sliderMin = Math.min(min, count);
     return (
-      <div className="flex w-full items-center gap-2">
+      <div
+        className="multi-counter flex w-full items-center gap-2"
+        onClick={(event) => event.stopPropagation()}
+      >
         <input
           type="range"
           min={sliderMin}
           max={Math.max(max, count, 1)}
           step={1}
           value={Math.min(Math.max(count, sliderMin), Math.max(max, count, 1))}
+          disabled={disabled}
           onChange={(event) => {
             const target = parseInt(event.target.value, 10);
             const delta = target - count;
             for (let i = 0; i < Math.abs(delta); i++) {
-              if (delta > 0) cyoa.more(choice, row);
-              else cyoa.less(choice, row);
+              if (delta > 0) cyoa.more(choice, origin);
+              else cyoa.less(choice, origin);
             }
           }}
           className="flex-1 accent-primary"
@@ -1848,24 +2625,30 @@ function MultiChoice({ cyoa, choice, row }: { cyoa: UseCyoaResult; choice: Choic
   }
 
   return (
-    <div className="flex items-center justify-center gap-1.5">
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        className="size-9 rounded-full text-xl"
-        disabled={count <= min || choice.selectOnce}
-        onClick={(event) => {
-          event.stopPropagation();
-          cyoa.less(choice, row);
-        }}
-        aria-label="Decrease"
-      >
-        −
-      </Button>
+    <div
+      className="multi-counter flex items-center justify-center gap-1.5"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {!choice.hideCounter ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="size-9 rounded-full text-xl"
+          disabled={disabled || count <= min || choice.selectOnce || choice.forcedActivated}
+          onClick={(event) => {
+            event.stopPropagation();
+            cyoa.less(choice, origin);
+          }}
+          aria-label="Decrease"
+        >
+          −
+        </Button>
+      ) : null}
       <button
         type="button"
         className="min-w-8 rounded-md border border-border px-1 py-0.5 text-center text-sm tabular-nums"
+        disabled={disabled}
         onClick={(event) => {
           event.stopPropagation();
           const raw = window.prompt("Set count", String(count));
@@ -1875,28 +2658,30 @@ function MultiChoice({ cyoa, choice, row }: { cyoa: UseCyoaResult; choice: Choic
           const clamped = Math.max(min, max > 0 ? Math.min(num, max) : num);
           const delta = clamped - count;
           for (let i = 0; i < Math.abs(delta); i++) {
-            if (delta > 0) cyoa.more(choice, row);
-            else cyoa.less(choice, row);
+            if (delta > 0) cyoa.more(choice, origin);
+            else cyoa.less(choice, origin);
           }
         }}
         title="Click to set count"
       >
         {display}
       </button>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        className="size-9 rounded-full text-xl"
-        disabled={max > 0 && count >= max}
-        onClick={(event) => {
-          event.stopPropagation();
-          cyoa.more(choice, row);
-        }}
-        aria-label="Increase"
-      >
-        +
-      </Button>
+      {!choice.hideCounter ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="size-9 rounded-full text-xl"
+          disabled={disabled || choice.isNotSelectable || (max > 0 && count >= max)}
+          onClick={(event) => {
+            event.stopPropagation();
+            cyoa.more(choice, origin);
+          }}
+          aria-label="Increase"
+        >
+          +
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -2080,7 +2865,7 @@ function Scores({ cyoa, choice, row }: { cyoa: UseCyoaResult; choice: Choice; ro
             style={{ ...scoreStyle, color }}
           >
             {icon && icon.beforeText ? (
-              <img
+              <ViewerImage
                 src={icon.image}
                 alt=""
                 className="mx-0.5 self-center"
@@ -2089,7 +2874,7 @@ function Scores({ cyoa, choice, row }: { cyoa: UseCyoaResult; choice: Choice; ro
             ) : null}
             {before ? <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(before) }} /> : null}
             {icon && icon.afterBeforeText ? (
-              <img
+              <ViewerImage
                 src={icon.image}
                 alt=""
                 className="mx-0.5 self-center"
@@ -2104,7 +2889,7 @@ function Scores({ cyoa, choice, row }: { cyoa: UseCyoaResult; choice: Choice; ro
               />
             )}
             {icon && icon.afterText ? (
-              <img
+              <ViewerImage
                 src={icon.image}
                 alt=""
                 className="mx-0.5 self-center"
@@ -2113,7 +2898,7 @@ function Scores({ cyoa, choice, row }: { cyoa: UseCyoaResult; choice: Choice; ro
             ) : null}
             {after ? <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(after) }} /> : null}
             {icon && icon.afterAfterText ? (
-              <img
+              <ViewerImage
                 src={icon.image}
                 alt=""
                 className="mx-0.5 self-center"
@@ -2328,6 +3113,8 @@ function AddonView({
   row,
   hidden,
   isFirst = false,
+  editing = false,
+  viewport = 1280,
 }: {
   cyoa: UseCyoaResult;
   addon: Addon;
@@ -2335,6 +3122,8 @@ function AddonView({
   row: Row;
   hidden?: Set<string>;
   isFirst?: boolean;
+  editing?: boolean;
+  viewport?: number;
 }) {
   const enabled = isEnabled(addon.requireds, cyoa.idx, cyoa.state);
   const isSelectable = addon.isSelectable === true;
@@ -2343,7 +3132,10 @@ function AddonView({
   // Choice-level `showAllAddons` force-shows every addon of that choice
   // (mirrors the original bumping the global `app.showAllAddons` counter).
   const parentForceShows = choice.showAllAddons === true && choiceActive;
-  const forceShow = cyoa.app.showAllAddons > 0 || parentForceShows;
+  const forceShow =
+    cyoa.app.showAllAddons > 0 ||
+    parentForceShows ||
+    [...cyoa.state.activated.keys()].some((id) => cyoa.idx.choiceMap.get(id)?.choice.showAllAddons);
   // Content-hiding choices can toggle the row's `unselAddonRemoved` (9) and
   // `unmetAddonRemoved` (10) flags; the row JSON may also set them directly.
   const unselAddonRemoved = row.unselAddonRemoved === true || hidden?.has("9");
@@ -2369,17 +3161,29 @@ function AddonView({
   const showParentReqs = isFirst && choice.showReqInAddon === true;
   const addonScores = (addon as SelectableAddon).scores ?? [];
   const addonReqs = addon.requireds ?? [];
+  const template = viewerTemplate(addon, false, cyoa.app, viewport, cyoa.idx, cyoa.state);
+  const layout = templateClasses(template);
+  const imageSettings = getStyling("privateAddonImageIsOn", cyoa.idx, cyoa.state, row, choice);
+  const image =
+    addon.image && !hidden?.has("7") && row.addonImageRemoved !== true ? (
+      <div className={layout.image}>
+        <ViewerImage
+          src={resolveImageRef(cyoa.app, addon.image)}
+          alt=""
+          title={addon.imageSourceTooltip || undefined}
+          style={imageStyle(
+            imageSettings.useAddonImage ? "addonImage" : "objectImage",
+            cyoa.idx,
+            cyoa.state,
+            row,
+            choice,
+          )}
+        />
+      </div>
+    ) : null;
 
   const inner = (
     <>
-      {addon.image && !hidden?.has("7") && row.addonImageRemoved !== true ? (
-        <img
-          src={resolveImageRef(cyoa.app, addon.image)}
-          alt=""
-          className="w-full"
-          style={imageStyle("addonImage", cyoa.idx, cyoa.state, row, choice)}
-        />
-      ) : null}
       {addon.title && !hidden?.has("6") && row.addonTitleRemoved !== true ? (
         <p
           className="text-sm font-medium"
@@ -2387,6 +3191,16 @@ function AddonView({
           dangerouslySetInnerHTML={renderHtml(addon.title, cyoa.idx, cyoa.state)}
         />
       ) : null}
+      {showParentScores && !hidden?.has("4") && row.objectScoreRemoved !== true ? (
+        <Scores cyoa={cyoa} choice={choice} row={row} />
+      ) : null}
+      {showParentReqs && !hidden?.has("5") && row.objectRequirementRemoved !== true ? (
+        <Requirements cyoa={cyoa} choice={choice} row={row} />
+      ) : null}
+      {isFirst && choice.showMulInAddon && choice.isSelectableMultiple ? (
+        <MultiChoice cyoa={cyoa} choice={choice} row={row} editing={editing} />
+      ) : null}
+      {template === 5 ? image : null}
       {addon.text && !hidden?.has("8") && row.addonTextRemoved !== true ? (
         <p
           className="text-xs leading-4 text-muted-foreground"
@@ -2394,16 +3208,11 @@ function AddonView({
           dangerouslySetInnerHTML={renderHtml(addon.text, cyoa.idx, cyoa.state)}
         />
       ) : null}
-      {!hidden?.has("4") && (showParentScores || addonScores.length > 0) ? (
-        <Scores cyoa={cyoa} choice={(showParentScores ? choice : addon) as Choice} row={row} />
+      {!hidden?.has("4") && row.objectScoreRemoved !== true && addonScores.length > 0 ? (
+        <Scores cyoa={cyoa} choice={addon as Choice} row={row} />
       ) : null}
-      {!hidden?.has("5") && (showParentReqs || addonReqs.length > 0) ? (
-        <Requirements
-          cyoa={cyoa}
-          choice={(showParentReqs ? choice : addon) as Choice}
-          row={row}
-          textColor={undefined}
-        />
+      {!hidden?.has("5") && row.objectRequirementRemoved !== true && addonReqs.length > 0 ? (
+        <Requirements cyoa={cyoa} choice={addon as Choice} row={row} textColor={undefined} />
       ) : null}
       {isSelectable ? (
         <SelectableAddonControls
@@ -2412,34 +3221,57 @@ function AddonView({
           choice={choice}
           row={row}
           enabled={enabled}
+          editing={editing}
         />
       ) : null}
     </>
   );
 
-  if (!isSelectable) {
-    return (
-      <div className="min-w-32 flex-1 basis-40 rounded-md border border-border bg-muted/30 p-2">
-        {inner}
-      </div>
-    );
-  }
-
+  const clickable = isSelectable && !editing && !row.isInfoRow && (enabled || selected);
+  const activate = () => {
+    if (clickable && addon.isSelectable)
+      cyoa.toggleAddon(addon, choice, cyoa.idx.choiceMap.get(choice.id)?.row ?? row);
+  };
   return (
-    <button
-      type="button"
-      disabled={!enabled && !selected}
-      onClick={() => cyoa.toggleAddon(addon, choice, row)}
-      aria-pressed={selected}
+    <div
+      data-cyoa-addon={addon.id}
+      role={isSelectable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      aria-disabled={isSelectable ? !clickable : undefined}
+      onClick={(event) => {
+        if (!isSelectable) return;
+        event.stopPropagation();
+        activate();
+      }}
+      onKeyDown={(event) => {
+        if (
+          event.target !== event.currentTarget ||
+          !clickable ||
+          !["Enter", " "].includes(event.key)
+        )
+          return;
+        event.preventDefault();
+        event.stopPropagation();
+        activate();
+      }}
+      aria-pressed={isSelectable ? selected : undefined}
       className={cn(
-        "min-w-32 flex-1 basis-40 rounded-md border p-2 text-start",
-        selected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border bg-muted/30",
-        !enabled && "cursor-not-allowed opacity-50",
-        cyoa.app.isPointerCursor && (enabled || selected) && "cursor-pointer",
+        "min-w-0 text-start",
+        choiceWidthClass(
+          { ...row, overrideWidth: false, objectWidth: addon.addonWidth || "col-12" },
+          { ...choice, objectWidth: addon.addonWidth || "col-12" },
+          cyoa.app,
+          viewport,
+        ),
+        cyoa.app.isPointerCursor && clickable && "cursor-pointer",
       )}
+      style={addonSurfaceStyle(addon, choice, row, cyoa.idx, cyoa.state)}
     >
-      {inner}
-    </button>
+      <div className={layout.container}>
+        {template !== 5 ? image : null}
+        <div className={cn("min-w-0", layout.body)}>{inner}</div>
+      </div>
+    </div>
   );
 }
 
@@ -2449,42 +3281,20 @@ function SelectableAddonControls({
   choice,
   row,
   enabled,
+  editing = false,
 }: {
   cyoa: UseCyoaResult;
   addon: SelectableAddon;
   choice: Choice;
   row: Row;
   enabled: boolean;
+  editing?: boolean;
 }) {
   const entry = cyoa.state.activated.get(addon.id);
   const count = entry?.multiple ?? 0;
   const isMulti = addon.isSelectableMultiple === true;
   if (isMulti) {
-    return (
-      <span className="mt-1 flex items-center gap-1">
-        <button
-          type="button"
-          className="size-5 rounded-full border border-border text-xs"
-          onClick={(event) => {
-            event.stopPropagation();
-            cyoa.less(addon, row);
-          }}
-        >
-          −
-        </button>
-        <span className="text-xs tabular-nums">{count}</span>
-        <button
-          type="button"
-          className="size-5 rounded-full border border-border text-xs"
-          onClick={(event) => {
-            event.stopPropagation();
-            cyoa.more(addon, row);
-          }}
-        >
-          +
-        </button>
-      </span>
-    );
+    return <MultiChoice cyoa={cyoa} choice={addon} row={row} editing={editing || !enabled} />;
   }
   if (!enabled && !entry) return null;
   return (
@@ -2510,6 +3320,21 @@ function BackpackDialog({
   cyoa: UseCyoaResult;
   viewport: number;
 }) {
+  const t = useT();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
+  const [backpackViewport, setBackpackViewport] = useState(viewport);
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!open || !content) return;
+    setBackpackViewport(content.clientWidth);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) =>
+      setBackpackViewport(Math.round(entry.contentRect.width)),
+    );
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [open]);
   const app = cyoa.app;
   const styling = (app.styling ?? {}) as Record<string, unknown>;
   const useBackpackDesign = styling.useBackpackDesign === true;
@@ -2519,13 +3344,14 @@ function BackpackDialog({
   const rawBgImage = (useBackpackDesign ? styling.backpackBgImage : styling.backgroundImage) as
     | string
     | undefined;
-  const bgImage = resolveImageRef(app, rawBgImage);
+  const bgImage = useViewerBackground(resolveImageRef(app, rawBgImage), open);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="cyoa-viewer max-h-[90vh] overflow-y-auto"
         style={{
-          width: (styling.backPackWidth as number) || undefined,
+          width: numValue(styling.backPackWidth, 1400),
+          maxWidth: "calc(100vw - 2rem)",
           backgroundColor: bgColor || undefined,
           backgroundImage: bgImage ? `url(${bgImage})` : undefined,
           backgroundSize: "cover",
@@ -2533,13 +3359,57 @@ function BackpackDialog({
       >
         <DialogHeader>
           <DialogTitle>{app.backpack?.[0]?.title || "Backpack"}</DialogTitle>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={exporting}
+            onClick={async () => {
+              if (!contentRef.current || exporting) return;
+              setExporting(true);
+              try {
+                const images = await exportBackpackImages(
+                  contentRef.current,
+                  app.viewerSettings?.isSingleFile === true,
+                );
+                images.forEach((blob, index) => {
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download =
+                    images.length === 1 ? "backpack.png" : `backpack-${index + 1}.png`;
+                  document.body.append(link);
+                  link.click();
+                  link.remove();
+                  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                });
+              } catch {
+                toast.error(t("viewer.imageExportFailed"));
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
+            <IconDownload className="mr-1.5 size-4" />
+            {t(exporting ? "viewer.exportingImage" : "viewer.downloadImage")}
+          </Button>
         </DialogHeader>
-        <div className="flex flex-wrap gap-3">
+        <div
+          ref={contentRef}
+          className="flex flex-wrap gap-y-3"
+          style={{
+            backgroundColor: bgColor,
+            backgroundImage: rawBgImage ? `url('${resolveImageRef(app, rawBgImage)}')` : undefined,
+            backgroundSize: "cover",
+          }}
+        >
           {(app.backpack ?? [])
             .filter((row) => isEnabled(row.requireds, cyoa.idx, cyoa.state))
             .map((row) => (
-              <div key={row.id} className={cn(rowWidthClass(row, app, viewport), "min-w-0")}>
-                <RowView cyoa={cyoa} row={row} viewport={viewport} />
+              <div
+                key={row.id}
+                className={cn(rowWidthClass(row, app, backpackViewport), "min-w-0")}
+              >
+                <RowView cyoa={cyoa} row={row} viewport={backpackViewport} />
               </div>
             ))}
         </div>
@@ -2769,10 +3639,11 @@ function SaveLoadDialog({
                       size="sm"
                       className="h-6 flex-1 px-1 text-[10px]"
                       onClick={() => {
-                        cyoa.saveSlot(
+                        const saved = cyoa.saveSlot(
                           slot,
                           name.trim() || data?.name || `Slot ${page * 9 + index + 1}`,
                         );
+                        if (!saved) return;
                         setSlots(cyoa.listSlots());
                         setName("");
                       }}

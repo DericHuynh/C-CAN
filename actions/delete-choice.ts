@@ -1,9 +1,11 @@
+import { projectAudit } from "./_project-audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { assertFound, getProjectOrThrow, reindexChoices, saveProject } from "./_project-store.js";
 
 export default defineAction({
+  audit: projectAudit,
   description: "Delete a choice from a row and re-index the row's remaining choices.",
   schema: z.object({
     projectId: z.string().describe("Project id"),

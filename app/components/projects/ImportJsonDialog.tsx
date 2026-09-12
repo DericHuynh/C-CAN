@@ -15,7 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { extractProjectId, useImportProjectJson } from "@/hooks/use-projects";
 
-import { inlineZipImages, unzip } from "@/lib/zip";
+import { inlineZipImages, unzip, zipProjectEntry } from "@/lib/zip";
+import { parseProjectDocument } from "@shared/cyoa";
 
 interface ImportJsonDialogProps {
   open: boolean;
@@ -23,11 +24,7 @@ interface ImportJsonDialogProps {
 }
 
 function parseDocument(raw: string): unknown {
-  const parsed: unknown = JSON.parse(raw);
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("The imported JSON must be a CYOA document object.");
-  }
-  return parsed;
+  return parseProjectDocument(raw);
 }
 
 /**
@@ -43,6 +40,7 @@ export function ImportJsonDialog({ open, onOpenChange }: ImportJsonDialogProps) 
   const [busy, setBusy] = useState(false);
   const importProject = useImportProjectJson();
   const navigate = useNavigate();
+  const pending = busy || importProject.isPending;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function importDoc(json: string | object) {
@@ -55,7 +53,7 @@ export function ImportJsonDialog({ open, onOpenChange }: ImportJsonDialogProps) 
           setJsonText("");
           const id = extractProjectId(data);
           if (id) {
-            navigate(`/projects/${encodeURIComponent(id)}`);
+            navigate(`/projects/${encodeURIComponent(id)}/editor`);
           }
         },
         onError: (err) => {
@@ -66,6 +64,7 @@ export function ImportJsonDialog({ open, onOpenChange }: ImportJsonDialogProps) 
   }
 
   function handleImport() {
+    if (pending) return;
     setError(null);
     const trimmed = jsonText.trim();
     if (!trimmed) {
@@ -81,18 +80,16 @@ export function ImportJsonDialog({ open, onOpenChange }: ImportJsonDialogProps) 
   }
 
   async function handleFile(file: File) {
+    if (pending) return;
     setError(null);
     setBusy(true);
     try {
       const lower = file.name.toLowerCase();
       if (lower.endsWith(".zip")) {
         const files = await unzip(await file.arrayBuffer());
-        const jsonEntry = [...files.entries()].find(([name]) => name.endsWith(".json"));
-        if (!jsonEntry) throw new Error("The zip does not contain a project.json file.");
-        const [name, bytes] = jsonEntry;
+        const [projectPath, bytes] = zipProjectEntry(files);
         const doc = parseDocument(new TextDecoder().decode(bytes)) as Record<string, unknown>;
-        inlineZipImages(doc, files);
-        toast.success(`Imported from ${name}`);
+        inlineZipImages(doc, files, projectPath);
         importDoc(doc);
       } else if (lower.endsWith(".json")) {
         importDoc(parseDocument(await file.text()) as string | object);
@@ -111,6 +108,7 @@ export function ImportJsonDialog({ open, onOpenChange }: ImportJsonDialogProps) 
     <Dialog
       open={open}
       onOpenChange={(next) => {
+        if (pending) return;
         onOpenChange(next);
         if (!next) {
           setError(null);
@@ -132,7 +130,7 @@ export function ImportJsonDialog({ open, onOpenChange }: ImportJsonDialogProps) 
             ref={fileInputRef}
             type="file"
             accept=".json,.zip,application/json,application/zip"
-            disabled={busy}
+            disabled={pending}
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (file) void handleFile(file);
@@ -147,6 +145,7 @@ export function ImportJsonDialog({ open, onOpenChange }: ImportJsonDialogProps) 
           <Label htmlFor="import-json">JSON document</Label>
           <Textarea
             id="import-json"
+            disabled={pending}
             value={jsonText}
             onChange={(event) => setJsonText(event.target.value)}
             placeholder={'{\n  "version": "2.9.29",\n  "rows": [],\n  ...\n}'}
@@ -160,15 +159,20 @@ export function ImportJsonDialog({ open, onOpenChange }: ImportJsonDialogProps) 
           ) : null}
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
           <Button
             type="button"
             onClick={handleImport}
-            disabled={busy || importProject.isPending || jsonText.trim().length === 0}
+            disabled={pending || jsonText.trim().length === 0}
           >
-            {busy || importProject.isPending ? "Importing…" : "Import"}
+            {pending ? "Importing…" : "Import"}
           </Button>
         </DialogFooter>
       </DialogContent>
