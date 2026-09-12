@@ -1,6 +1,6 @@
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
-import { getProjectOrThrow } from "./_project-store.js";
+import { getProjectOrThrow } from "../server/projects/repository.js";
 import { planningEntries } from "../shared/planning.js";
 import { projectPath } from "../shared/project-routes.js";
 
@@ -56,7 +56,7 @@ export default defineAction({
       id: string;
       title: string;
       excerpt: string;
-      target: { rowId: string; choiceId?: string; addonId?: string };
+      target: { projectId: string; rowId: string; choiceId?: string; addonId?: string };
       editorPath: string;
       viewerPath: string;
     }> = [];
@@ -77,7 +77,7 @@ export default defineAction({
         id: entry.entity.id,
         title: title.slice(0, 200),
         excerpt: excerpt(body, needle),
-        target: entry.target,
+        target: { projectId, ...entry.target },
         editorPath: `${projectPath(projectId, "editor")}?${params}`,
         viewerPath: `${projectPath(projectId, "viewer")}?${params}`,
       });

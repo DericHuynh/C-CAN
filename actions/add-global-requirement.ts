@@ -1,9 +1,9 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { createDefaultGlobalRequirement } from "../shared/cyoa.js";
-import { getProjectOrThrow, saveProject } from "./_project-store.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -13,12 +13,12 @@ export default defineAction({
     projectId: z.string().describe("Project id"),
     name: z.string().optional().describe('Requirement name; defaults to "Requirement"'),
   }),
-  run: async ({ projectId, name }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, name }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     const requirement = createDefaultGlobalRequirement(name ?? "Requirement");
     app.globalRequirements ??= [];
     app.globalRequirements.push(requirement);
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { requirement };
   },
 });

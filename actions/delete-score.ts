@@ -1,8 +1,9 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { assertFound, getProjectOrThrow, saveProject } from "./_project-store.js";
+import { assertFound } from "../shared/assert.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -13,8 +14,8 @@ export default defineAction({
     choiceId: z.string().describe("Choice id"),
     scoreId: z.string().describe("Score id (the point type id it was created for)"),
   }),
-  run: async ({ projectId, rowId, choiceId, scoreId }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, rowId, choiceId, scoreId }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     const row = app.rows.find((r) => r.id === rowId);
     assertFound(row, `Row "${rowId}" not found in project "${projectId}"`);
     const choice = row.objects.find((c) => c.id === choiceId);
@@ -22,7 +23,7 @@ export default defineAction({
     const index = choice.scores.findIndex((s) => s.id === scoreId);
     assertFound(index !== -1, `Score "${scoreId}" not found in choice "${choiceId}"`);
     choice.scores.splice(index, 1);
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { ok: true };
   },
 });

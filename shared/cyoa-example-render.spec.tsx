@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vite-plus/test";
 
 import { normalizeApp } from "./cyoa";
-import { CyoaViewer } from "../app/components/projects/CyoaViewer";
+import { CyoaViewer } from "../app/features/viewer/CyoaViewer";
 
 const EXAMPLE_PATH = new URL("../examples/project.json", import.meta.url).pathname;
 
@@ -64,7 +64,7 @@ describe.skipIf(!exampleExists)("viewer render applies examples/project.json sty
   });
 
   it("does not put the bg-card utility on choice cards", () => {
-    const cardOpen = html.match(/<div data-cyoa-choice="[^"]*" class="([^"]*)"/);
+    const cardOpen = html.match(/<div data-cyoa-choice="[^"]*"[^>]* class="([^"]*)"/);
     expect(cardOpen).toBeTruthy();
     expect(cardOpen![1]).not.toMatch(/\bbg-card\b/);
   });
@@ -88,7 +88,7 @@ describe.skipIf(!exampleExists)("viewer render applies examples/project.json sty
     // to the bottom of the scrollport from the start (the original viewer's
     // bottom bar). The rows container is the only direct child with the rows.
     const barIdx = html.indexOf("sticky bottom-0 z-20");
-    const rowsIdx = html.indexOf("row-gap-6");
+    const rowsIdx = html.indexOf("data-cyoa-row=");
     expect(barIdx).toBeGreaterThan(-1);
     expect(rowsIdx).toBeGreaterThan(-1);
     expect(barIdx).toBeGreaterThan(rowsIdx);

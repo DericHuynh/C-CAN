@@ -11,6 +11,8 @@
   },
   "include": [
     "app/**/*",
+    "actions/**/*",
+    "tests/**/*",
     "server/**/*",
     "shared/**/*",
     "vite.config.ts",

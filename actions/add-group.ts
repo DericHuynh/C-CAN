@@ -1,9 +1,9 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { createDefaultGroup } from "../shared/cyoa.js";
-import { getProjectOrThrow, saveProject } from "./_project-store.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -14,13 +14,13 @@ export default defineAction({
     rowElements: z.array(z.string()).optional().describe("Initial row ids"),
     elements: z.array(z.string()).optional().describe("Initial choice ids"),
   }),
-  run: async ({ projectId, name, rowElements, elements }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, name, rowElements, elements }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     const group = createDefaultGroup(name ?? "Group");
     group.rowElements = [...new Set(rowElements ?? [])];
     group.elements = [...new Set(elements ?? [])];
     app.groups.push(group);
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { group };
   },
 });

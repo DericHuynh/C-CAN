@@ -1,7 +1,8 @@
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { getProjectOrThrow, toProjectDetail } from "./_project-store.js";
+import { getProjectOrThrow, canEditProject } from "../server/projects/repository.js";
+import { toProjectDetail } from "../server/projects/presentation.js";
 
 export default defineAction({
   description:
@@ -21,6 +22,6 @@ export default defineAction({
   }),
   run: async ({ id }, ctx) => {
     const { row, app } = await getProjectOrThrow(id, ctx, "viewer");
-    return toProjectDetail(row, app);
+    return { ...toProjectDetail(row, app), canEdit: await canEditProject(id, ctx) };
   },
 });

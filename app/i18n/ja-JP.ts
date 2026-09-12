@@ -1,6 +1,20 @@
 import enUS from "./en-US";
 
 const messages = {
+  publishing: {
+    ...enUS.publishing,
+    explorer: "ICYOA エクスプローラー",
+    search: "検索",
+    publish: "公開",
+    play: "プレイ",
+    overall: "総合評価",
+    writing: "文章",
+    gameplay: "ゲーム性",
+    presentation: "表現",
+    fullscreen: "全画面",
+    myProjects: "マイプロジェクト",
+    ratings: "読者の評価",
+  },
   viewerFeedback: {
     previous: "前のセクション",
     next: "次のセクション",

@@ -1,0 +1,8 @@
+{
+  "doctor": {
+    "dbToolScopingDenylist": {
+      "e621_tags": "Shared public e621 reference metadata, written only from provider responses through tag catalog actions; no tenant data. Raw DB tools deny unscoped tables.",
+      "e621_tag_queries": "Internal tag refresh timestamps keyed by hashed queries; no project content. Raw DB tools deny unscoped tables."
+    }
+  }
+}

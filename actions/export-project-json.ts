@@ -1,11 +1,11 @@
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { getProjectOrThrow } from "./_project-store.js";
+import { getProjectOrThrow } from "../server/projects/repository.js";
 
 export default defineAction({
   description:
-    "Export a project's CYOA document as a parsed JSON object (ready to download or copy). Images live in blob storage and export as URL references (imageIsURL: true) — the document stays compatible with the original ICCPlus editor, which renders remote image URLs natively.",
+    "Export a project's CYOA document as a parsed JSON object (ready to download or copy). Images live in blob storage and export as URL references (imageIsURL: true) — exports retain C-CAN image resource IDs for reimport here, and are not promised to reopen in the original ICCPlus editor.",
   schema: z.object({
     id: z.string().describe("Project id"),
   }),

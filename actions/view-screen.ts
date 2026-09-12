@@ -1,3 +1,5 @@
+import { getPublication, listPublications } from "../server/publishing/repository.js";
+import { explorerFilters } from "../shared/publications.js";
 /**
  * See what the user is currently looking at on screen.
  *
@@ -32,6 +34,12 @@ export default defineAction({
 
     const screen: Record<string, unknown> = {};
     if (navigation) screen.navigation = navigation;
+    if (typeof navigation?.publicationId === "string") {
+      screen.publication = await getPublication(navigation.publicationId, false, ctx);
+    } else if (navigation?.view === "explorer") {
+      const filters = explorerFilters.safeParse(navigation);
+      if (filters.success) screen.explorer = await listPublications(filters.data);
+    }
     const parsed = z
       .object({
         projectId: z.string(),

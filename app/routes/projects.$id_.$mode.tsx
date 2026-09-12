@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 
-export { default, meta } from "@/components/projects/ProjectPage";
+export { default, meta } from "@/features/projects/ProjectPage";
 
 export function loader({ params }: LoaderFunctionArgs) {
   if (!["editor", "visual-editor", "viewer"].includes(params.mode ?? "")) {

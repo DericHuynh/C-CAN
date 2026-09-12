@@ -1,9 +1,9 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { createDefaultPointType } from "../shared/cyoa.js";
-import { getProjectOrThrow, saveProject } from "./_project-store.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -16,14 +16,14 @@ export default defineAction({
     beforeText: z.string().optional().describe("Label shown before the value"),
     afterText: z.string().optional().describe("Label shown after the value"),
   }),
-  run: async ({ projectId, name, startingSum, beforeText, afterText }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, name, startingSum, beforeText, afterText }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     const pointType = createDefaultPointType(app, name ?? "Points");
     if (startingSum !== undefined) pointType.startingSum = startingSum;
     if (beforeText !== undefined) pointType.beforeText = beforeText;
     if (afterText !== undefined) pointType.afterText = afterText;
     app.pointTypes.push(pointType);
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { pointType };
   },
 });

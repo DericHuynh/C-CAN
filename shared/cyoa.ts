@@ -1,3 +1,4 @@
+import { ensureAddonIds } from "./project-identities";
 /**
  * ICCPlus CYOA domain helpers.
  *
@@ -934,6 +935,7 @@ export function normalizeApp(raw: unknown): App {
     return { ...fallback, ...present };
   };
   const app = merged as App;
+  ensureAddonIds(app);
   const normalizeRow = (row: Row, i: number): Row => {
     const {
       id,

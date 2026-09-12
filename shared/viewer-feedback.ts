@@ -11,7 +11,21 @@ export type ViewerTarget = z.infer<typeof viewerTargetSchema>;
 
 // Browser observations are untrusted, bounded context, never instructions.
 export const viewerObservationSchema = z.object({
-  path: z.string().max(2000),
+  path: z.string().max(4000),
+  documentRevision: z.string().max(100).optional(),
+  visibleAddonIds: z.array(z.string().max(200)).max(80).optional(),
+  qa: z
+    .object({
+      horizontalOverflow: z.boolean(),
+      clippedTextBlocks: z.number().int().nonnegative().optional(),
+      missingImages: z.number().int().nonnegative(),
+      pendingImages: z.number().int().nonnegative(),
+      narrowViewport: z.boolean(),
+      targetLocked: z.boolean().optional(),
+      contrast: z.literal("requires-visual-review"),
+      scope: z.literal("viewport-dom-checks"),
+    })
+    .optional(),
   width: z.number().int().positive().max(4096),
   height: z.number().int().positive().max(4096),
   visibleRowIds: z.array(z.string().max(200)).max(40),
@@ -29,6 +43,7 @@ export const viewerCaptureCommandSchema = z.object({
   browserTabId: z.string(),
   path: z.string(),
   token: z.string(),
+  documentRevision: z.string().optional(),
   expiresAt: z.number(),
 });
 export type ViewerCaptureCommand = z.infer<typeof viewerCaptureCommandSchema>;

@@ -1,9 +1,10 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { createDefaultScore } from "../shared/cyoa.js";
-import { assertFound, getProjectOrThrow, saveProject } from "./_project-store.js";
+import { assertFound } from "../shared/assert.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -16,8 +17,8 @@ export default defineAction({
     pointTypeId: z.string().describe("Point type id to score against"),
     value: z.number().optional().describe("Score value; defaults to 1"),
   }),
-  run: async ({ projectId, rowId, choiceId, pointTypeId, value }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, rowId, choiceId, pointTypeId, value }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     const pointType = app.pointTypes.find((p) => p.id === pointTypeId);
     assertFound(pointType, `Point type "${pointTypeId}" not found in project "${projectId}"`);
     const row = app.rows.find((r) => r.id === rowId);
@@ -26,7 +27,7 @@ export default defineAction({
     assertFound(choice, `Choice "${choiceId}" not found in row "${rowId}"`);
     const score = createDefaultScore(pointTypeId, value ?? 1);
     choice.scores.push(score);
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { score };
   },
 });

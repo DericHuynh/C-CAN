@@ -1,9 +1,11 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { createDefaultChoice } from "../shared/cyoa.js";
-import { assertFound, getProjectOrThrow, reindexChoices, saveProject } from "./_project-store.js";
+import { assertFound } from "../shared/assert.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
+import { reindexChoices } from "../shared/collections.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -20,8 +22,8 @@ export default defineAction({
         "Choice fields to set at creation (title, text, image, template, objectWidth, scores, groups, requireds, imageVariants, styling, addons, …). `id` is always generated.",
       ),
   }),
-  run: async ({ projectId, rowId, index, fields }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, rowId, index, fields }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     const row = app.rows.find((r) => r.id === rowId);
     assertFound(row, `Row "${rowId}" not found in project "${projectId}"`);
     const insertAt = index ?? row.objects.length;
@@ -32,7 +34,7 @@ export default defineAction({
     }
     row.objects.splice(insertAt, 0, choice);
     reindexChoices(row.objects);
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { choice };
   },
 });

@@ -1,12 +1,9 @@
-import { projectAudit } from "./_project-audit.js";
+import { deleteProjectRecord } from "../server/projects/repository.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { eq } from "./_drizzle.js";
-
-import { getDb } from "../server/db/index.js";
-import { projects } from "../server/db/schema.js";
-import { getProjectOrThrow } from "./_project-store.js";
+import { getProjectOrThrow } from "../server/projects/repository.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -17,8 +14,7 @@ export default defineAction({
   run: async ({ id }, ctx) => {
     // getProjectOrThrow enforces editor access before the delete.
     await getProjectOrThrow(id, ctx, "editor");
-    const db = getDb();
-    await db.delete(projects).where(eq(projects.id, id));
+    await deleteProjectRecord(id);
     return { ok: true };
   },
 });

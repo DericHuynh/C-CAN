@@ -1,5 +1,5 @@
-import { planningStatusChanged } from "../server/agent/project-events.js";
-import { projectAudit } from "./_project-audit.js";
+import { planningStatusChanged } from "../server/projects/events.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 import {
@@ -9,7 +9,8 @@ import {
   planningKey,
   PLAN_STATUSES,
 } from "../shared/planning.js";
-import { assertFound, getProjectOrThrow, saveProject } from "./_project-store.js";
+import { assertFound } from "../shared/assert.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -75,7 +76,7 @@ export default defineAction({
       draft.baseText = draft.text;
     }
     entry.entity.planning = draft;
-    await saveProject(projectId, app, row.json);
+    await saveProject(projectId, app, row.json, undefined, { merge: false });
     planningStatusChanged(
       projectId,
       entry.target,

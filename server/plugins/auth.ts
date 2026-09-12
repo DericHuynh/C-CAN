@@ -11,6 +11,11 @@ export default createAuthPlugin({
   // projects 403 and every mutation requires the owner/editor role — so
   // anonymous callers can only view (and only projects marked Public).
   publicPaths: [
+    "/explorer",
+    "/play",
+    "/_agent-native/actions/list-publications",
+    "/_agent-native/actions/search-tags",
+    "/_agent-native/actions/get-publication",
     "/projects",
     "/_agent-native/actions/get-project",
     "/_agent-native/actions/get-project-summary",

@@ -1,12 +1,8 @@
+import { listAccessibleProjects } from "../server/projects/queries.js";
 import { defineAction } from "@agent-native/core/action";
-import { accessFilter } from "@agent-native/core/sharing";
 import { z } from "zod";
 
-import { desc } from "./_drizzle.js";
-
-import { getDb } from "../server/db/index.js";
-import { projectShares, projects } from "../server/db/schema.js";
-import { toProjectSummary } from "./_project-store.js";
+import { toProjectSummary } from "../server/projects/presentation.js";
 
 export default defineAction({
   description:
@@ -27,16 +23,7 @@ export default defineAction({
     description: "All projects, most recently updated first",
   },
   run: async (_params, ctx) => {
-    const db = getDb();
-    // Only list projects the caller can see (own, shared with them, or public
-    // when the list opts into cross-user discovery — private stays private).
-    const rows = await db
-      .select()
-      .from(projects)
-      .where(
-        accessFilter(projects, projectShares, ctx ? { ...ctx, orgId: ctx.orgId ?? undefined } : undefined),
-      )
-      .orderBy(desc(projects.updatedAt));
+    const rows = await listAccessibleProjects(ctx);
     const summaries = rows.map((row) => toProjectSummary(row));
     return {
       projects: summaries,

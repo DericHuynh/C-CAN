@@ -1,5 +1,6 @@
-import { projectCreated } from "../server/agent/project-events.js";
-import { projectAudit } from "./_project-audit.js";
+import { insertProject } from "../server/projects/repository.js";
+import { projectCreated } from "../server/projects/events.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { randomUUID } from "node:crypto";
 
 import { defineAction } from "@agent-native/core/action";
@@ -7,11 +8,10 @@ import { notify } from "@agent-native/core/notifications";
 import { completeRun, startRun, updateRunProgress } from "@agent-native/core/progress";
 import { z } from "zod";
 
-import { getDb } from "../server/db/index.js";
-import { projects } from "../server/db/schema.js";
 import { aclImportImages, normalizeApp, parseProjectDocument } from "../shared/cyoa.js";
-import { externalizeAppImages } from "./_blob-images.js";
-import { newProjectRow, toProjectDetail } from "./_project-store.js";
+import { externalizeAppImages } from "../server/media/blob-images.js";
+import { newProjectRow } from "../server/projects/repository.js";
+import { toProjectDetail } from "../server/projects/presentation.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -71,8 +71,7 @@ export default defineAction({
         ownerEmail: ctx?.userEmail ?? null,
         orgId: ctx?.orgId ?? null,
       });
-      const db = getDb();
-      await db.insert(projects).values(row);
+      await insertProject(row);
       projectCreated(row.id, "import", ctx);
 
       if (run) {

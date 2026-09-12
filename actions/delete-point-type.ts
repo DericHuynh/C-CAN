@@ -1,8 +1,9 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { assertFound, getProjectOrThrow, saveProject } from "./_project-store.js";
+import { assertFound } from "../shared/assert.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -12,8 +13,8 @@ export default defineAction({
     projectId: z.string().describe("Project id"),
     pointTypeId: z.string().describe("Point type id"),
   }),
-  run: async ({ projectId, pointTypeId }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, pointTypeId }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     const index = app.pointTypes.findIndex((p) => p.id === pointTypeId);
     assertFound(index !== -1, `Point type "${pointTypeId}" not found in project "${projectId}"`);
     app.pointTypes.splice(index, 1);
@@ -27,7 +28,7 @@ export default defineAction({
         }
       }
     }
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { ok: true };
   },
 });

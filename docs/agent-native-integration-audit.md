@@ -1,5 +1,11 @@
 # Agent Native integration audit
 
+September 12 follow-up: [CYOA collaboration](./cyoa-collaboration.md) supersedes
+the collaboration deferrals below. Structured field/item merges, reconciled drafts,
+resource-scoped sync and Core presence are now integrated. A subsequent live-edit
+pass adds field-level Yjs text, immediate previews, background autosave and
+agent-snapshot reconciliation. Collaborative undo remains a separate capability.
+
 Reviewed 2026-09-11 against **Core 0.133.1** and **Toolkit 0.12.1**, the versions installed in this checkout. The audit inventories all **161 installed documentation topics**, reviews their applicability, and checks the relevant public APIs against packaged source. It also compares the current official documentation navigation. This is a catalog-wide integration review, not a claim that every example or external service was executed.
 
 The version-matched documentation lives in `node_modules/@agent-native/core/docs/content/`; runtime and template reference sources are packaged alongside it. The online docs have additional, newer pages and subdivided deployment/API guides. Newer APIs must be checked against installed exports before use. No framework upgrade or new framework patch was introduced.
@@ -270,7 +276,6 @@ and Doctor reports no findings or warnings across all nine guards. Desktop and
 mobile browser checks passed; the returned viewer and visual-editor JPEGs were
 inspected directly. The disposable browser project was removed after verification.
 
-
 ## Agent integrations follow-up — 2026-09-11
 
 Rechecked the current official [action definitions](https://www.agent-native.com/docs/actions-defining/),
@@ -315,12 +320,12 @@ Implemented:
 
 Useful next connections, once the user chooses and configures a service:
 
-| Connection | CYOA use | Setup needed |
-| --- | --- | --- |
-| Assets/Design app over workspace MCP/A2A | Art candidates and consistent visual references | A reachable app, scoped connection and image-capable provider where needed |
-| Content/Brain or Notion | Search a lore bible before drafting linked passages | User-authorized content connection; keep project edits in local actions |
-| GitHub | Track release/review issues and exported project revisions | Repository connection and explicit authorization for writes |
-| Existing native automation tools | Review a draft when its status becomes review; inspect a new import | User-defined event job, configured model and deployed runner |
+| Connection                               | CYOA use                                                            | Setup needed                                                               |
+| ---------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Assets/Design app over workspace MCP/A2A | Art candidates and consistent visual references                     | A reachable app, scoped connection and image-capable provider where needed |
+| Content/Brain or Notion                  | Search a lore bible before drafting linked passages                 | User-authorized content connection; keep project edits in local actions    |
+| GitHub                                   | Track release/review issues and exported project revisions          | Repository connection and explicit authorization for writes                |
+| Existing native automation tools         | Review a draft when its status becomes review; inspect a new import | User-defined event job, configured model and deployed runner               |
 
 For example, an opted-in review job can listen to `cyoa.planning.status-changed`,
 condition on the desired project/organization and `status` being `review`, read

@@ -8,6 +8,8 @@ describe("agent navigation", () => {
     ["/projects", "projects"],
     ["/projects/story", "projects"],
     ["/settings", "settings"],
+    ["/settings/account", "settings"],
+    ["/settings/agent/automations", "settings"],
     ["/team", "settings"],
     ["/agent", "agent"],
     ["/database", "database"],
@@ -52,11 +54,11 @@ describe("agent navigation", () => {
     expect(
       pathForCommand({ view: "projects", projectId: "story/one", mode: "viewer", tab: "groups" }),
     ).toBe("/projects/story%2Fone/viewer?tab=groups");
-    expect(pathForCommand({ view: "team" })).toBe("/settings#organization");
+    expect(pathForCommand({ view: "team" })).toBe("/settings/organization");
   });
 });
 
-it("roundtrips a planning addon selection through agent navigation", () => {
+it("opens legacy planning addon selections in Rows through agent navigation", () => {
   const command = {
     view: "projects",
     projectId: "story",
@@ -66,7 +68,20 @@ it("roundtrips a planning addon selection through agent navigation", () => {
     addonId: "addon",
   };
   const url = new URL(pathForCommand(command), "https://example.com");
-  expect(navigationForLocation({ pathname: url.pathname, search: url.search })).toMatchObject(
-    command,
-  );
+  expect(navigationForLocation({ pathname: url.pathname, search: url.search })).toMatchObject({
+    ...command,
+    tab: "rows",
+  });
+});
+
+it("exposes Explorer filters and public player targets without claiming draft access", () => {
+  expect(
+    navigationForLocation({ pathname: "/explorer", search: "?q=crsytal&tag=fantasy&content=sfw" }),
+  ).toMatchObject({ view: "explorer", query: "crsytal", tags: ["fantasy"], content: "sfw" });
+  const command = { view: "play", publicationId: "story one", rowId: "opening" };
+  const url = new URL(pathForCommand(command), "https://example.test");
+  const state = navigationForLocation({ pathname: url.pathname, search: url.search });
+  expect(state).toMatchObject(command);
+  expect(state.projectId).toBeUndefined();
+  expect(pathForCommand({ view: "explorer" })).toBe("/explorer");
 });

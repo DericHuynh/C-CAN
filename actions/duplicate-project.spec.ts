@@ -1,13 +1,13 @@
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 import { getDb } from "../server/db/index.js";
 import { createDefaultApp } from "../shared/cyoa.js";
-import { getProjectOrThrow, newProjectRow } from "./_project-store.js";
+import { getProjectOrThrow, newProjectRow } from "../server/projects/repository.js";
 import duplicateProject from "./duplicate-project.js";
 
 vi.mock("../server/db/index.js", () => ({ getDb: vi.fn() }));
 vi.mock("@agent-native/core/notifications", () => ({ notify: vi.fn() }));
-vi.mock("./_project-store.js", async (original) => ({
-  ...(await original<typeof import("./_project-store.js")>()),
+vi.mock("../server/projects/repository.js", async (original) => ({
+  ...(await original<typeof import("../server/projects/repository.js")>()),
   getProjectOrThrow: vi.fn(),
 }));
 
@@ -38,7 +38,7 @@ it("makes a shared project's copy private and owned by the caller's active organ
       ownerEmail: ctx.userEmail,
       orgId: ctx.orgId,
       visibility: "private",
-      isSeed: false,
+      isSeed: 0,
     }),
   );
   expect(result.id).not.toBe("source");

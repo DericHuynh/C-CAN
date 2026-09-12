@@ -1,9 +1,11 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { createDefaultChoice } from "../shared/cyoa.js";
-import { assertFound, getProjectOrThrow, reindexChoices, saveProject } from "./_project-store.js";
+import { assertFound } from "../shared/assert.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
+import { reindexChoices } from "../shared/collections.js";
 
 const choiceSpec = z.object({
   index: z
@@ -34,8 +36,8 @@ export default defineAction({
         "Choice specs to create, in order. Consecutive specs without `index` append at the end.",
       ),
   }),
-  run: async ({ projectId, rowId, choices }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, rowId, choices }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     const row = app.rows.find((r) => r.id === rowId);
     assertFound(row, `Row "${rowId}" not found in project "${projectId}"`);
     const created: ReturnType<typeof createDefaultChoice>[] = [];
@@ -50,7 +52,7 @@ export default defineAction({
       created.push(choice);
     }
     reindexChoices(row.objects);
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { choices: created };
   },
 });

@@ -2,11 +2,11 @@ import { defineAction } from "@agent-native/core/action";
 import { readAppState, readAppStateForCurrentTab } from "@agent-native/core/application-state";
 import { z } from "zod";
 import { assertAccess } from "@agent-native/core/sharing";
-import { readViewerCapture, requestViewerCapture } from "./_viewer-capture.js";
+import { readViewerCapture, requestViewerCapture } from "../server/viewer/capture.js";
 
 export default defineAction({
   description:
-    "Get a picture of the current CYOA viewer or visual editor, plus visible row/choice IDs and build selection count. Requires an open browser tab. Use navigate first to visit a target, then call view-screen to confirm it. If pending, call again with requestId and browserTabId. Images require a vision-capable model; never claim visual inspection on a text-only model.",
+    "Get a picture of the current CYOA viewer or visual editor, plus visible row/choice IDs and build selection count. Requires an open browser tab. Prefer preview-project to open a target from any page, confirm the saved revision and capture in one call. If pending, call again with requestId and browserTabId. Images require a vision-capable model; never claim visual inspection on a text-only model.",
   schema: z.object({
     requestId: z.uuid().optional(),
     browserTabId: z

@@ -191,7 +191,7 @@ import {
   rowButtonStyle,
   rowSurfaceStyle,
   textStyle,
-} from "../app/components/projects/cyoa-styles.js";
+} from "../app/features/viewer/cyoa-styles.js";
 import type { App, Choice, Row } from "./types.js";
 
 const EXAMPLE_PATH = new URL("../examples/project.json", import.meta.url).pathname;

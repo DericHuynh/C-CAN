@@ -1,6 +1,20 @@
 import enUS from "./en-US";
 
 const messages = {
+  publishing: {
+    ...enUS.publishing,
+    explorer: "ICYOA 探索",
+    search: "搜索",
+    publish: "发布",
+    play: "游玩",
+    overall: "总体评分",
+    writing: "文笔",
+    gameplay: "玩法",
+    presentation: "表现",
+    fullscreen: "全屏",
+    myProjects: "我的项目",
+    ratings: "读者评分",
+  },
   viewerFeedback: {
     previous: "上一节",
     next: "下一节",

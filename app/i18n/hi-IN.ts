@@ -1,6 +1,20 @@
 import enUS from "./en-US";
 
 const messages = {
+  publishing: {
+    ...enUS.publishing,
+    explorer: "ICYOA एक्सप्लोरर",
+    search: "खोजें",
+    publish: "प्रकाशित करें",
+    play: "खेलें",
+    overall: "समग्र रेटिंग",
+    writing: "लेखन",
+    gameplay: "गेमप्ले",
+    presentation: "प्रस्तुति",
+    fullscreen: "फ़ुलस्क्रीन",
+    myProjects: "मेरे प्रोजेक्ट",
+    ratings: "पाठकों की रेटिंग",
+  },
   viewerFeedback: {
     previous: "पिछला खंड",
     next: "अगला खंड",

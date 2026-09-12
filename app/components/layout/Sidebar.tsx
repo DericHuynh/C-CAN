@@ -1,3 +1,4 @@
+import { IconCompass } from "@tabler/icons-react";
 import {
   navigateWithAgentChatViewTransition,
   useChatThreads,
@@ -30,6 +31,7 @@ import { APP_TITLE } from "@/lib/app-config";
 import { cn } from "@/lib/utils";
 
 const navItems = [
+  { icon: IconCompass, labelKey: "publishing.explorer", href: "/explorer", view: "explorer" },
   {
     icon: IconMessageCircle,
     labelKey: "navigation.chat",

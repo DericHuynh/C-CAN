@@ -1,6 +1,6 @@
 # Feature plan for large interactive CYOAs
 
-Status: roadmap with a first implementation of linked document planning. Content → Plan now provides a searchable row/choice/addon outline, rich-text/source drafting, editorial and image status, author/mechanics/art notes, source links, save/recovery, explicit text application, conflict checks, and contextual editor/viewer/image links. It does not import Word files or implement the full roadmap below.
+Status: historical roadmap. The Plan tab was removed in favor of Content → Rows. Existing planning draft data and the get-project-plan / update-planning-entry actions remain available; the UI milestones below describe the earlier design, not the current navigation.
 
 The second author reference is a Word outline with IDs, requirements, costs, prose, conditional addons, unknown image status, and candidate source links. The implemented Plan workspace keeps these together around the corresponding CYOA entity. Only the selected prose editor and a bounded outline page are mounted. The project route still loads the full document; scoped frontend document fetching and deeply nested author-defined folders remain future work. The planning action supports bounded outline reads and single-entry drafts for agent use.
 
@@ -31,7 +31,7 @@ Prioritize organization and writing first, then dependency inspection and contro
 | Image resources and blob uploads                        | Asset planning still needs usage indexes, real size metadata, thumbnails, and review queues.                                                             |
 | Project statistics                                      | Counts do not express completion or readiness. Current image ranking treats remote references as zero bytes; string length is not a useful size metric.  |
 
-Relevant source: `app/hooks/use-projects.ts`, `actions/get-project-summary.ts`, `actions/_project-store.ts`, `actions/patch-app-document.ts`, `server/plugins/project-resources.ts`, `server/plugins/collab.ts`, and `app/components/projects/ProjectStatsPanel.tsx`.
+Relevant source: `app/features/projects/use-projects.ts`, `actions/get-project-summary.ts`, `server/projects/repository.ts`, `actions/patch-app-document.ts`, `server/plugins/project-resources.ts`, `server/plugins/collab.ts`, and `app/features/editor/ProjectStatsPanel.tsx`.
 
 ## 1. A plan connected to the actual CYOA
 
@@ -156,3 +156,8 @@ These are acceptance targets to validate on documented hardware, not existing pe
 - Concurrent UI/agent edits, stale bulk previews, undo after subsequent edits, and stale-index reads get explicit, tested outcomes.
 - Import/export and migrations retain unknown document fields and existing engine behavior. Run the existing example roundtrip/import checks when touching normalization or persisted document structure.
 - Judge progress by completed briefs, reviewed content, resolved findings, and passing scenarios. The screenshot's 449-hour heuristic is not an implementation estimate or a reliable completion forecast.
+
+Foundation follow-up: document saves now require a stored-JSON baseline for every
+writer, settings metadata saves atomically with content, and dependency boundaries
+are enforced. See [architecture](architecture.md). An explicit revision column,
+scoped frontend document queries and the remaining roadmap are still future work.

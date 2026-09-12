@@ -3,11 +3,11 @@ import { readAppState } from "@agent-native/core/application-state";
 import { queryAuditEvents } from "@agent-native/core/audit";
 import { assertAccess } from "@agent-native/core/sharing";
 import { createDefaultApp, createDefaultChoice, createDefaultRow } from "../shared/cyoa.js";
-import { getProjectOrThrow, newProjectRow } from "./_project-store.js";
+import { getProjectOrThrow, newProjectRow } from "../server/projects/repository.js";
 import context from "./get-project-context.js";
 import viewScreen from "./view-screen.js";
 import changes from "./list-project-changes.js";
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 
 vi.mock("@agent-native/core/application-state", () =>
   (() => {
@@ -20,8 +20,8 @@ vi.mock("@agent-native/core/sharing", async (original) => ({
   ...(await original<typeof import("@agent-native/core/sharing")>()),
   assertAccess: vi.fn(),
 }));
-vi.mock("./_project-store.js", async (original) => ({
-  ...(await original<typeof import("./_project-store.js")>()),
+vi.mock("../server/projects/repository.js", async (original) => ({
+  ...(await original<typeof import("../server/projects/repository.js")>()),
   getProjectOrThrow: vi.fn(),
 }));
 

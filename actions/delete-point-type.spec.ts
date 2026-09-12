@@ -8,10 +8,10 @@ import {
   createDefaultRow,
   createDefaultScore,
 } from "../shared/cyoa.js";
-import { getProjectOrThrow, saveProject } from "./_project-store.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
 import deletePointType from "./delete-point-type.js";
 
-vi.mock("./_project-store.js", () => ({
+vi.mock("../server/projects/repository.js", () => ({
   getProjectOrThrow: vi.fn(),
   saveProject: vi.fn(),
   assertFound: (value: unknown, message: string) => {
@@ -46,9 +46,10 @@ describe("delete-point-type", () => {
     };
     app.rows = [makeRow()];
     app.backpack = [makeRow()];
-    vi.mocked(getProjectOrThrow).mockResolvedValue({ app } as Awaited<
-      ReturnType<typeof getProjectOrThrow>
-    >);
+    vi.mocked(getProjectOrThrow).mockResolvedValue({
+      app,
+      row: { json: "original-json" },
+    } as Awaited<ReturnType<typeof getProjectOrThrow>>);
 
     await deletePointType.run({ projectId: "project-test", pointTypeId: deleted.id });
 
@@ -58,6 +59,6 @@ describe("delete-point-type", () => {
       expect(choice.scores.map((score) => score.id)).toEqual([kept.id]);
       expect(choice.addons[0].scores.map((score: { id: string }) => score.id)).toEqual([kept.id]);
     }
-    expect(saveProject).toHaveBeenCalledExactlyOnceWith("project-test", app);
+    expect(saveProject).toHaveBeenCalledExactlyOnceWith("project-test", app, "original-json");
   });
 });

@@ -15,8 +15,7 @@
 import { ensureResourceVersionsTable, registerVersionedResource } from "@agent-native/core/history";
 import { ensureReviewTables, registerReviewableResource } from "@agent-native/core/review";
 import { registerShareableResource } from "@agent-native/core/sharing";
-import { getDbExec } from "@agent-native/core/db";
-import { getProjectOrThrow, saveProject } from "../../actions/_project-store.js";
+import { getProjectOrThrow, saveProject } from "../projects/repository.js";
 
 import { getDb } from "../db/index.js";
 import { normalizeApp, parseProjectDocument } from "../../shared/cyoa.js";
@@ -70,45 +69,8 @@ registerReviewableResource({
   // Reuse Core sharing access, including invitations and organization scope.
 });
 
-/**
- * Ownership repair for projects created before owner tracking existed (or by
- * the seed): rows with `owner_email IS NULL` are invisible to the framework's
- * share actions — the share dialog's visibility/invite controls stay disabled
- * for everyone and `set-resource-visibility` / `share-resource` 403. Claim
- * such rows for the earliest-created user (the app's primary owner in this
- * standalone app) so sharing works on existing CYOAs.
- *
- * Idempotent: only touches NULL-owner rows, never rows that later gained an
- * explicit owner. Runs on every boot; becomes a no-op once the legacy rows
- * are claimed (all rows created through actions carry an owner).
- */
-async function claimUnownedProjects(): Promise<void> {
-  try {
-    const exec = getDbExec();
-    const { rows } = await exec.execute(
-      "SELECT email FROM user WHERE email IS NOT NULL ORDER BY created_at ASC, id ASC LIMIT 1",
-    );
-    const ownerEmail = rows[0]?.email as string | undefined;
-    if (!ownerEmail) return; // No user yet (fresh install) — nothing to claim.
-    await exec.execute({
-      sql: "UPDATE projects SET owner_email = ? WHERE owner_email IS NULL",
-      args: [ownerEmail],
-    });
-  } catch (error) {
-    // Best-effort repair — never take down the app if the auth tables are
-    // missing or the DB is unavailable at boot.
-    console.error("[sharing] failed to claim unowned projects:", error);
-  }
-}
-
-/**
- * Bootstrap the framework tables the registrations above depend on
- * (resource versions + review comments), and repair ownership on legacy
- * unowned projects so the share dialog works for them. Runs after the app's
- * own migrations have created the `projects`/`project_shares` tables.
- */
+/** Bootstrap the framework tables; ownership recovery is an explicit operator task. */
 export default async () => {
   await ensureResourceVersionsTable();
   await ensureReviewTables();
-  await claimUnownedProjects();
 };

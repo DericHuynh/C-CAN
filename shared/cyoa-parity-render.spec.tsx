@@ -16,7 +16,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vite-plus/test";
 
 import { normalizeApp } from "./cyoa";
-import { CyoaViewer } from "../app/components/projects/CyoaViewer";
+import { CyoaViewer } from "../app/features/viewer/CyoaViewer";
 
 const FIXTURES: Record<string, string> = {
   sleepers: new URL("../examples/SleepersDream.json", import.meta.url).pathname,

@@ -7,9 +7,9 @@ import { useSetPageTitle } from "@agent-native/toolkit/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ImportJsonDialog } from "@/components/projects/ImportJsonDialog";
-import { ProjectCard } from "@/components/projects/ProjectCard";
-import { extractProjectId, useCreateProject, useProjects } from "@/hooks/use-projects";
+import { ImportJsonDialog } from "@/features/projects/ImportJsonDialog";
+import { ProjectCard } from "@/features/projects/ProjectCard";
+import { extractProjectId, useCreateProject, useProjects } from "@/features/projects/use-projects";
 import { APP_TITLE } from "@/lib/app-config";
 
 export function meta() {

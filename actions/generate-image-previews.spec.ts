@@ -1,11 +1,14 @@
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 import { createDefaultApp } from "../shared/cyoa.js";
-import { getProjectOrThrow, saveProject } from "./_project-store.js";
-import { generateImagePreview } from "./_image-previews.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
+import { generateImagePreview } from "../server/media/image-previews.js";
 import action from "./generate-image-previews.js";
 
-vi.mock("./_project-store.js", () => ({ getProjectOrThrow: vi.fn(), saveProject: vi.fn() }));
-vi.mock("./_image-previews.js", () => ({ generateImagePreview: vi.fn() }));
+vi.mock("../server/projects/repository.js", () => ({
+  getProjectOrThrow: vi.fn(),
+  saveProject: vi.fn(),
+}));
+vi.mock("../server/media/image-previews.js", () => ({ generateImagePreview: vi.fn() }));
 beforeEach(() => vi.resetAllMocks());
 
 it("merges generated previews into the latest project without overwriting concurrent edits", async () => {
@@ -19,10 +22,11 @@ it("merges generated previews into the latest project without overwriting concur
   latest.images[1].image = "https://example.com/replacement.png";
   latest.images.pop();
   vi.mocked(getProjectOrThrow)
-    .mockResolvedValueOnce({ app } as never)
-    .mockResolvedValueOnce({ app: latest } as never);
+    .mockResolvedValueOnce({ app, row: { json: "original-json" } } as never)
+    .mockResolvedValueOnce({ app: latest, row: { json: "latest-json" } } as never);
   vi.mocked(generateImagePreview).mockImplementation(async (image) => {
     image.preview = {
+      version: 2,
       source: image.image!,
       data: "data:image/webp;base64,AAAA",
       width: 10,
@@ -39,13 +43,13 @@ it("merges generated previews into the latest project without overwriting concur
   expect(latest.images[0].name).toBe("Edited while downloading");
   expect(latest.images[0].preview).toBeDefined();
   expect(latest.images[1].preview).toBeUndefined();
-  expect(saveProject).toHaveBeenCalledWith("test", latest);
+  expect(saveProject).toHaveBeenCalledWith("test", latest, "latest-json");
 });
 
 it("does not rewrite the project if no preview could be generated", async () => {
   const app = createDefaultApp();
   app.images = [{ id: "bad", image: "https://example.com/unavailable.png" }];
-  vi.mocked(getProjectOrThrow).mockResolvedValue({ app } as never);
+  vi.mocked(getProjectOrThrow).mockResolvedValue({ app, row: { json: "original-json" } } as never);
   vi.mocked(generateImagePreview).mockResolvedValue(false);
   expect(await action.run({ projectId: "test", imageIds: ["bad"] })).toEqual({
     generated: [],

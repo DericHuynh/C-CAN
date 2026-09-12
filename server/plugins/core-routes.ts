@@ -12,18 +12,18 @@
  * puts the key name on the allowlist that the picker and the legacy env-vars
  * save route consult.
  */
-import { createCoreRoutesPlugin } from "@agent-native/core/server";
+import { createCoreRoutesPlugin, defineAppConfig } from "@agent-native/core/server";
 
 import { DEEPSEEK_API_KEY_ENV } from "../agent/deepseek-engine.js";
+
+defineAppConfig({ app: { id: "iccplus-agent-native", name: "ICCPlus CYOA Studio" } });
 
 export default createCoreRoutesPlugin({
   // Allow authenticated extension creation (POST /_agent-native/extensions) —
   // the agent-side create/manage tools are enabled in agent-chat.ts.
   extensionTools: true,
   // Branding for the /mcp/connect browser page + device-code flow.
-  mcpConnectAppId: "iccplus-agent-native",
-  mcpConnectServerName: "iccplus-agent-native",
-  mcpConnectAppName: "ICCPlus CYOA Studio",
+  mcp: { serverName: "iccplus-agent-native" },
   envKeys: [
     {
       key: DEEPSEEK_API_KEY_ENV,

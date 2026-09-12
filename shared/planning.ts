@@ -109,7 +109,7 @@ export function planningSearchText(entry: PlanningEntry): string {
 export function planningUrl(
   projectId: string,
   target: PlanningTarget,
-  tab = "plan",
+  tab = "rows",
   mode = "editor",
 ): string {
   const params = new URLSearchParams({ tab, rowId: target.rowId });

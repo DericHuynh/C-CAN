@@ -1,6 +1,6 @@
 import { getOrgContext } from "@agent-native/core/org";
 import type { MentionProvider } from "@agent-native/core/server";
-import searchProjects from "../../actions/search-projects.js";
+import { searchProjectTitles } from "../projects/queries.js";
 
 export const projectMentions: MentionProvider = {
   label: "Projects",
@@ -8,9 +8,9 @@ export const projectMentions: MentionProvider = {
     if (!event) return [];
     const { email, orgId } = await getOrgContext(event);
     if (!email) return [];
-    const result = await searchProjects.run(
+    const result = await searchProjectTitles(
       { query: query.slice(0, 200), limit: 8 },
-      { userEmail: email, orgId, caller: "frontend" },
+      { userEmail: email, orgId },
     );
     return result.projects.map((project) => ({
       id: `project:${project.id}`,

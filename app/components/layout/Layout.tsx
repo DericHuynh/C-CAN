@@ -30,6 +30,7 @@ export function Layout({ children }: LayoutProps) {
   const t = useT();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarPreferenceLoaded, setSidebarPreferenceLoaded] = useState(false);
   const isChatRoute = location.pathname === "/" || location.pathname.startsWith("/chat/");
   const chatHomeHandoffActive = useAgentChatHomeHandoff({
     storageKey: "chat",
@@ -61,16 +62,19 @@ export function Layout({ children }: LayoutProps) {
       if (stored !== null) setSidebarCollapsed(stored === "1");
     } catch {
       // Ignore storage access errors; the default collapsed state still works.
+    } finally {
+      setSidebarPreferenceLoaded(true);
     }
   }, []);
 
   useEffect(() => {
+    if (!sidebarPreferenceLoaded) return;
     try {
       window.localStorage.setItem(SIDEBAR_COLLAPSE_KEY, sidebarCollapsed ? "1" : "0");
     } catch {
       // Ignore storage access errors.
     }
-  }, [sidebarCollapsed]);
+  }, [sidebarCollapsed, sidebarPreferenceLoaded]);
 
   function openAskAgentFullscreen() {
     focusAgentChat();
@@ -94,6 +98,9 @@ export function Layout({ children }: LayoutProps) {
       </main>
     </div>
   );
+
+  // A published player is an intentionally standalone public surface.
+  if (/^\/play\/[^/]+\/?$/.test(location.pathname)) return <>{children}</>;
 
   return (
     <HeaderActionsProvider>

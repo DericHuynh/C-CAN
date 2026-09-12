@@ -2,7 +2,11 @@ import { beforeEach, expect, it, vi } from "vite-plus/test";
 import sharp from "sharp";
 import { assertAccess } from "@agent-native/core/sharing";
 import { uploadFile } from "@agent-native/core/file-upload";
-import { acceptViewerCapture, readViewerCapture, requestViewerCapture } from "./_viewer-capture.js";
+import {
+  acceptViewerCapture,
+  readViewerCapture,
+  requestViewerCapture,
+} from "../server/viewer/capture.js";
 import { VIEWER_CAPTURE_TTL, type ViewerObservation } from "../shared/viewer-feedback.js";
 
 const fixture = vi.hoisted(() => ({
@@ -42,7 +46,7 @@ vi.mock("@agent-native/core/file-upload", () => ({
     return { provider: "local", id: "image.bin", url: "/uploads/image.bin" };
   }),
 }));
-vi.mock("../server/plugins/file-upload.js", () => ({
+vi.mock("../server/storage/local-uploads.js", () => ({
   readUploadedFile: vi.fn(async (id: string) => ({
     data: fixture.blobs.get(id)!,
     mimeType: "application/octet-stream",
@@ -68,7 +72,7 @@ beforeEach(async () => {
   fixture.states.clear();
   fixture.tokens.clear();
   fixture.blobs.clear();
-  vi.mocked(assertAccess).mockResolvedValue(undefined);
+  vi.mocked(assertAccess).mockResolvedValue(undefined as never);
   jpeg = await sharp({ create: { width: 2, height: 2, channels: 3, background: "red" } })
     .jpeg()
     .toBuffer();

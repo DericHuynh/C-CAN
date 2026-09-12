@@ -3,8 +3,19 @@ allowBuilds:
   esbuild: true
   better-sqlite3: true
   tesseract.js: false
+  "@sentry/cli": true
+  "@vgpu/adapter-node": true
+  webgpu: true
 
 overrides:
+  # Patched transitive releases; upstream framework ranges still select vulnerable builds.
+  "@anthropic-ai/sdk@<0.91.1": "0.91.1"
+  "@tiptap/core@<3.30.5": "3.31.3"
+  "@tiptap/pm": "3.31.3"
+  "pdfjs-dist@<6.2.108": "6.3.289"
+  "uuid@<11.1.1": "11.1.1"
+  # SheetJS publishes current releases on its official CDN, not npm.
+  xlsx: "file:vendor/xlsx-0.20.3.tgz"
   nf3: "0.3.17"
   "@assistant-ui/tap": "^0.5.14"
   "@assistant-ui/store": ">=0.2.9 <0.2.14"
@@ -20,20 +31,30 @@ minimumReleaseAgeExclude:
   - "@modelcontextprotocol/node"
   - "@modelcontextprotocol/core"
   - "@modelcontextprotocol/client"
-  - "@agent-native/core@0.133.1"
+  - "@agent-native/core@0.178.1"
+  - "@ai-sdk/gateway@4.0.80"
+  - "@ai-sdk/openai@4.0.66"
+  - "@ai-sdk/provider-utils@5.0.40"
+  - "@ai-sdk/provider@4.0.14"
+  - ai@7.0.99
+  - react-hook-form@7.88.0
 
 patchedDependencies:
-  "@agent-native/core@0.133.1": patches/@agent-native__core@0.133.1.patch
+  "@agent-native/core@0.178.1": patches/@agent-native__core@0.178.1.patch
 catalog:
-  # Real Vite 8.1.0 for dev/build/start: the framework's `agent-native dev`
+  # Real Vite 8.3.0 for dev/build/start: the framework's `agent-native dev`
   # spawns the `vite` bin, and Nitro's dev worker resolves
   # `virtual:react-router/server-build` through real Vite. The vite-plus fork
   # breaks that SSR path ("No fetch handler exported from
   # virtual:react-router/server-build"). vite-plus stays as the test runner.
-  vite: 8.1.0
-  vite-plus: 0.2.7
+  vite: 8.3.0
+  vite-plus: 0.3.1
 peerDependencyRules:
   allowAny:
     - vite
   allowedVersions:
     vite: "*"
+    # These framework-pinned packages omit TS 7 from their peer ranges.
+    # Verified with the full TS 7 typecheck and translated browser UI.
+    "i18next>typescript": "^7.0.2"
+    "react-i18next>typescript": "^7.0.2"

@@ -9,7 +9,7 @@
  */
 import { defineEventHandler, createError, getRouterParam } from "h3";
 
-import { readUploadedFile } from "../../../plugins/file-upload.js";
+import { readUploadedFile } from "../../../storage/local-uploads.js";
 
 export default defineEventHandler(async (event) => {
   const file = getRouterParam(event, "file");
@@ -24,6 +24,9 @@ export default defineEventHandler(async (event) => {
     });
   } catch (err) {
     const statusCode = (err as { statusCode?: number })?.statusCode ?? 500;
-    throw createError({ statusCode, statusMessage: statusCode === 400 ? "Invalid file key" : "Not found" });
+    throw createError({
+      statusCode,
+      statusMessage: statusCode === 400 ? "Invalid file key" : "Not found",
+    });
   }
 });

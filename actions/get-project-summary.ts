@@ -1,7 +1,7 @@
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { getProjectOrThrow } from "./_project-store.js";
+import { getProjectOrThrow } from "../server/projects/repository.js";
 
 /** Compact ids referenced by a requirement list (choice ids, point types, …). */
 function requiredIds(requireds: unknown[] | undefined): string[] {

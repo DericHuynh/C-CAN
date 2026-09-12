@@ -13,7 +13,7 @@ and every operation is an action shared by chat, UI, HTTP, MCP, A2A, and CLI.
   thumbnails, or replay chunks in app tables, `application_state`, `settings`,
   or `resources`; persist URLs, ids, or handles instead. CYOA documents may
   reference external image URLs. **User-requested exception:** `ImageResource.preview`
-  may embed a generated WebP of at most 24×24 pixels and 2 KiB (data URL included),
+  may embed a generated WebP of at most 8 KiB (data URL included), preserving aspect ratio and original layout size,
   with its source URL and original dimensions. Full image payloads remain in blob storage.
 - Never hardcode API keys, tokens, webhook URLs, signing secrets, private
   Builder/internal data, customer data, or credential-looking literals. Use
@@ -125,12 +125,18 @@ in sync when actions change.
 | Action                                                                               | Purpose                                                                                                                                                                                          |
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `list-projects`                                                                      | Summaries of all projects (rows/choices/point types counts)                                                                                                                                      |
+| `build-project`                                                                      | Atomic scaffold/section/choice-set edits with semantic IDs, dependency validation, compact manifest and optional preview.                                                                        |
+| `inspect-project` / `validate-project`                                               | Bounded prose/mechanics/reference projections and semantic checks with named gameplay states.                                                                                                    |
+| `preview-project`                                                                    | Open the saved viewer target, check its revision and return pixels/QA or an explicit pending reason.                                                                                             |
+| `clone-project`                                                                      | Private full/section/style/core-mechanics reference copies; source unchanged.                                                                                                                    |
+| `add-addon` / `add-addons` / `update-addon` / `list-addons`                          | Stable-ID addon creation, atomic sets, narrow edits and bounded targets.                                                                                                                         |
+| `save-live-project-fields` | UI autosave: atomic baseline-checked field batches for existing content; uses the project repository and sharing ACL. |
 | `get-project`                                                                        | Full project: metadata, `summary`, parsed `app` document                                                                                                                                         |
 | `capture-viewer`                                                                     | Capture the current viewer viewport as an agent image; retry pending captures by requestId/browserTabId.                                                                                         |
 | `view-screen` / `navigate`                                                           | Read visible context (optionally a screenshot), or move to an access-checked row/choice/addon in the current browser tab.                                                                        |
 | `get-project-context`                                                                | Bounded project/selected row, choice and addon context; no sibling bodies or media.                                                                                                              |
 | `search-projects`                                                                    | Access-checked, bounded project ID/title search; also powers project mentions.                                                                                                                   |
-| `search-project-content` | Search saved row/choice/addon IDs, titles and prose with bounded excerpts, pagination and navigation links; viewer ACL, no editorial notes or media. |
+| `search-project-content`                                                             | Search saved row/choice/addon IDs, titles and prose with bounded excerpts, pagination and navigation links; viewer ACL, no editorial notes or media.                                             |
 | `get-project-plan`                                                                   | Bounded, searchable row/choice/addon planning outline; optionally read one draft and its revision/current text/mechanics. Requires editor access.                                                |
 | `update-planning-entry`                                                              | Save a linked editorial draft, notes, art progress, and status. Requires expectedRevision. applyToContent copies title/text only; checks the live baseline and the whole-document write version. |
 | `get-project-summary`                                                                | **Lightweight** structure read (no images/bodies): rows → choices with ids, titles, counts, `requiredIds`, groups + point types — for planning wiring without loading the doc                    |
@@ -146,7 +152,7 @@ in sync when actions change.
 | `add-choice` / `update-choice` / `delete-choice` / `move-choice`                     | Choice CRUD + ordering; `add-choice` accepts optional `fields` (title, text, scores, requireds, …); `move-choice` also reparents across rows (`rowId` is the target row)                         |
 | `add-choices`                                                                        | **Bulk** create many choices in one row (`choices: [{ index?, fields? }]`)                                                                                                                       |
 | `add-score` / `delete-score`                                                         | Attach/remove a point score on a choice                                                                                                                                                          |
-| `move-addon` / `delete-addon`                                                        | Move an addon (by array index) between choices or reorder within one (rewrites `parentId`); remove an addon from a choice                                                                        |
+| `move-addon` / `delete-addon`                                                        | Move/delete by stable addon ID; positional inputs remain compatible with existing editor callers                                                                                                 |
 | `add-point-type` / `update-point-type` / `delete-point-type`                         | Currency CRUD; delete also strips referencing scores                                                                                                                                             |
 | `add-group` / `update-group` / `delete-group`                                        | Group CRUD; `add-group` accepts initial `rowElements` and `elements`                                                                                                                             |
 | `add-global-requirement` / `update-global-requirement` / `delete-global-requirement` | Global requirement CRUD                                                                                                                                                                          |
@@ -158,11 +164,8 @@ in sync when actions change.
 
 ## Planning workflow
 
-- **Content → Plan** is the document-style authoring workspace: searchable outline,
-  rich text or HTML/source writing, author notes, requirements/balance notes, image
-  briefs and candidate links, editorial status, and image progress. It uses the real
-  row → choice → addon hierarchy. Add section/choice creates the corresponding CYOA
-  structure; prose remains in its draft until applied.
+- The Plan tab has been removed. Use **Content → Rows** for row, choice and addon
+  authoring. Existing draft data and planning actions remain available to agents.
 - Drafts live on the entity's optional `planning` property (`shared/planning.ts`),
   preserved through import/export and moves. `revision` protects draft edits;
   `baseTitle`/`baseText` protect live prose when applying. Status is editorial only.
@@ -173,12 +176,10 @@ in sync when actions change.
   Mechanics and art notes do not create rules or attach images: open the matching
   editor/image resource or use the existing domain actions for those operations.
 - On a conflict, retain the draft, read the current content, and reconcile it. Never
-  automatically retry with a newer revision or overwrite the author's text. The UI
-  keeps a browser-local recovery copy of unsaved work and offers saved-draft reload
-  or an explicit reset of draft prose to current CYOA text while preserving notes.
-- Planning uses `/projects/{id}/editor?tab=plan&rowId=…&choiceId=…&addonId=…`; the same target opens in
-  `tab=rows` or `/projects/{id}/viewer`. `imageId` focuses an image library entry. Navigation
-  state includes these target IDs, and the command menu can open the current plan.
+  automatically retry with a newer revision or overwrite the author's text.
+- Entity links open `/projects/{id}/editor?tab=rows&rowId=…&choiceId=…&addonId=…`
+  or `/projects/{id}/viewer`. Old `tab=plan` links show Rows. `imageId` focuses
+  an image library entry. Navigation state includes these target IDs.
 
 ## Application State
 
@@ -227,7 +228,7 @@ never returned by any route — only last-4 metadata.
 
 - **External agents (MCP server + A2A)** are auto-mounted by the agent-chat
   plugin. The external tool catalog is curated in `server/plugins/agent-chat.ts`
-  (`connectorCatalog` + `externalAgents`): only the read-only actions
+  (`mcp.connectorCatalog` + `mcp.externalAgents`): only the read-only actions
   (`list-projects`, `get-project`, `get-project-context`, `get-project-summary`,
   `list-project-changes`, `export-project-json`) are directly callable by
   authenticated external hosts; edits stay behind `ask_app`. Actions opt in via
@@ -240,15 +241,15 @@ never returned by any route — only last-4 metadata.
   keys; do not remove those keys — the renderer needs them, and keep them
   additive so existing consumers keep working.
 - **Notifications** — `notify()` (from `@agent-native/core/notifications`)
-  rings the header bell; `import-project-json` / `duplicate-project` use it.
+  rings the page-toolbar bell; `import-project-json` / `duplicate-project` use it.
   Best-effort: wrap in try/catch, never fail the action on it.
 - **Proof-of-done guard** — `finalResponseGuard` in `server/plugins/agent-chat.ts`
   rejects text-only "done" claims for mutation requests unless a mutating
-  project action ran this turn. Keep `MUTATING_ACTIONS` in sync when adding
+  project action succeeded this turn. Keep `MUTATING_ACTIONS` in sync when adding
   mutating actions. (The framework's in-loop `Processor` seam is not exposed
   through the HTTP chat handler in this version.)
-- **Extensions** — `extensionTools: true` on both the agent-chat and
-  core-routes plugins; the `/extensions` routes are the agent-authored
+- **Extensions** — `frameworkTools.extensions: true` on agent-chat and `extensionTools: true` on
+  core-routes; the `/extensions` routes are the agent-authored
   sandboxed mini-app surface.
 - **MCP clients** — `mcp.config.json` has no global filesystem server. Add
   scoped connections in Settings; keep app SQL/uploads behind actions.
@@ -273,9 +274,16 @@ never returned by any route — only last-4 metadata.
 - **Recurring jobs** — `jobs/*.md` are cron-scheduled agent prompts (none
   shipped; add only when scheduled agent work is wanted).
 - **Evals** — `evals/*.eval.ts` + `pnpm script eval-cyoa` (needs a key).
-- **Collab** — Core DB sync propagates saved action writes. Yjs editing is
-  deferred until a client/action merge lifecycle is implemented; do not mount
-  a separate whole-JSON writer without that integration.
+- **Collab** — All CYOA editors use Core action sync and the documented granular
+  structured-document merge pattern. The project-scoped collab plugin is for
+  awareness and field-level Yjs drafts (`autoSeed: false`); never seed the full App JSON/media through Yjs.
+  `save-live-project-fields` autosaves existing fields through the same authorized repository; explicit Add/Save retains creation and identity changes.
+  `useProjectEdit` sends field baselines; `useSavedField` reconciles clean fields,
+  merges stable-ID items and retains conflicting drafts for explicit resolution.
+  Resolve inspector selections from live collections with `useLiveSelection`.
+  The repository retries disjoint CAS races and emits resource-scoped saved events
+  so invited editors and owners both receive changes. Checkpoint/planning/build
+  saves retain strict revision checks. See `docs/cyoa-collaboration.md`.
 - **Messaging** — `server/plugins/messaging.ts` mounts the Slack/email/
   Telegram/WhatsApp/Discord/Teams inbound adapters (needs platform
   credentials).
@@ -314,9 +322,17 @@ and `cyoa-authoring` (domain-specific authoring guidance).
   Context excerpts are not replacement documents.
 - Visual editor selection lives in URL IDs, so reloads and `navigate` open the
   same inspector and the agent can identify the selected item.
+- Visual editor clicks play choices normally. Always-visible edit/move/delete controls open the
+  inspector or mutate the item; double-clicking text edits inline. Defer canvas clicks to cancel
+  gameplay side effects on double-click. Counters and addons remain playable.
+- ViewerNavigator is headless: preserve its agent observation/navigation/capture
+  bridge. Human screenshot review lives in the bottom-right player menu.
+- ContentBrowser shares search/filter/sort semantics across content tabs. Image
+  and requirement pickers index only while open and virtualize results. Image
+  creation may atomically attach to a target, guarded by its expected image.
 - Project history/review adapters inherit Core sharing ACLs. Do not add an
   owner/public-only resolver that drops invited roles or organization checks.
-- New project mutations should use `projectAudit` from `_project-audit.ts` so
+- New project mutations should use `projectAudit` from `server/projects/audit.ts` so
   scoped resource history sees them without duplicating large inputs in SQL.
   Never query `agent_tool_ledger` as a project history API.
 - Editor → Project → History/Review expose checkpoints and review feedback.
@@ -328,7 +344,7 @@ and `cyoa-authoring` (domain-specific authoring guidance).
 
 - Duplicate projects must be private copies owned by the requesting user,
   scoped to their active organization; never inherit source ownership/shares.
-- Doctor runs all nine guards. Its only app env-credential exceptions are
+- Doctor runs all ten guards. Its only app env-credential exceptions are
   the deployment upload directory and the explicitly authorized, gated
   DeepSeek default. Tests isolate environment changes with Vitest stubs.
 - Use `pnpm script make-project-copy --id <source-project-id>` for a fresh
@@ -355,8 +371,8 @@ and `cyoa-authoring` (domain-specific authoring guidance).
   models (including this app's configured DeepSeek provider) can use the
   observations but must not claim to have seen pixels. Ask the user to select a
   vision-capable model for image critique; do not silently change providers.
-- Users can pick a chapter, move previous/next, copy a deep link, and use
-  **Review this view** to preview a picture and explicitly ask the agent about it.
+- Users can navigate with viewer search or agent targets, and use
+  **Review this view** in the bottom-right options menu to preview a picture and explicitly ask the agent about it.
   Captures contain only the visible viewer region, clipped to its scrollport,
   not the chat or editor inspector. They are DOM-rendered images; inaccessible
   remote images and embedded media are reported as limitations.
@@ -365,7 +381,6 @@ and `cyoa-authoring` (domain-specific authoring guidance).
   (10 minutes). Upload and retrieval recheck project access; forged or stale
   receipts cannot authorize reads. Blob retention follows the configured upload
   provider's lifecycle; expiry stops retrieval but does not delete backing files.
-
 
 ## CYOA automation events
 
@@ -385,3 +400,94 @@ not pass that lineage, so cron-origin edits can emit an event once; event-trigge
 follow-up writes are suppressed. Publishing uses Core's in-process, best-effort
 bus, not a durable outbox. External MCP tools require a configured connection and
 an explicit per-job tool allowlist.
+
+## Production architecture contract
+
+Read `docs/architecture.md` and `DEVELOPING.md` before refactoring modules.
+Authoring UI lives in `app/features/editor`, project management in
+`app/features/projects`, and play/rendering in `app/features/viewer`.
+Pure document contracts and gameplay stay in `shared`; persistence, media,
+storage and integrations live in dedicated `server/` modules. Actions retain
+stable names and orchestrate these services. Services never import action entry
+points or startup plugins. Keep browser dependencies out of the server and server
+runtime imports out of the browser; `pnpm guard:architecture` enforces this.
+
+Every document writer must pass its original read JSON to
+`server/projects/repository.ts`'s `saveProject`. It rejects overlapping writes;
+never bypass or blindly retry the conditional save. Settings metadata and document
+changes use the same write. Client hooks infer contracts from Core's generated
+registry; avoid hand-written loose result types. `pnpm check` runs types, tests
+and Doctor. Production skips demo seeding and never auto-claims unowned projects
+for the first account; see `docs/production.md` for explicit ownership recovery.
+
+## Publishing and ICYOA Explorer
+
+- `/explorer` is the public discovery app in the sidebar. URL filters (`q`,
+  repeated `tag` / `excludeTag`, `content`, `sort`, `page`) are exposed in navigation state.
+  `list-publications` performs typo-tolerant search and AND tag filtering, with
+  `sfw` as the default; `nsfw` and `all` are explicit choices. It returns metadata
+  and rating summaries, never draft documents or voter identities.
+- Owners use `get-publication-status`, `publish-project`, and
+  `unpublish-project`. Publishing creates/replaces a playable **saved snapshot**,
+  not a live view of the draft. The public listing has its own title, description,
+  creator byline, tags, content rating and optional project-image cover. Recursive
+  planning drafts/notes are excluded. Source sharing stays unchanged. Publishing
+  has the native agent approval flag; ordinary UI publication is the explicit
+  Publish publicly / Update release submission. Never publish on inferred intent.
+- `/explorer/:id` displays release details and rating breakdowns;
+  `/play/:id` runs the released viewer without workspace sidebars and offers
+  browser fullscreen. Fullscreen hides the header and exposes Exit fullscreen in
+  the bottom-right options menu. Public deep links work without a Jump to Section
+  toolbar. Build slots remain isolated by route from editor previews.
+  Public reads require an extant source and published status; withdrawal or
+  source deletion disables the link. Withdrawal preserves ratings for republishing.
+- `get-publication` defaults to bounded metadata plus rating summaries; request
+  `includeDocument: true` only to inspect/play the release. `navigate` accepts
+  `publicationId`, `view: play|explorer`, and optional row/choice/addon targets.
+  Public target navigation does not select choices or grant draft access.
+  `view-screen` hydrates release metadata or Explorer filters/results.
+- `rate-publication` saves the current account's one ballot, or removes it with
+  `ballot: null`. `overall` is a separately entered 0–5 integer; it is **never**
+  computed from optional `writing`, `gameplay`, or `presentation` scores. Public
+  overall means the average of readers' independent overall scores. Each category
+  includes a count and six-bin distribution, including zero. Missing categories
+  are excluded. Authors cannot rate their own releases. Do not invent user ratings.
+- Shared tag controls use `search-tags` and `server/tags`: only e621 provider
+  metadata enters the global catalog. Keep private project tags out of it. Query
+  cache keys are hashed; identical refreshes coalesce, outages use cached results.
+  `sync-tag-catalog` is a bounded cursor import, not an unbounded request-time crawl.
+  Explorer inclusion is AND; exclusion rejects any match before pagination.
+- Domain contracts live in `shared/publications.ts`; release persistence and
+  aggregates in `server/publishing`; UI in `app/features/explorer`. Schema changes
+  are additive named migrations. Raw database tools retain owner/org scoping.
+
+## Transactional agent authoring and preview
+
+- Prefer `inspect-project` with paginated summary/prose/mechanics/dependencies/reference
+  projections. It returns a document revision, complete targets and explicit text slices.
+- `build-project` replaces task-specific scaffold/section/choice-set tool chains: a batch
+  creates or edits rows, choices, addons, currencies, groups and global requirements.
+  Use stable semantic IDs or `$alias` references, including forward dependencies.
+  Nested entities are separate operations in the same batch. Validation precedes one
+  compare-and-save; `expectedRevision` and expected field values reject stale edits.
+- `add-addon`, `add-addons`, `update-addon`, `delete-addon`, `list-addons` work by stable
+  IDs. `move-addon` also accepts an ID. Positional deletion/movement remains compatible
+  with existing editor callers. Legacy blank addon IDs normalize deterministically;
+  authored blank titles stay intact, with display labels in inspection tools.
+- `clone-project` creates private caller-owned full/section/style/core-mechanics copies.
+  Section copies include the closure of known dependencies. Inspect the returned manifest;
+  unknown extensions are preserved in full/section copies but are not statically analyzed.
+- `validate-project` reports references, contradictions, cycles and optimistic linear
+  currency bounds. Named build codes test requirements and ending states using the engine;
+  these are supplied states, not proof of a reachable play sequence.
+- `preview-project` opens from chat, infers target parents and waits for the saved document
+  revision before capture. `build-project` with `preview: {}` combines build, verify and view.
+  Optional buildCode uses isolated player storage; empty means fresh start. Do not claim
+  screenshots until ready pixels arrive. Capture DOM QA covers overflow, images, addon
+  visibility, locked state and viewport width; contrast still requires visual review.
+- A preview error never rolls back a committed batch. Retry preview/capture only. Pending
+  captures provide requestId/browserTabId for `capture-viewer`. Rejected batches commit
+  nothing. Transport errors require reinspection before retry. Audit summaries use
+  `projectAudit`; screenshot bytes remain encrypted in blob storage, never SQL.
+- `navigate` accepts a generated `target` or a path alone, rejects conflicting parameters
+  before writing a command, and returns resolvedUrl. Navigation requested is not viewer ready.

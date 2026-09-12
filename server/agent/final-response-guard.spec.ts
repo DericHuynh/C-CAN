@@ -181,3 +181,17 @@ describe("guard constants", () => {
     }
   });
 });
+
+describe("transactional mutation receipts", () => {
+  it.each([false, true])("requires committed=true for a build receipt (%s)", (committed) => {
+    const result = finalResponseGuard(
+      ctx({
+        toolCalls: [{ name: "build-project", input: {} }],
+        toolResults: [
+          { name: "build-project", isError: false, content: JSON.stringify({ committed }) },
+        ],
+      }),
+    );
+    expect(result === null).toBe(committed);
+  });
+});

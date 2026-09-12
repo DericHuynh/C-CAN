@@ -20,6 +20,9 @@ type Pages = {
       "mode": string;
     };
   };
+  "/explorer": {
+    params: {};
+  };
   "/projects": {
     params: {};
   };
@@ -31,9 +34,19 @@ type Pages = {
   "/observability": {
     params: {};
   };
+  "/explorer/:id": {
+    params: {
+      "id": string;
+    };
+  };
   "/projects/:id": {
     params: {
       "id": string;
+    };
+  };
+  "/settings/*": {
+    params: {
+      "*": string;
     };
   };
   "/extensions": {
@@ -53,6 +66,11 @@ type Pages = {
   "/database": {
     params: {};
   };
+  "/play/:id": {
+    params: {
+      "id": string;
+    };
+  };
   "/settings": {
     params: {};
   };
@@ -67,11 +85,15 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/projects/:id/:mode" | "/projects" | "/chat/:threadId" | "/observability" | "/projects/:id" | "/extensions" | "/extensions/:id" | "/extensions/:id/:slug" | "/database" | "/settings" | "/agent" | "/team";
+    page: "/" | "/projects/:id/:mode" | "/explorer" | "/projects" | "/chat/:threadId" | "/observability" | "/explorer/:id" | "/projects/:id" | "/settings/*" | "/extensions" | "/extensions/:id" | "/extensions/:id/:slug" | "/database" | "/play/:id" | "/settings" | "/agent" | "/team";
   };
   "routes/projects.$id_.$mode.tsx": {
     id: "routes/projects.$id_.$mode";
     page: "/projects/:id/:mode";
+  };
+  "routes/explorer._index.tsx": {
+    id: "routes/explorer._index";
+    page: "/explorer";
   };
   "routes/projects._index.tsx": {
     id: "routes/projects._index";
@@ -85,9 +107,17 @@ type RouteFiles = {
     id: "routes/observability";
     page: "/observability";
   };
+  "routes/explorer.$id.tsx": {
+    id: "routes/explorer.$id";
+    page: "/explorer/:id";
+  };
   "routes/projects.$id.tsx": {
     id: "routes/projects.$id";
     page: "/projects/:id";
+  };
+  "routes/settings_.$.tsx": {
+    id: "routes/settings_.$";
+    page: "/settings/*";
   };
   "routes/extensions.tsx": {
     id: "routes/extensions";
@@ -108,6 +138,10 @@ type RouteFiles = {
   "routes/database.tsx": {
     id: "routes/database";
     page: "/database";
+  };
+  "routes/play.$id.tsx": {
+    id: "routes/play.$id";
+    page: "/play/:id";
   };
   "routes/settings.tsx": {
     id: "routes/settings";
@@ -130,15 +164,19 @@ type RouteFiles = {
 type RouteModules = {
   "root": typeof import("./app/root.tsx");
   "routes/projects.$id_.$mode": typeof import("./app/routes/projects.$id_.$mode.tsx");
+  "routes/explorer._index": typeof import("./app/routes/explorer._index.tsx");
   "routes/projects._index": typeof import("./app/routes/projects._index.tsx");
   "routes/chat.$threadId": typeof import("./app/routes/chat.$threadId.tsx");
   "routes/observability": typeof import("./app/routes/observability.tsx");
+  "routes/explorer.$id": typeof import("./app/routes/explorer.$id.tsx");
   "routes/projects.$id": typeof import("./app/routes/projects.$id.tsx");
+  "routes/settings_.$": typeof import("./app/routes/settings_.$.tsx");
   "routes/extensions": typeof import("./app/routes/extensions.tsx");
   "routes/extensions._index": typeof import("./app/routes/extensions._index.tsx");
   "routes/extensions.$id": typeof import("./app/routes/extensions.$id.tsx");
   "routes/extensions.$id.$slug": typeof import("./app/routes/extensions.$id.$slug.tsx");
   "routes/database": typeof import("./app/routes/database.tsx");
+  "routes/play.$id": typeof import("./app/routes/play.$id.tsx");
   "routes/settings": typeof import("./app/routes/settings.tsx");
   "routes/_index": typeof import("./app/routes/_index.tsx");
   "routes/agent": typeof import("./app/routes/agent.tsx");

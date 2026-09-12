@@ -6,14 +6,14 @@ import {
   createDefaultAddon,
 } from "../shared/cyoa.js";
 import { planningDraft, planningEntries } from "../shared/planning.js";
-import { getProjectOrThrow, saveProject } from "./_project-store.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
 import update from "./update-planning-entry.js";
 import read from "./get-project-plan.js";
-import { planningStatusChanged } from "../server/agent/project-events.js";
+import { planningStatusChanged } from "../server/projects/events.js";
 
-vi.mock("../server/agent/project-events.js", () => ({ planningStatusChanged: vi.fn() }));
+vi.mock("../server/projects/events.js", () => ({ planningStatusChanged: vi.fn() }));
 
-vi.mock("./_project-store.js", () => ({
+vi.mock("../server/projects/repository.js", () => ({
   getProjectOrThrow: vi.fn(),
   saveProject: vi.fn(),
   assertFound: (value: unknown, message: string) => {
@@ -57,7 +57,6 @@ describe("integrated planning actions", () => {
     const ctx = { caller: "tool" as const, userEmail: "editor@example.test", orgId: "org-a" };
     vi.mocked(saveProject).mockImplementationOnce(async () => {
       expect(planningStatusChanged).not.toHaveBeenCalled();
-      return "updated";
     });
     await update.run({ ...args, patch: { status: "review" } }, ctx);
     expect(getProjectOrThrow).toHaveBeenCalledWith(args.projectId, ctx, "editor");
@@ -90,7 +89,13 @@ describe("integrated planning actions", () => {
       revision: 1,
       baseText: "Original prose",
     });
-    expect(saveProject).toHaveBeenCalledWith("project-test", expect.anything(), "original-json");
+    expect(saveProject).toHaveBeenCalledWith(
+      "project-test",
+      expect.anything(),
+      "original-json",
+      undefined,
+      { merge: false },
+    );
   });
   it("applies draft title and prose while preserving notes, IDs, and configured rules", async () => {
     const { args, choice } = fixture();

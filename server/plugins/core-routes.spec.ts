@@ -19,6 +19,7 @@ describe("core-routes plugin envKeys", () => {
     const createSpy = vi.fn((opts: any) => opts);
     vi.doMock("@agent-native/core/server", () => ({
       createCoreRoutesPlugin: createSpy,
+      defineAppConfig: vi.fn(),
     }));
     vi.resetModules();
     await import("./core-routes.js");
@@ -37,14 +38,17 @@ describe("core-routes plugin envKeys", () => {
     const createSpy = vi.fn((opts: any) => opts);
     vi.doMock("@agent-native/core/server", () => ({
       createCoreRoutesPlugin: createSpy,
+      defineAppConfig: vi.fn(),
     }));
     vi.resetModules();
     await import("./core-routes.js");
 
     const options = createSpy.mock.calls[0][0] as Record<string, unknown>;
     expect(options.extensionTools).toBe(true);
-    expect(options.mcpConnectAppId).toBe("iccplus-agent-native");
-    expect(options.mcpConnectServerName).toBe("iccplus-agent-native");
-    expect(options.mcpConnectAppName).toBe("ICCPlus CYOA Studio");
+    expect(options.mcp).toEqual({ serverName: "iccplus-agent-native" });
+    const { defineAppConfig } = await import("@agent-native/core/server");
+    expect(defineAppConfig).toHaveBeenCalledWith({
+      app: { id: "iccplus-agent-native", name: "ICCPlus CYOA Studio" },
+    });
   });
 });

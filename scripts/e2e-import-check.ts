@@ -22,7 +22,7 @@ export default async function e2eImportCheck(args: Record<string, unknown>) {
 
   // The import claims ownership with this identity, so the export/list/delete
   // access checks below (viewer/editor) resolve to the same owner.
-  const scriptCtx = { userEmail: "e2e-import-check@local.test" };
+  const scriptCtx = { userEmail: "e2e-import-check@local.test", caller: "cli" as const };
 
   console.log(`importing ${file} (${(raw.length / 1024 / 1024).toFixed(1)} MB)...`);
   const created = await importAction.run({ title: "e2e-import-check", json: parsed }, scriptCtx);

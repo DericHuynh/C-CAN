@@ -1,9 +1,10 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { createDefaultRow } from "../shared/cyoa.js";
-import { getProjectOrThrow, reindexRows, saveProject } from "./_project-store.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
+import { reindexRows } from "../shared/collections.js";
 
 const rowSpec = z.object({
   index: z
@@ -33,8 +34,8 @@ export default defineAction({
         "Row specs to create, in order. Consecutive specs without `index` append at the end.",
       ),
   }),
-  run: async ({ projectId, rows }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, rows }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     const created: ReturnType<typeof createDefaultRow>[] = [];
     for (const spec of rows) {
       const insertAt = spec.index ?? app.rows.length;
@@ -47,7 +48,7 @@ export default defineAction({
       created.push(row);
     }
     reindexRows(app.rows);
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { rows: created };
   },
 });

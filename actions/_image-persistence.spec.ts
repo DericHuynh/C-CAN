@@ -9,7 +9,8 @@ import {
   createDefaultImageResource,
   createDefaultRow,
 } from "../shared/cyoa.js";
-import { getProjectOrThrow } from "./_project-store.js";
+import { getProjectOrThrow } from "../server/projects/repository.js";
+import addImage from "./add-image.js";
 import updateImage from "./update-image.js";
 import patchAppDocument from "./patch-app-document.js";
 import importProject from "./import-project-json.js";
@@ -23,9 +24,9 @@ vi.mock("@agent-native/core/progress", () => ({
   completeRun: vi.fn(),
 }));
 vi.mock("../server/db/index.js", () => ({ getDb: vi.fn() }));
-vi.mock("../server/db/schema.js", () => ({ projects: { id: "id" } }));
-vi.mock("./_project-store.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./_project-store.js")>()),
+vi.mock("../server/db/schema.js", () => ({ projects: { id: "id", json: "json" } }));
+vi.mock("../server/projects/repository.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../server/projects/repository.js")>()),
   getProjectOrThrow: vi.fn(),
 }));
 
@@ -36,7 +37,9 @@ const insert = vi.fn();
 
 beforeEach(() => {
   vi.resetAllMocks();
-  set.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+  set.mockReturnValue({
+    where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: "test" }]) }),
+  });
   insert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
   vi.mocked(getDb).mockReturnValue({ update: () => ({ set }), insert } as never);
   vi.mocked(uploadFile).mockResolvedValue({ url: storedUrl, provider: "test", id: "image" });
@@ -48,11 +51,70 @@ function fixture() {
   const image = createDefaultImageResource("Portrait");
   image.image = "https://example.com/old.png";
   app.images = [image];
-  vi.mocked(getProjectOrThrow).mockResolvedValue({ app } as never);
+  vi.mocked(getProjectOrThrow).mockResolvedValue({ app, row: { json: "original-json" } } as never);
   return { app, image };
 }
 
 describe("image persistence through actions", () => {
+  it("creates an anonymous image and attaches it to a row in one persisted document", async () => {
+    const { app } = fixture();
+    const row = createDefaultRow(app, 0);
+    row.image = "";
+    app.rows = [row];
+    const result = await addImage.run({
+      projectId: "project-test",
+      image: dataUrl,
+      target: { kind: "row", id: row.id, expectedImage: "" },
+    });
+    const saved = JSON.parse(set.mock.calls[0][0].json);
+    expect(set).toHaveBeenCalledOnce();
+    expect(saved.rows[0].image).toBe(result.image.id);
+    expect(result.image.anonymous).toBe(true);
+    expect(result.image.createdAt).toMatch(/^\d{4}-/);
+    expect(saved.images.find((entry: any) => entry.id === result.image.id).image).toBe(storedUrl);
+  });
+  it("rejects unknown or changed targets before uploading an image", async () => {
+    const { app } = fixture();
+    const row = createDefaultRow(app, 0);
+    row.image = "existing";
+    app.rows = [row];
+    await expect(
+      addImage.run({
+        projectId: "project-test",
+        image: dataUrl,
+        target: { kind: "row", id: "missing" },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      addImage.run({
+        projectId: "project-test",
+        image: dataUrl,
+        target: { kind: "row", id: row.id, expectedImage: "old" },
+      }),
+    ).rejects.toThrow(/changed/);
+    expect(uploadFile).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+  });
+  it("does not attach an image if the target changes during upload", async () => {
+    const { app } = fixture();
+    const row = createDefaultRow(app, 0);
+    row.image = "";
+    app.rows = [row];
+    vi.mocked(uploadFile).mockImplementation(async () => {
+      row.image = "someone-elses-image";
+      return { url: storedUrl, provider: "test", id: "image" };
+    });
+    await expect(
+      addImage.run({
+        projectId: "project-test",
+        image: dataUrl,
+        target: { kind: "row", id: row.id, expectedImage: "" },
+      }),
+    ).rejects.toThrow(/changed/);
+    expect(set).not.toHaveBeenCalled();
+    expect(row.image).toBe("someone-elses-image");
+  });
+
   it("externalizes private border images and sound effects before storing imported JSON", async () => {
     const result = await importProject.run({
       json: {

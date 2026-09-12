@@ -1,11 +1,12 @@
-import { projectAudit } from "./_project-audit.js";
+import { normalizeTagList } from "../shared/tags.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { generateImagePreview } from "./_image-previews.js";
+import { generateImagePreview } from "../server/media/image-previews.js";
 import { createDefaultImageResource } from "../shared/cyoa.js";
-import { fetchBooruPost, type BooruSite } from "./_booru.js";
-import { getProjectOrThrow, saveProject } from "./_project-store.js";
+import { fetchBooruPost, type BooruSite } from "../server/integrations/booru.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -18,21 +19,22 @@ export default defineAction({
     name: z.string().optional().describe("Override the resource name (defaults to the post title)"),
   }),
   run: async ({ projectId, site, postId, name }, ctx) => {
-    await getProjectOrThrow(projectId);
+    await getProjectOrThrow(projectId, ctx, "editor");
     const post = await fetchBooruPost(site as BooruSite, postId, ctx?.userEmail);
 
     const resource = createDefaultImageResource(name?.trim() || post.title);
+    resource.createdAt = resource.updatedAt = new Date().toISOString();
     resource.image = post.url;
     resource.imageIsURL = true;
     resource.sourceTooltip = `${post.site} #${post.id}`;
     if (post.description.trim()) resource.description = post.description.trim();
-    if (post.tags.length > 0) resource.tags = post.tags;
+    if (post.tags.length > 0) resource.tags = normalizeTagList(post.tags);
     resource.source = post.source || post.pageUrl;
 
     await generateImagePreview(resource);
-    const { app } = await getProjectOrThrow(projectId);
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     app.images.push(resource);
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return {
       image: resource,
       attribution: {

@@ -875,6 +875,10 @@ export type Word = {
  * (data URLs / URLs) into these resources on import.
  */
 export type ImageResource = {
+  /** Missing for legacy imports with no recorded dates. */
+  createdAt?: string;
+  updatedAt?: string;
+  anonymous?: boolean;
   [key: string]: any;
   id: string;
   name?: string;
@@ -882,7 +886,7 @@ export type ImageResource = {
   image?: string;
   imageIsURL?: boolean;
   /** Tiny embedded WebP, tied to the full image URL. Full image bytes stay in blob storage. */
-  preview?: { source: string; data: string; width: number; height: number };
+  preview?: { source: string; data: string; width: number; height: number; version?: number };
   /** Short attribution/tooltip shown under the resource name. */
   sourceTooltip?: string;
   /** Longer attribution/description (e.g. the original post description). */

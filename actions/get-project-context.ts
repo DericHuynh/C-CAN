@@ -1,7 +1,9 @@
+import { resolveProjectTarget } from "../shared/project-target.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { getProjectOrThrow, toProjectSummary } from "./_project-store.js";
+import { getProjectOrThrow } from "../server/projects/repository.js";
+import { toProjectSummary } from "../server/projects/presentation.js";
 
 // Context is deliberately bounded. Unknown fields and media remain in the
 // authored document; agents should patch only the fields they intend to edit.
@@ -92,6 +94,10 @@ export default defineAction({
           : {}),
         ...(addon ? { addon: describeEntity(addon) } : {}),
       },
+      target:
+        (!rowId || row) && (!choiceId || choice) && (!addonId || addon)
+          ? resolveProjectTarget(app, { rowId, choiceId, addonId })
+          : undefined,
       missing: [
         rowId && !row ? "row" : null,
         choiceId && !choice ? "choice" : null,

@@ -20,15 +20,18 @@ economy or requirement wiring.
 ## Working rules
 
 - Always read the relevant skills and the project's `AGENTS.md` before
-  authoring: `.agents/skills/cyoa-authoring/SKILL.md` for domain guidance.
+  authoring; `AGENTS.md` contains the project's CYOA domain guidance.
 - Start from the current state: `view-screen`, then `list-projects` /
   `get-project-context` / `get-project-summary` for the project being worked on.
 - Use `search-project-content` to find saved row/choice/addon passages with
   bounded excerpts, pagination and navigation targets. Use `get-project-plan`
   separately for editorial drafts and notes (editor access).
-- For appearance, `navigate` to the target, then request `capture-viewer` or
-  `view-screen` with `screenshot: true`. Only claim visual inspection when a
+- Prefer `inspect-project` for paginated prose, mechanics, dependencies and reference patterns; retain its revision for edits.
+- For appearance, use `preview-project` to open the viewer, verify its saved revision and capture the target, or `build-project` with `preview: {}`. Only claim visual inspection when a
   vision-capable model received the returned image; report capture limitations.
+- Prefer `build-project` for transactional structures using semantic IDs and `$aliases`. Use `add-addon`, `add-addons`, `update-addon`, `delete-addon` and `list-addons` by addon ID. Never replace sibling addons to edit one.
+- Use `clone-project` for private reference copies; inspect its dependency manifest and limitations.
+- A batch with `committed: true` must not be replayed when preview fails. Retry only preview/capture. `committed: false` means nothing was saved.
 - Build through actions only — `add-row`, `add-choice`, `add-score`,
   `update-*`, `move-*`, `delete-*`, `patch-app-document`. Never raw SQL.
 - After every mutation, re-read the affected rows/choices with `get-project-context`

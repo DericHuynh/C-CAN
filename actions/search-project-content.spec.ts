@@ -5,11 +5,11 @@ import {
   createDefaultChoice,
   createDefaultAddon,
 } from "../shared/cyoa.js";
-import { getProjectOrThrow, newProjectRow } from "./_project-store.js";
+import { getProjectOrThrow, newProjectRow } from "../server/projects/repository.js";
 import search from "./search-project-content.js";
 
-vi.mock("./_project-store.js", async (original) => ({
-  ...(await original<typeof import("./_project-store.js")>()),
+vi.mock("../server/projects/repository.js", async (original) => ({
+  ...(await original<typeof import("../server/projects/repository.js")>()),
   getProjectOrThrow: vi.fn(),
 }));
 const ctx = { caller: "tool" as const, userEmail: "reader@example.test", orgId: "org-a" };
@@ -56,13 +56,16 @@ it("returns paged saved passages including nonselectable content and addon paren
   const second = await search.run({ ...args, query: "star", limit: 2, offset: 2 }, ctx);
   expect(second).toMatchObject({ total: 3, nextOffset: null });
   expect(second.results[0].target).toEqual({
+    projectId: args.projectId,
     rowId: row.id,
     choiceId: choice.id,
     addonId: addon.id,
   });
   const url = new URL(second.results[0].viewerPath, "https://example.test");
   expect(url.pathname).toBe("/projects/p%2F%3F/viewer");
-  expect(Object.fromEntries(url.searchParams)).toEqual(second.results[0].target);
+  const { projectId, ...targetIds } = second.results[0].target;
+  expect(projectId).toBe(args.projectId);
+  expect(Object.fromEntries(url.searchParams)).toEqual(targetIds);
   expect(second.results[0].editorPath).toContain("/editor?");
 });
 
@@ -70,7 +73,7 @@ it("bounds excerpts around matches and omits HTML, media and private drafts", as
   const { choice } = fixture();
   choice.text = `<script>script-secret</script><img src="data:image/png;base64,media-secret">${"before ".repeat(300)}NEEDLE ${"after ".repeat(300)}`;
   choice.image = "image-secret";
-  choice.planning = { notes: "private-note", text: "draft-secret" } as never;
+  Object.assign(choice, { planning: { notes: "private-note", text: "draft-secret" } });
   const result = await search.run({ ...args, query: "needle" }, ctx);
   expect(result.results[0].title).toBe("Sleep & dream");
   expect(result.results[0].excerpt).toContain("NEEDLE");
@@ -108,7 +111,8 @@ it("fails closed for inaccessible projects", async () => {
   await expect(search.run(args, ctx)).rejects.toThrow("Forbidden");
 });
 
-it("validates pagination and query bounds at every action dispatch", () => {
+it("validates pagination and query bounds at every action dispatch", async () => {
+  fixture();
   for (const patch of [
     { limit: 51 },
     { limit: 0 },
@@ -116,12 +120,11 @@ it("validates pagination and query bounds at every action dispatch", () => {
     { offset: 0.5 },
     { query: "x".repeat(201) },
   ]) {
-    expect(search.schema.safeParse({ ...args, ...patch }).success).toBe(false);
+    await expect(search.run({ ...args, ...patch }, ctx)).rejects.toThrow();
   }
-  expect(search.schema.parse({ projectId: "p", offset: "2", limit: "5" })).toMatchObject({
-    query: "",
+  expect(await search.run({ projectId: "p", offset: "2", limit: "5" }, ctx)).toMatchObject({
     offset: 2,
-    limit: 5,
+    total: 3,
   });
   expect(search).toMatchObject({
     readOnly: true,

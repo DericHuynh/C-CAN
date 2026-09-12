@@ -1,23 +1,25 @@
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 import { getDb } from "../server/db/index.js";
-import { projectCreated } from "../server/agent/project-events.js";
+import { projectCreated } from "../server/projects/events.js";
 import { createDefaultApp } from "../shared/cyoa.js";
-import { getProjectOrThrow, newProjectRow } from "./_project-store.js";
+import { getProjectOrThrow, newProjectRow } from "../server/projects/repository.js";
 import create from "./create-project.js";
 import importProject from "./import-project-json.js";
 import duplicate from "./duplicate-project.js";
 
 vi.mock("../server/db/index.js", () => ({ getDb: vi.fn() }));
-vi.mock("../server/agent/project-events.js", () => ({ projectCreated: vi.fn() }));
+vi.mock("../server/projects/events.js", () => ({ projectCreated: vi.fn() }));
 vi.mock("@agent-native/core/notifications", () => ({ notify: vi.fn() }));
 vi.mock("@agent-native/core/progress", () => ({
   startRun: vi.fn(),
   updateRunProgress: vi.fn(),
   completeRun: vi.fn(),
 }));
-vi.mock("./_blob-images.js", () => ({ externalizeAppImages: vi.fn().mockResolvedValue(0) }));
-vi.mock("./_project-store.js", async (original) => ({
-  ...(await original<typeof import("./_project-store.js")>()),
+vi.mock("../server/media/blob-images.js", () => ({
+  externalizeAppImages: vi.fn().mockResolvedValue(0),
+}));
+vi.mock("../server/projects/repository.js", async (original) => ({
+  ...(await original<typeof import("../server/projects/repository.js")>()),
   getProjectOrThrow: vi.fn(),
 }));
 const values = vi.fn();

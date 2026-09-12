@@ -1,10 +1,10 @@
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 import { getVersionedResource } from "@agent-native/core/history";
 import { getReviewableResource } from "@agent-native/core/review";
-import { getProjectOrThrow, saveProject } from "../../actions/_project-store.js";
+import { getProjectOrThrow, saveProject } from "../projects/repository.js";
 import "./project-resources.js";
 
-vi.mock("../../actions/_project-store.js", () => ({
+vi.mock("../projects/repository.js", () => ({
   getProjectOrThrow: vi.fn(),
   saveProject: vi.fn(),
 }));

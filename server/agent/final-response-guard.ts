@@ -12,6 +12,14 @@ import type { AgentLoopFinalResponseGuard } from "@agent-native/core/server";
 
 /** Actions that durably mutate a CYOA project. */
 export const MUTATING_ACTIONS = new Set([
+  "publish-project",
+  "unpublish-project",
+  "rate-publication",
+  "build-project",
+  "clone-project",
+  "add-addon",
+  "add-addons",
+  "update-addon",
   "create-project",
   "import-project-json",
   "duplicate-project",
@@ -52,11 +60,11 @@ export const MUTATING_ACTIONS = new Set([
 
 /** Words a user is likely to use when asking for durable CYOA work. */
 export const MUTATION_INTENT_RE =
-  /\b(create|add|import|build|make|write|edit|update|change|modify|delete|remove|rename|move|duplicate|copy|set|fill|complete)\b/i;
+  /\b(publish|unpublish|rate|create|add|import|build|make|write|edit|update|change|modify|delete|remove|rename|move|duplicate|copy|set|fill|complete)\b/i;
 
 /** Completion claims that need evidence — an action succeeded this turn. */
 export const COMPLETION_CLAIM_RE =
-  /\b(done|created|added|imported|built|wrote|updated|edited|deleted|removed|moved|duplicated|saved|finished|completed)\b/i;
+  /\b(published|unpublished|rated|done|created|added|imported|built|wrote|updated|edited|deleted|removed|moved|duplicated|saved|finished|completed)\b/i;
 
 /**
  * Reject a text-only "done" answer when the user asked for durable work and
@@ -79,9 +87,28 @@ export const finalResponseGuard: AgentLoopFinalResponseGuard = ({
   const attempted = new Set(
     toolCalls.filter((call) => MUTATING_ACTIONS.has(call.name)).map((call) => call.name),
   );
-  const mutationSucceeded = toolResults.some(
-    (result) => attempted.has(result.name) && result.isError === false,
-  );
+  const mutationSucceeded = toolResults.some((result) => {
+    if (!attempted.has(result.name) || result.isError !== false) return false;
+    if (
+      [
+        "build-project",
+        "clone-project",
+        "add-addon",
+        "add-addons",
+        "update-addon",
+        "delete-addon",
+      ].includes(result.name)
+    ) {
+      try {
+        const data = JSON.parse(result.content);
+        if ("committed" in data) return data.committed === true;
+        return data.ok === true; // Legacy positional addon deletion.
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  });
   if (mutationSucceeded) return null;
   return {
     retryMessage:

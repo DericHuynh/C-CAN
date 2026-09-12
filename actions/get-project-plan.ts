@@ -1,4 +1,4 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 import {
@@ -8,7 +8,7 @@ import {
   planningSearchText,
   PLAN_STATUSES,
 } from "../shared/planning.js";
-import { getProjectOrThrow } from "./_project-store.js";
+import { getProjectOrThrow } from "../server/projects/repository.js";
 
 export default defineAction({
   audit: projectAudit,

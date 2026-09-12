@@ -1,8 +1,10 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { assertFound, getProjectOrThrow, reindexChoices, saveProject } from "./_project-store.js";
+import { assertFound } from "../shared/assert.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
+import { reindexChoices } from "../shared/collections.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -18,8 +20,8 @@ export default defineAction({
       .min(0)
       .describe("Target 0-based position in the target row (after removal)"),
   }),
-  run: async ({ projectId, rowId, choiceId, index }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, rowId, choiceId, index }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     const targetRow = app.rows.find((r) => r.id === rowId);
     assertFound(targetRow, `Row "${rowId}" not found in project "${projectId}"`);
     // The choice may live in any row — find its source row, then splice it out
@@ -32,7 +34,7 @@ export default defineAction({
     targetRow.objects.splice(to, 0, choice);
     reindexChoices(sourceRow.objects);
     reindexChoices(targetRow.objects);
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { ok: true };
   },
 });

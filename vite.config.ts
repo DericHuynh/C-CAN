@@ -31,6 +31,26 @@ export default defineConfig(({ mode }) => ({
       "@shared": fileURLToPath(new URL("./shared", import.meta.url)),
     },
   },
+  optimizeDeps: {
+    // File routes and lazy editor panels aren't all reachable from Vite's
+    // initial HTML entry. Discover their dependencies before serving the UI:
+    // discovering them on first navigation rebuilds the prebundle and reloads
+    // the document, sometimes abandoning the in-flight route change.
+    entries: ["app/**/*.{ts,tsx}", "!app/**/*.spec.{ts,tsx}", "!app/entry.server.tsx"],
+    // Core's lazy chat surfaces also import Toolkit leaves which aren't
+    // visible to the app-entry scan. Include their public browser subpaths
+    // together so they can't invalidate already-served shared chunks.
+    include: [
+      "yjs",
+      "y-protocols/awareness",
+      "@agent-native/toolkit/sharing",
+      "@agent-native/toolkit/collab-ui",
+      "@agent-native/toolkit/composer",
+      "@agent-native/toolkit/composer/*",
+      "@agent-native/toolkit/context-ui",
+      "@agent-native/toolkit/ui/*",
+    ],
+  },
   plugins:
     mode === "test"
       ? []

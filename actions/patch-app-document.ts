@@ -1,8 +1,8 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
-import { getProjectOrThrow, saveProject } from "./_project-store.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -14,8 +14,8 @@ export default defineAction({
       .record(z.string(), z.unknown())
       .describe("Top-level app fields to replace wholesale (rows, images, pointTypes, groups, …)"),
   }),
-  run: async ({ projectId, patch }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, patch }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     if (patch.title !== undefined) {
       app.viewerConfig.title = String(patch.title);
     }
@@ -31,7 +31,7 @@ export default defineAction({
       }
       topLevel[key] = value;
     }
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { ok: true };
   },
 });

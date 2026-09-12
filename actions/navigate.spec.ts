@@ -37,3 +37,19 @@ it.each(["https://example.com", "//example.com", "/\\example.com", "/projects\n"
     expect(writeAppStateForCurrentTab).not.toHaveBeenCalled();
   },
 );
+it("accepts generated targets and rejects conflicting inputs before execution", async () => {
+  const result = await navigate.run({ target: { projectId: "p", addonId: "a" } }, ctx);
+  expect(result.resolvedUrl).toBe("/projects/p/viewer?addonId=a");
+  vi.clearAllMocks();
+  await expect(
+    navigate.run({ path: "/projects/p/viewer", target: { projectId: "p" } }, ctx),
+  ).rejects.toThrow(/conflicted/);
+  await expect(
+    navigate.run({ projectId: "other", target: { projectId: "p" } }, ctx),
+  ).rejects.toThrow(/conflicted/);
+  expect(writeAppStateForCurrentTab).not.toHaveBeenCalled();
+});
+it("returns the actual resolved chat and team URLs", async () => {
+  expect((await navigate.run({ view: "chat" }, ctx)).resolvedUrl).toBe("/");
+  expect((await navigate.run({ view: "team" }, ctx)).resolvedUrl).toBe("/settings/organization");
+});

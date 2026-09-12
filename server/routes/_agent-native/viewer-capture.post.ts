@@ -1,7 +1,7 @@
 /** Authenticated binary upload exception; app operations remain actions. */
 import { createError, defineEventHandler } from "h3";
 import { getSession, runWithRequestContext } from "@agent-native/core/server";
-import { acceptViewerCapture } from "../../../actions/_viewer-capture.js";
+import { acceptViewerCapture } from "../../viewer/capture.js";
 import {
   VIEWER_CAPTURE_MAX_BYTES,
   viewerObservationSchema,

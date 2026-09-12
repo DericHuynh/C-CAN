@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { appBasePath, appPath } from "@agent-native/core/client/api-path";
 import { useAgentRouteState } from "@agent-native/core/client/navigation";
 import { useLocation, useNavigate } from "react-router";
@@ -13,6 +14,7 @@ import {
 export function useNavigationState() {
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   useAgentRouteState<NavigationState>({
     browserTabId: TAB_ID,
     requestSource: TAB_ID,
@@ -22,6 +24,8 @@ export function useNavigationState() {
     },
     getCommandPath: (command) => routerPath(command.path || pathForCommand(command)),
     onNavigate: (_command, path) => {
+      if (path.includes("preview="))
+        void queryClient.invalidateQueries({ queryKey: ["action", "get-project"] });
       // Core deliberately skips unchanged URLs. Commit a new location key so
       // an explicit "show that choice again" can refocus an offscreen target.
       if (path === `${location.pathname}${location.search}${location.hash}`)

@@ -1,9 +1,10 @@
-import { projectAudit } from "./_project-audit.js";
+import { projectAudit } from "../server/projects/audit.js";
 import { defineAction } from "@agent-native/core/action";
 import { z } from "zod";
 
 import { createDefaultRow } from "../shared/cyoa.js";
-import { getProjectOrThrow, reindexRows, saveProject } from "./_project-store.js";
+import { getProjectOrThrow, saveProject } from "../server/projects/repository.js";
+import { reindexRows } from "../shared/collections.js";
 
 export default defineAction({
   audit: projectAudit,
@@ -19,8 +20,8 @@ export default defineAction({
         "Row fields to set at creation (title, titleText, objectWidth, image, template, allowedChoices, rowJustify, requireds, styling, groups, isInfoRow, isResultRow, isGroupRow, isButtonRow, …). `id` is always generated.",
       ),
   }),
-  run: async ({ projectId, index, fields }) => {
-    const { app } = await getProjectOrThrow(projectId);
+  run: async ({ projectId, index, fields }, ctx) => {
+    const { app, row: storedProject } = await getProjectOrThrow(projectId, ctx, "editor");
     const insertAt = index ?? app.rows.length;
     const row = createDefaultRow(app, insertAt);
     if (fields) {
@@ -29,7 +30,7 @@ export default defineAction({
     }
     app.rows.splice(insertAt, 0, row);
     reindexRows(app.rows);
-    await saveProject(projectId, app);
+    await saveProject(projectId, app, storedProject.json);
     return { row };
   },
 });

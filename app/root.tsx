@@ -1,10 +1,10 @@
 import { configureTracking } from "@agent-native/core/client/analytics";
 import { appPath } from "@agent-native/core/client/api-path";
-import { useDbSync } from "@agent-native/core/client/hooks";
+import { useDbSync, useSession } from "@agent-native/core/client/hooks";
 import { AppProviders, createAgentNativeQueryClient } from "@agent-native/core/client/hooks";
 import { getLocaleInitScript, useT } from "@agent-native/core/client/i18n";
 import { CommandMenu, useCommandMenuShortcut } from "@agent-native/core/client/navigation";
-import { getThemeInitScript } from "@agent-native/core/client/ui";
+import { getThemeInitScript, RequireSession } from "@agent-native/core/client/ui";
 import { IconHierarchy2, IconSun, IconMoon } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
@@ -93,7 +93,12 @@ function DbSyncSetup() {
  * only ever see public CYOAs read-only.
  */
 function isPublicPathname(pathname: string): boolean {
-  return pathname.startsWith("/projects/");
+  return (
+    pathname.startsWith("/projects/") ||
+    pathname === "/explorer" ||
+    pathname.startsWith("/explorer/") ||
+    pathname.startsWith("/play/")
+  );
 }
 
 function ThemeToggleItem() {
@@ -114,7 +119,6 @@ function ThemeToggleItem() {
 function AppContent() {
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
   const t = useT();
   useCommandMenuShortcut(useCallback(() => setCmdkOpen(true), []));
   return (
@@ -129,6 +133,7 @@ function AppContent() {
           {(
             [
               ["/projects", "navigation.projects"],
+              ["/explorer", "publishing.explorer"],
               ["/", "navigation.chat"],
               ["/settings", "navigation.settings"],
               ["/extensions", "navigation.extensions"],
@@ -140,24 +145,6 @@ function AppContent() {
               {t(label)}
             </CommandMenu.Item>
           ))}
-          {/^\/projects\/[^/]+(?:\/(?:editor|visual-editor|viewer))?\/?$/.test(
-            location.pathname,
-          ) && (
-            <CommandMenu.Item
-              onSelect={() => {
-                const params = new URLSearchParams(location.search);
-                params.set("tab", "plan");
-                params.delete("mode");
-                const projectBase = location.pathname
-                  .replace(/\/(?:editor|visual-editor|viewer)\/?$/, "")
-                  .replace(/\/$/, "");
-                navigate(`${projectBase}/editor?${params}`);
-              }}
-              keywords={["plan", "outline", "draft", "write", "notes"]}
-            >
-              {t("planning.command")}
-            </CommandMenu.Item>
-          )}
           <CommandMenu.Item
             onSelect={() => navigate("/agent")}
             keywords={["agent", "context", "files", "connections", "jobs", "access"]}
@@ -191,20 +178,30 @@ function SessionAwareProviders({
 }: {
   queryClient: ReturnType<typeof createAgentNativeQueryClient>;
 }) {
-  const location = useLocation();
   return (
     <AppProviders
       queryClient={queryClient}
-      // sessionBypass (not isPublicPath): keeps the ClientOnly SSR shell and
-      // only skips RequireSession's redirect, so the app shell stays
-      // SSR-safe and signed-out visitors land on project pages instead of
-      // the sign-in form.
-      sessionBypass={isPublicPathname(location.pathname)}
+      // Keep the provider tree stable across public/private route changes.
+      // SessionAwareApp below owns the same Core session gate.
+      sessionBypass
       i18n={{ catalog: i18nCatalog }}
     >
+      <SessionAwareApp />
+    </AppProviders>
+  );
+}
+
+function SessionAwareApp() {
+  const location = useLocation();
+  const { session } = useSession();
+  return (
+    // Switching RequireSession's bypass changes its component tree. Once
+    // signed in, keep it bypassed on every route so the shell, command menu
+    // and navigation listeners aren't remounted during each app switch.
+    <RequireSession bypass={Boolean(session) || isPublicPathname(location.pathname)}>
       <DbSyncSetup />
       <AppContent />
-    </AppProviders>
+    </RequireSession>
   );
 }
 
